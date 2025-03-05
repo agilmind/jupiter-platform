@@ -3,7 +3,7 @@
   <rect width="800" height="600" fill="#f8f9fa" />
 
   <!-- Título -->
-  <text x="400" y="40" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle">Arquitectura del Worker Framework</text>
+  <text x="400" y="40" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle">Worker Framework Architecture</text>
 
   <!-- Framework Core -->
   <rect x="200" y="80" width="400" height="140" fill="#e9ecef" rx="10" ry="10" stroke="#868e96" stroke-width="2" />
