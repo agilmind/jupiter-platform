@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "title": "Worker Service Generator",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The name of the worker service",
+      "$default": {
+        "$source": "argv",
+        "index": 0
+      },
+      "x-prompt": "What name would you like to use for the worker service?"
+    },
+    "domain": {
+      "type": "string",
+      "description": "The domain of the worker (e.g., scraper, email)",
+      "default": "scraper",
+      "x-prompt": "What domain does this worker service belong to?"
+    }
+  },
+  "required": ["name"]
+}

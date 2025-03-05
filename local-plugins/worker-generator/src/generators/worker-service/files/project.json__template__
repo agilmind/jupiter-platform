@@ -1,0 +1,47 @@
+{
+  "name": "<%= projectName %>",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "<%= projectRoot %>/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/<%= projectRoot %>",
+        "main": "<%= projectRoot %>/src/main.ts",
+        "tsConfig": "<%= projectRoot %>/tsconfig.app.json",
+        "assets": ["<%= projectRoot %>/src/assets"]
+      },
+      "configurations": {
+        "production": {
+          "optimization": true,
+          "extractLicenses": true,
+          "inspect": false
+        }
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "options": {
+        "buildTarget": "<%= projectName %>:build"
+      }
+    },
+    "lint": {
+      "executor": "@nx/linter:eslint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["<%= projectRoot %>/**/*.ts"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["coverage/<%= projectRoot %>"],
+      "options": {
+        "jestConfig": "<%= projectRoot %>/jest.config.ts",
+        "passWithNoTests": true
+      }
+    }
+  },
+  "tags": [<% for(let i=0; i<parsedTags.length; i++) { %>"<%= parsedTags[i] %>"<%= i < parsedTags.length-1 ? ',' : '' %><% } %>]
+}

@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "worker-service": {
+      "factory": "./src/generators/worker-service/generator",
+      "schema": "./src/generators/worker-service/schema.json",
+      "description": "Create a new worker service"
+    }
+  }
+}
