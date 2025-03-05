@@ -48,7 +48,7 @@ jupiter-platform/
 
 ## Creating New Workers
 
-To create a new worker service:
+To create a new worker service, use the direct creation script:
 
 ```bash
 node scripts/create-worker.js <worker-name> <domain>
@@ -56,7 +56,7 @@ node scripts/create-worker.js <worker-name> <domain>
 
 Example:
 ```bash
-npm run create-worker scraper-afip scraper
+node scripts/create-worker.js scraper-afip scraper
 ```
 
 This will create a new worker service in `apps/scraper-afip/` with the basic structure required to implement a scraper service.
@@ -124,7 +124,7 @@ The following NPM scripts are available:
 
 | Script | Description |
 |--------|-------------|
-| `npm run create-worker` | Creates a new worker service |
+| `npm run create-worker` | Shortcut to run the worker creation script |
 | `npm run build` | Builds all projects |
 | `npm run build:framework` | Builds only the framework |
 | `npm run build:email` | Builds the email service |
