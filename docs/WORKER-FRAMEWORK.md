@@ -51,7 +51,7 @@ jupiter-platform/
 To create a new worker service:
 
 ```bash
-npm run create-worker <worker-name> <domain>
+node scripts/create-worker.js <worker-name> <domain>
 ```
 
 Example:
