@@ -2,12 +2,54 @@
   "name": "@jupiter-platform/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "build": "nx run-many --target=build --all",
+    "build:email": "nx build email-service --with-deps",
+    "build:framework": "nx build worker-framework",
+    "serve:email": "node dist/apps/email-service/main.js",
+    "test": "nx run-many --target=test --all"
+  },
   "private": true,
-  "dependencies": {},
   "devDependencies": {
-    "@nx/js": "20.4.6",
+    "@eslint/js": "^9.8.0",
+    "@nx/esbuild": "20.4.6",
+    "@nx/eslint": "20.4.6",
+    "@nx/eslint-plugin": "20.4.6",
+    "@nx/jest": "20.4.6",
+    "@nx/js": "^20.4.6",
+    "@nx/node": "^20.4.6",
     "@nx/workspace": "20.4.6",
-    "nx": "20.4.6"
+    "@swc-node/register": "~1.9.1",
+    "@swc/core": "~1.5.7",
+    "@swc/helpers": "~0.5.11",
+    "@types/amqplib": "^0.10.7",
+    "@types/jest": "^29.5.12",
+    "@types/node": "18.16.9",
+    "@types/nodemailer": "^6.4.17",
+    "esbuild": "^0.19.2",
+    "eslint": "^9.8.0",
+    "eslint-config-prettier": "^9.0.0",
+    "jest": "^29.7.0",
+    "jest-environment-node": "^29.7.0",
+    "nx": "20.4.6",
+    "prettier": "^2.6.2",
+    "ts-jest": "^29.1.0",
+    "ts-node": "10.9.1",
+    "tslib": "^2.3.0",
+    "typescript": "~5.7.2",
+    "typescript-eslint": "^8.19.0",
+    "verdaccio": "^5.0.4"
+  },
+  "dependencies": {
+    "@apollo/client": "^3.13.1",
+    "amqplib": "^0.10.5",
+    "cross-fetch": "^4.1.0",
+    "dotenv": "^16.4.7",
+    "nodemailer": "^6.10.0",
+    "playwright": "^1.50.1",
+    "winston": "^3.17.0"
+  },
+  "nx": {
+    "includedScripts": []
   }
 }

@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  # Mock GraphQL Server (puedes omitir esto y usar un endpoint falso para pruebas)
+  mock-graphql:
+    image: node:18-alpine
+    command: >
+      sh -c "npm install -g json-graphql-server && 
+             echo '{\"tasks\":[{\"id\":\"1\",\"status\":\"PENDING\"}]}' > /tmp/db.json && 
+             json-graphql-server /tmp/db.json --p 4000"
+    ports:
+      - "4000:4000"
+
+volumes:
+  rabbitmq_data:

@@ -1,0 +1,20 @@
+{
+  "name": "test-worker",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "test-worker/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/test-worker",
+        "tsConfig": "test-worker/tsconfig.lib.json",
+        "packageJson": "test-worker/package.json",
+        "main": "test-worker/src/index.ts",
+        "assets": ["test-worker/*.md"]
+      }
+    }
+  }
+}
