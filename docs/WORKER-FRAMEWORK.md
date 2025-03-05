@@ -1,5 +1,7 @@
 # Jupiter Worker Framework Guide
 
+<img src="./worker-architecture.svg" alt="Worker Architecture" width="200" height="200">
+
 This guide explains how to use and extend the Worker Framework for creating asynchronous processing services.
 
 ## Table of Contents

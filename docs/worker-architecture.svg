@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <!-- Fondo -->
+  <rect width="800" height="600" fill="#f8f9fa" />
+
+  <!-- Título -->
+  <text x="400" y="40" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle">Arquitectura del Worker Framework</text>
+
+  <!-- Framework Core -->
+  <rect x="200" y="80" width="400" height="140" fill="#e9ecef" rx="10" ry="10" stroke="#868e96" stroke-width="2" />
+  <text x="400" y="105" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Worker Framework Core</text>
+
+  <!-- Componentes del core -->
+  <rect x="210" y="120" width="120" height="40" fill="#339af0" rx="5" ry="5" />
+  <text x="270" y="144" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">QueueConsumer</text>
+
+  <rect x="340" y="120" width="120" height="40" fill="#339af0" rx="5" ry="5" />
+  <text x="400" y="144" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">RetryManager</text>
+
+  <rect x="470" y="120" width="120" height="40" fill="#339af0" rx="5" ry="5" />
+  <text x="530" y="144" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">ProgressReporter</text>
+
+  <rect x="270" y="170" width="120" height="40" fill="#339af0" rx="5" ry="5" />
+  <text x="330" y="194" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">StateManager</text>
+
+  <rect x="410" y="170" width="120" height="40" fill="#339af0" rx="5" ry="5" />
+  <text x="470" y="194" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">BaseWorker</text>
+
+  <!-- Implementaciones -->
+  <rect x="100" y="270" width="240" height="120" fill="#d0bfff" rx="10" ry="10" stroke="#868e96" stroke-width="2" />
+  <text x="220" y="295" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Email Worker</text>
+
+  <rect x="120" y="310" width="90" height="35" fill="#9775fa" rx="5" ry="5" />
+  <text x="165" y="332" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">GmailProvider</text>
+
+  <rect x="230" y="310" width="90" height="35" fill="#9775fa" rx="5" ry="5" />
+  <text x="275" y="332" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">SmtpProvider</text>
+
+  <rect x="180" y="345" width="90" height="35" fill="#9775fa" rx="5" ry="5" />
+  <text x="225" y="367" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">EmailWorker</text>
+
+  <rect x="460" y="270" width="240" height="120" fill="#c3fae8" rx="10" ry="10" stroke="#868e96" stroke-width="2" />
+  <text x="580" y="295" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Scraper Worker</text>
+
+  <rect x="480" y="310" width="90" height="35" fill="#12b886" rx="5" ry="5" />
+  <text x="525" y="332" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">PlaywrightBot</text>
+
+  <rect x="590" y="310" width="90" height="35" fill="#12b886" rx="5" ry="5" />
+  <text x="635" y="332" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">PuppeteerBot</text>
+
+  <rect x="530" y="345" width="90" height="35" fill="#12b886" rx="5" ry="5" />
+  <text x="575" y="367" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="white">ScraperWorker</text>
+
+  <!-- GraphQL y RabbitMQ -->
+  <rect x="100" y="450" width="240" height="80" fill="#ffc078" rx="10" ry="10" stroke="#868e96" stroke-width="2" />
+  <text x="220" y="492" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">RabbitMQ</text>
+
+  <rect x="460" y="450" width="240" height="80" fill="#74c0fc" rx="10" ry="10" stroke="#868e96" stroke-width="2" />
+  <text x="580" y="492" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">GraphQL API</text>
+
+  <!-- Conexiones -->
+  <!-- Core a Email -->
+  <line x1="220" y1="220" x2="220" y2="270" stroke="#868e96" stroke-width="2" stroke-dasharray="5,5" />
+
+  <!-- Core a Scraper -->
+  <line x1="580" y1="220" x2="580" y2="270" stroke="#868e96" stroke-width="2" stroke-dasharray="5,5" />
+
+  <!-- Email a RabbitMQ -->
+  <line x1="220" y1="390" x2="220" y2="450" stroke="#868e96" stroke-width="2" />
+
+  <!-- Scraper a RabbitMQ -->
+  <path d="M580 390 L580 420 L220 420 L220 450" fill="none" stroke="#868e96" stroke-width="2" />
+
+  <!-- Email a GraphQL -->
+  <path d="M220 390 L220 420 L580 420 L580 450" fill="none" stroke="#868e96" stroke-width="2" />
+
+  <!-- Scraper a GraphQL -->
+  <line x1="580" y1="390" x2="580" y2="450" stroke="#868e96" stroke-width="2" />
+
+  <!-- Leyenda -->
+  <rect x="120" y="540" width="20" height="20" fill="#339af0" rx="3" ry="3" />
+  <text x="150" y="555" font-family="Arial" font-size="12" text-anchor="start">Componentes Core</text>
+
+  <rect x="280" y="540" width="20" height="20" fill="#9775fa" rx="3" ry="3" />
+  <text x="310" y="555" font-family="Arial" font-size="12" text-anchor="start">Email Workers</text>
+
+  <rect x="440" y="540" width="20" height="20" fill="#12b886" rx="3" ry="3" />
+  <text x="470" y="555" font-family="Arial" font-size="12" text-anchor="start">Scraper Workers</text>
+
+  <rect x="600" y="540" width="20" height="20" fill="#74c0fc" rx="3" ry="3" />
+  <text x="630" y="555" font-family="Arial" font-size="12" text-anchor="start">Servicios Externos</text>
+</svg>
