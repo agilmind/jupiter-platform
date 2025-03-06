@@ -18,21 +18,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Configuración de Node.js
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
-      # Instalar dependencias
       - run: npm ci --legacy-peer-deps
 
-      # NUEVO PASO: Compilar el plugin local antes de ejecutar affected
-      - name: Build local plugins
-        run: npx nx build tools/create-worker
+      # NUEVO: Modificar nx.json para desactivar temporalmente el plugin local
+      - name: Disable local plugin for CI
+        run: |
+          sed -i 's|"plugin": "./dist/tools/create-worker"|"plugin": "./dist/tools/create-worker", "disabled": true|g' nx.json
+          cat nx.json
 
-      # Configurar SHA para nx affected
       - uses: nrwl/nx-set-shas@v4
 
-      # Ejecutar los comandos affected
-      - run: npx nx affected -t lint test build
+      # Ejecutar tests excluyendo tools/create-worker
+      - run: npx nx affected -t lint test build --exclude=tools/create-worker
+
+      # OPCIONAL: Compilar y probar el plugin por separado
+      - name: Build and test the plugin
+        run: |
+          npx tsc -p tools/create-worker/tsconfig.json
+          cd tools/create-worker && npx jest
