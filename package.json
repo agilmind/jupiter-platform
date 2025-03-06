@@ -3,31 +3,20 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    // Scripts para crear servicios
     "create-worker": "node scripts/create-worker.js",
-
-    // Scripts de compilación
     "build": "nx run-many --target=build --all",
     "build:framework": "nx build worker-framework",
     "build:email": "nx build email-service --with-deps",
     "build:scraper-anses": "nx build scraper-anses --with-deps",
-
-    // Scripts para servir aplicaciones
     "serve:email": "node dist/apps/email-service/main.js",
     "serve:scraper-anses": "node dist/apps/scraper-anses/main.js",
-
-    // Scripts genéricos con parámetros
     "build:worker": "nx build",
     "serve:worker": "nx serve",
     "lint:worker": "nx lint",
-
-    // Scripts de testing
     "test": "nx run-many --target=test --all",
     "test:framework": "nx test worker-framework",
     "test:email": "nx test email-service",
     "test:scraper-anses": "nx test scraper-anses",
-
-    // Utilidades
     "lint": "nx run-many --target=lint --all",
     "graph": "nx graph",
     "affected": "nx affected",
@@ -43,8 +32,10 @@
     "@nx/jest": "20.4.6",
     "@nx/js": "^20.4.6",
     "@nx/node": "^20.4.6",
+    "@nx/plugin": "^20.4.6",
     "@nx/workspace": "20.4.6",
     "@swc-node/register": "~1.9.1",
+    "@swc/cli": "~0.3.12",
     "@swc/core": "~1.5.7",
     "@swc/helpers": "~0.5.11",
     "@types/amqplib": "^0.10.7",
@@ -67,6 +58,7 @@
   },
   "dependencies": {
     "@apollo/client": "^3.13.1",
+    "@nx/devkit": "20.4.6",
     "amqplib": "^0.10.5",
     "cross-fetch": "^4.1.0",
     "dotenv": "^16.4.7",
@@ -76,5 +68,6 @@
   },
   "nx": {
     "includedScripts": []
-  }
+  },
+  "generators": "./generators.json"
 }

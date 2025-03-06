@@ -1,0 +1,59 @@
+global:
+  scrape_interval: 15s  # Por defecto, raspa los objetivos cada 15 segundos
+  evaluation_interval: 15s  # Evalúa reglas cada 15 segundos
+
+# Reglas de alertas (opcional, para configurar después)
+# rule_files:
+#   - "alerts.yml"
+
+# Configuración de scrape para todos tus servicios
+scrape_configs:
+  # Automonitoreo de Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter (métricas del sistema host)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # cAdvisor (métricas de contenedores Docker)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # PostgreSQL (requiere postgres-exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # RabbitMQ nativo (si tu versión tiene el plugin Prometheus activado)
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+
+  # RabbitMQ alternativo (si usas rabbitmq-exporter)
+  - job_name: 'rabbitmq-exporter'
+    static_configs:
+      - targets: ['rabbitmq-exporter:9419']
+
+  # Nginx (requiere nginx-exporter)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+
+  # API (si tienes instrumentación con Prometheus en tu API)
+  - job_name: 'api'
+    static_configs:
+      - targets: ['api:4000']  # Ajusta el puerto según tu configuración
+
+  # Servicio de Email (si tienes métricas Prometheus expuestas)
+  - job_name: 'email-service'
+    static_configs:
+      - targets: ['email-service:9090']  # Configura el puerto adecuado
+
+  # MySQL (si lo estás usando para WordPress)
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql-exporter:9104']  # Requiere mysql-exporter
