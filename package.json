@@ -39,7 +39,7 @@
     "@swc/helpers": "~0.5.11",
     "@types/amqplib": "^0.10.7",
     "@types/jest": "^29.5.12",
-    "@types/node": "18.16.9",
+    "@types/node": "22.13.1",
     "@types/nodemailer": "^6.4.17",
     "esbuild": "^0.19.2",
     "eslint": "^9.8.0",
