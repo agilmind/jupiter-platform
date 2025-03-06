@@ -13,7 +13,7 @@ const logger = createLogger('worker-generator');
 
 function addToNginxDependsOn(dockerComposeContent, workerName) {
   // Buscar la sección completa de nginx
-  const nginxRegex = /  nginx:[\s\S]*?depends_on:[\s\S]*?((?:      - .*\n)+)(?:    \w|  \w|\}|$)/m;
+  const nginxRegex = / {2}nginx:[\s\S]*?depends_on:[\s\S]*?((?: {6}- .*\n)+)(?: {4}\w| {2}\w|\}|$)/m;
   const nginxMatch = dockerComposeContent.match(nginxRegex);
 
   if (nginxMatch) {
@@ -86,7 +86,7 @@ function addToDockerCompose(tree: Tree, options: WorkerGeneratorSchema, projectN
       - app-network`;
 
   // Agregar el servicio a la sección services
-  const servicesRegex = /services:\s*\n((?:  .*\n)*)/;
+  const servicesRegex = /services:\s*\n((?: {2}.*\n)*)/;
   const servicesMatch = dockerComposeContent.match(servicesRegex);
 
   if (servicesMatch) {

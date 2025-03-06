@@ -1,7 +1,7 @@
 {
   "name": "email-service",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "apps/email-service/src",
+  "sourceRoot": "services/email-service/src",
   "projectType": "application",
   "tags": [],
   "targets": {
@@ -11,12 +11,12 @@
       "defaultConfiguration": "production",
       "options": {
         "platform": "node",
-        "outputPath": "dist/apps/email-service",
+        "outputPath": "dist/services/email-service",
         "format": ["cjs"],
         "bundle": false,
-        "main": "apps/email-service/src/main.ts",
-        "tsConfig": "apps/email-service/tsconfig.app.json",
-        "assets": ["apps/email-service/src/assets"],
+        "main": "services/email-service/src/main.ts",
+        "tsConfig": "services/email-service/tsconfig.app.json",
+        "assets": ["services/email-service/src/assets"],
         "generatePackageJson": true,
         "esbuildOptions": {
           "sourcemap": true,

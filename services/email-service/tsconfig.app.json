@@ -1,9 +1,11 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
     "module": "commonjs",
+    "esModuleInterop": true,
     "types": ["node"]
   },
+  "files": [],
   "include": ["src/**/*.ts"]
 }

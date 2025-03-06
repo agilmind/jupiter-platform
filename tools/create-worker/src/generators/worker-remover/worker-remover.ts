@@ -11,7 +11,7 @@ function removeFromNginxDependsOn(dockerComposeContent, workerName) {
   logger.debug(`Buscando dependencia '${workerName}' en nginx`);
 
   // Buscar la sección nginx
-  const nginxRegex = /  nginx:[\s\S]*?depends_on:[\s\S]*?((?:      - .*\n)+)(?:    \w|  \w|\}|$)/m;
+  const nginxRegex = / {2}nginx:[\s\S]*?depends_on:[\s\S]*?((?: {6}- .*\n)+)(?: {4}\w| {2}\w|\}|$)/m;
   const nginxMatch = dockerComposeContent.match(nginxRegex);
 
   if (nginxMatch) {
