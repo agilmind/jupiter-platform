@@ -1,43 +1,43 @@
-import { ${names.pascalCase}Worker, ${names.pascalCase}WorkerConfig } from './app/${names.fileName}.worker';
+import { <%= className %>Worker, <%= className %>WorkerConfig } from './app/<%= fileName %>.worker';
 import { createLogger } from '@jupiter/worker-framework';
 
-const logger = createLogger('${names.fileName}-service');
+const logger = createLogger('<%= fileName %>-service');
 
 // Leer la configuración del entorno
-const config: ${names.pascalCase}WorkerConfig = {
+const config: <%= className %>WorkerConfig = {
   queue: {
     host: process.env['RABBITMQ_HOST'] || 'localhost',
     port: parseInt(process.env['RABBITMQ_PORT'] || '5672', 10),
     user: process.env['RABBITMQ_USER'] || 'guest',
     password: process.env['RABBITMQ_PASSWORD'] || 'guest',
-    mainQueue: process.env['${names.constantCase}_QUEUE'] || '${names.fileName}',
-    retryQueue: process.env['${names.constantCase}_RETRY_QUEUE'] || '${names.fileName}-retry',
-    deadLetterQueue: process.env['${names.constantCase}_DEAD_LETTER_QUEUE'] || '${names.fileName}-dlq',
-    prefetch: parseInt(process.env['${names.constantCase}_PREFETCH'] || '5', 10)
+    mainQueue: process.env['<%= constantName %>_QUEUE'] || '<%= fileName %>',
+    retryQueue: process.env['<%= constantName %>_RETRY_QUEUE'] || '<%= fileName %>-retry',
+    deadLetterQueue: process.env['<%= constantName %>_DEAD_LETTER_QUEUE'] || '<%= fileName %>-dlq',
+    prefetch: parseInt(process.env['<%= constantName %>_PREFETCH'] || '5', 10)
   },
   retry: {
-    maxRetries: parseInt(process.env['${names.constantCase}_MAX_RETRIES'] || '5', 10),
-    initialDelayMs: parseInt(process.env['${names.constantCase}_INITIAL_RETRY_DELAY'] || '60000', 10),
-    backoffFactor: parseFloat(process.env['${names.constantCase}_BACKOFF_FACTOR'] || '2'),
-    maxDelayMs: parseInt(process.env['${names.constantCase}_MAX_RETRY_DELAY'] || '3600000', 10)
+    maxRetries: parseInt(process.env['<%= constantName %>_MAX_RETRIES'] || '5', 10),
+    initialDelayMs: parseInt(process.env['<%= constantName %>_INITIAL_RETRY_DELAY'] || '60000', 10),
+    backoffFactor: parseFloat(process.env['<%= constantName %>_BACKOFF_FACTOR'] || '2'),
+    maxDelayMs: parseInt(process.env['<%= constantName %>_MAX_RETRY_DELAY'] || '3600000', 10)
   },
   graphql: {
     endpoint: process.env['GRAPHQL_ENDPOINT'] || 'http://localhost:4000/graphql',
     apiKey: process.env['GRAPHQL_API_KEY'] || 'default-api-key'
   },
-  ${domain}: {
+  <%= domain %>: {
     // Configuración específica para este worker
     // Ejemplo:
-    timeout: parseInt(process.env['${names.constantCase}_TIMEOUT'] || '30000', 10),
-    maxConcurrency: parseInt(process.env['${names.constantCase}_MAX_CONCURRENCY'] || '1', 10)
+    timeout: parseInt(process.env['<%= constantName %>_TIMEOUT'] || '30000', 10),
+    maxConcurrency: parseInt(process.env['<%= constantName %>_MAX_CONCURRENCY'] || '1', 10)
   }
 };
 
 // Iniciar el worker
-const ${names.camelCase}Worker = new ${names.pascalCase}Worker(config);
-${names.camelCase}Worker.start()
+const <%= propertyName %>Worker = new <%= className %>Worker(config);
+<%= propertyName %>Worker.start()
   .catch(error => {
-    logger.error('Fatal error starting ${names.fileName} worker', {
+    logger.error('Fatal error starting <%= fileName %> worker', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });

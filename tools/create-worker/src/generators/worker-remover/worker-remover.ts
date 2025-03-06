@@ -119,9 +119,14 @@ export async function workerRemoverGenerator(
     execSync(`nx g @nx/workspace:remove ${workerName} --forceRemove`, { stdio: 'inherit' });
     logger.info(`El worker ${workerName} ha sido eliminado completamente.`);
   } catch (error) {
-    logger.error(`Error al eliminar el proyecto ${workerName}: ${error.message}`);
+    // Si el error indica que el proyecto no existe, no es realmente un error
+    const errorMsg = error.message || '';
+    if (errorMsg.includes('Cannot find configuration for')) {
+      logger.warn(`No se encontró configuración para el proyecto ${workerName}. Es posible que ya haya sido eliminado.`);
+    } else {
+      logger.error(`Error al eliminar el proyecto ${workerName}: ${error.message}`);
+    }
   }
-
   await formatFiles(tree);
 }
 

@@ -25,7 +25,13 @@
       "description": "A brief description of what the worker does",
       "default": "",
       "x-prompt": "Provide a brief description for this worker (optional)"
+    },
+    "domain": {
+      "type": "string",
+      "description": "The domain this worker operates in (snake_case, e.g., 'user_management')",
+      "default": "",
+      "x-prompt": "What domain does this worker operate in? (snake_case)"
     }
   },
-  "required": ["name"]
+  "required": ["name", "domain"]
 }

@@ -7,10 +7,10 @@ import {
   createLogger
 } from '@jupiter/worker-framework';
 
-const logger = createLogger('${names.fileName}-worker');
+const logger = createLogger('<%= fileName %>-worker');
 
 // Interface para tareas específicas de este worker
-export interface ${names.pascalCase}WorkerTask extends WorkerTask {
+export interface <%= className %>WorkerTask extends WorkerTask {
   // Define aquí los campos específicos para este tipo de tarea
   targetId?: string;
   data?: Record<string, any>;
@@ -18,7 +18,7 @@ export interface ${names.pascalCase}WorkerTask extends WorkerTask {
 }
 
 // Resultado de la ejecución de la tarea
-export interface ${names.pascalCase}WorkerResult {
+export interface <%= className %>WorkerResult {
   // Define aquí los campos para el resultado de la tarea
   id: string;
   processedAt: string;
@@ -27,8 +27,8 @@ export interface ${names.pascalCase}WorkerResult {
 }
 
 // Configuración específica del worker
-export interface ${names.pascalCase}WorkerConfig extends WorkerConfig {
-  ${domain}: {
+export interface <%= className %>WorkerConfig extends WorkerConfig {
+  <%= domain %>: {
     // Configuración específica para este worker
     timeout: number;
     maxConcurrency: number;
@@ -36,18 +36,18 @@ export interface ${names.pascalCase}WorkerConfig extends WorkerConfig {
 }
 
 /**
- * Implementación de worker para ${domain}
+ * Implementación de worker para <%= domain %>
  */
-export class ${names.pascalCase}Worker extends BaseWorker<${names.pascalCase}WorkerTask, ${names.pascalCase}WorkerResult> {
-  private ${domain}Config: ${names.pascalCase}WorkerConfig['${domain}'];
+export class <%= className %>Worker extends BaseWorker<<%= className %>WorkerTask, <%= className %>WorkerResult> {
+  private <%= domain %>Config: <%= className %>WorkerConfig['<%= domain %>'];
 
-  constructor(config: ${names.pascalCase}WorkerConfig) {
+  constructor(config: <%= className %>WorkerConfig) {
     super(config);
-    this.${domain}Config = config.${domain};
+    this.<%= domain %>Config = config.<%= domain %>;
 
-    logger.info('${names.pascalCase}Worker created', {
-      timeout: this.${domain}Config.timeout,
-      maxConcurrency: this.${domain}Config.maxConcurrency
+    logger.info('<%= className %>Worker created', {
+      timeout: this.<%= domain %>Config.timeout,
+      maxConcurrency: this.<%= domain %>Config.maxConcurrency
     });
   }
 
@@ -55,7 +55,7 @@ export class ${names.pascalCase}Worker extends BaseWorker<${names.pascalCase}Wor
    * Devuelve el tipo de worker para logs
    */
   protected getWorkerType(): string {
-    return '${domain}';
+    return '<%= domain %>';
   }
 
   /**
@@ -64,14 +64,14 @@ export class ${names.pascalCase}Worker extends BaseWorker<${names.pascalCase}Wor
   protected async initialize(): Promise<void> {
     // Inicializar recursos específicos del worker
     // Ejemplo: conexión a bases de datos, servicios externos, etc.
-    logger.info('${names.pascalCase}Worker initialized');
+    logger.info('<%= className %>Worker initialized');
   }
 
   /**
    * Ejecuta la lógica específica de la tarea
    */
-  protected async executeTask(task: ${names.pascalCase}WorkerTask, context: TaskContext): Promise<${names.pascalCase}WorkerResult> {
-    this.log(context, 'info', \`Executing task \${task.id}\`, { type: task.type });
+  protected async executeTask(task: <%= className %>WorkerTask, context: TaskContext): Promise<<%= className %>WorkerResult> {
+    this.log(context, 'info', `Executing task ${task.id}`, { type: task.type });
 
     try {
       // Implementar la lógica específica de la tarea
@@ -90,7 +90,7 @@ export class ${names.pascalCase}Worker extends BaseWorker<${names.pascalCase}Wor
         data: task.data
       };
     } catch (error) {
-      this.log(context, 'error', \`Error executing task \${task.id}\`, {
+      this.log(context, 'error', `Error executing task ${task.id}`, {
         error: error instanceof Error ? error.message : String(error)
       });
 
@@ -102,7 +102,7 @@ export class ${names.pascalCase}Worker extends BaseWorker<${names.pascalCase}Wor
   /**
    * Determina si un error es permanente
    */
-  protected isPermanentError(error: any, task: ${names.pascalCase}WorkerTask): boolean {
+  protected isPermanentError(error: any, task: <%= className %>WorkerTask): boolean {
     // Si es un WorkerError, usar su propiedad permanent
     if (error instanceof WorkerError) {
       return error.permanent;
@@ -123,8 +123,8 @@ export class ${names.pascalCase}Worker extends BaseWorker<${names.pascalCase}Wor
   /**
    * Devuelve el paso inicial para la tarea
    */
-  protected getInitialStep(task: ${names.pascalCase}WorkerTask): string {
-    return \`Iniciando procesamiento de tarea \${task.type}\`;
+  protected getInitialStep(task: <%= className %>WorkerTask): string {
+    return `Iniciando procesamiento de tarea ${task.type}`;
   }
 
   /**
@@ -133,9 +133,9 @@ export class ${names.pascalCase}Worker extends BaseWorker<${names.pascalCase}Wor
   protected async shutdown(): Promise<void> {
     try {
       // Cerrar recursos específicos
-      logger.info('${names.pascalCase}Worker resources closed');
+      logger.info('<%= className %>Worker resources closed');
     } catch (error) {
-      logger.error('Error closing ${names.pascalCase}Worker resources', {
+      logger.error('Error closing <%= className %>Worker resources', {
         error: error instanceof Error ? error.message : String(error)
       });
     }

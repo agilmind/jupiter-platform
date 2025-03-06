@@ -190,6 +190,8 @@ export async function workerGeneratorGenerator(
     ...projectNames,
     template: '',
     dot: '.',
+    domain: normalizedOptions.domain || projectNames.fileName.replace(/-/g, '_'),
+    constantName: (projectNames.fileName.replace(/-/g, '_')).toUpperCase()
   };
 
   generateFiles(
