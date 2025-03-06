@@ -1,0 +1,52 @@
+{
+  "name": "<%= name %>",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "<%= directory %>/<%= name %>/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/webpack:webpack",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "target": "node",
+        "compiler": "tsc",
+        "outputPath": "dist/<%= directory %>/<%= name %>",
+        "main": "<%= directory %>/<%= name %>/src/main.ts",
+        "tsConfig": "<%= directory %>/<%= name %>/tsconfig.app.json",
+        "assets": [
+          "<%= directory %>/<%= name %>/src/assets"
+        ],
+        "isolatedConfig": true,
+        "webpackConfig": "webpack.config.js"
+      },
+      "configurations": {
+        "development": {},
+        "production": {}
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "<%= name %>:build"
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "<%= name %>:build:development"
+        },
+        "production": {
+          "buildTarget": "<%= name %>:build:production"
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/linter:eslint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["<%= directory %>/<%= name %>/**/*.ts"]
+      }
+    }
+  },
+  "tags": ["type:worker", "scope:backend"]
+}

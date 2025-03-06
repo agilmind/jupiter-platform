@@ -3,7 +3,6 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "create-worker": "node scripts/create-worker.js",
     "build": "nx run-many --target=build --all",
     "build:framework": "nx build worker-framework",
     "build:email": "nx build email-service --with-deps",

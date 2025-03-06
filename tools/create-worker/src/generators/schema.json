@@ -1,17 +1,30 @@
 {
   "$schema": "https://json-schema.org/schema",
   "$id": "WorkerGenerator",
-  "title": "",
+  "title": "Worker Generator",
+  "description": "Creates a new worker based on the worker-framework lib",
   "type": "object",
   "properties": {
     "name": {
       "type": "string",
-      "description": "",
+      "description": "The name of the worker (e.g., 'scraper-dnda')",
       "$default": {
         "$source": "argv",
         "index": 0
       },
-      "x-prompt": "What name would you like to use?"
+      "x-prompt": "What name would you like to give to your worker?"
+    },
+    "directory": {
+      "type": "string",
+      "description": "Directory where the worker will be created",
+      "default": "services",
+      "x-prompt": "Where do you want to create this worker? (Default: services)"
+    },
+    "description": {
+      "type": "string",
+      "description": "A brief description of what the worker does",
+      "default": "",
+      "x-prompt": "Provide a brief description for this worker (optional)"
     }
   },
   "required": ["name"]

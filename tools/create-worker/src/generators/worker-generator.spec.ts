@@ -2,11 +2,11 @@ import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { Tree, readProjectConfiguration } from '@nx/devkit';
 
 import { workerGeneratorGenerator } from './worker-generator';
-import { WorkerGeneratorGeneratorSchema } from './schema';
+import { WorkerGeneratorSchema } from './schema';
 
 describe('worker-generator generator', () => {
   let tree: Tree;
-  const options: WorkerGeneratorGeneratorSchema = { name: 'test' };
+  const options: WorkerGeneratorSchema = { name: 'test', directory: 'services', description: 'test' };
 
   beforeEach(() => {
     tree = createTreeWithEmptyWorkspace();
