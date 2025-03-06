@@ -3,7 +3,12 @@
     "worker-generator": {
       "factory": "./src/generators/worker-generator",
       "schema": "./src/generators/schema.json",
-      "description": "worker-generator generator"
+      "description": "Creates a new worker based on the worker-framework lib"
+    },
+    "worker-remover": {
+      "factory": "./src/generators/worker-remover/worker-remover",
+      "schema": "./src/generators/worker-remover/schema.json",
+      "description": "Removes a worker and its docker-compose entry"
     }
   }
 }

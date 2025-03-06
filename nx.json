@@ -59,6 +59,9 @@
       "options": {
         "targetName": "test"
       }
+    },
+    {
+      "plugin": "./dist/tools/create-worker"
     }
   ],
   "generators": {

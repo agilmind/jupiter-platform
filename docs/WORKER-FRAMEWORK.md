@@ -48,18 +48,28 @@ jupiter-platform/
 
 ## Creating New Workers
 
+To ensure that it is compiled:
+```bash
+nx build tools/create-worker
+```
+
 To create a new worker service, use the direct creation script:
 
 ```bash
-node scripts/create-worker.js <worker-name> <domain>
+nx g scripts/create-worker.js <worker-name>
 ```
 
 Example:
 ```bash
-node scripts/create-worker.js scraper-afip scraper
+nx g create-worker:worker-generator scraper-anses
 ```
 
-This will create a new worker service in `apps/scraper-afip/` with the basic structure required to implement a scraper service.
+This will create a new worker service in `services/scraper-anses/` with the basic structure required to implement a scraper service.
+
+To remove:
+```bash
+nx generate @nx/workspace:remove scraper-anses
+```
 
 ### Worker Service Structure
 
