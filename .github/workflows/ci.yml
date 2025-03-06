@@ -25,19 +25,19 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
-      # NUEVO: Modificar nx.json para desactivar temporalmente el plugin local
-      - name: Disable local plugin for CI
+      # ELIMINACIÓN COMPLETA del plugin para CI
+      - name: Remove plugin for CI
         run: |
-          sed -i 's|"plugin": "./dist/tools/create-worker"|"plugin": "./dist/tools/create-worker", "disabled": true|g' nx.json
+          node -e "const fs = require('fs'); const config = JSON.parse(fs.readFileSync('nx.json', 'utf8')); config.plugins = config.plugins.filter(p => p.plugin !== './dist/tools/create-worker'); fs.writeFileSync('nx.json', JSON.stringify(config, null, 2));"
           cat nx.json
 
       - uses: nrwl/nx-set-shas@v4
 
-      # Ejecutar tests excluyendo tools/create-worker
-      - run: npx nx affected -t lint test build --exclude=tools/create-worker
+      - run: npx nx affected -t lint test build
 
-      # OPCIONAL: Compilar y probar el plugin por separado
-      - name: Build and test the plugin
+      # OPCIONAL: Compilar y probar el plugin por separado de manera manual
+      - name: Build and test plugin manually
         run: |
-          npx tsc -p tools/create-worker/tsconfig.json
-          cd tools/create-worker && npx jest
+          cd tools/create-worker
+          npx tsc -p tsconfig.json
+          npx jest
