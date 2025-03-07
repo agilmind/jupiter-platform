@@ -1,8 +1,8 @@
 // tools/haiku/src/generators/init-haiku/init-haiku.ts
 import { Tree, formatFiles, logger } from '@nx/devkit';
 import { validateHaikuGitState, setupHaikuBranches } from '../../utils/git';
+import { InitHaikuGeneratorSchema } from './schema';
 
-export interface InitHaikuGeneratorSchema {}
 
 export async function initHaikuGenerator(
   tree: Tree,
