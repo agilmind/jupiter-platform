@@ -29,23 +29,22 @@ export async function addApolloPrismaGenerator(
 
   try {
     // 2. Hacer checkout al branch base
-    const originalBranch = getCurrentBranch();
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
 
-    // 3. Crear el servicio en el branch base - CORREGIDO: especifica correctamente la ruta
+    // 3. Crear el servicio en el branch base
     execSync(`npx nx g @nx/node:app ${serviceName} --directory=services --no-interactive`, { stdio: 'inherit' });
 
-    // 4. Instalar dependencias - CORREGIDO: añadir --legacy-peer-deps para evitar conflictos
+    // 4. Instalar dependencias
     logger.info('Installing dependencies...');
-    execSync(`npm install apollo-server graphql @prisma/client --save --legacy-peer-deps`, { stdio: 'inherit' });
+    execSync(`npm install @apollo/server graphql @prisma/client --save --legacy-peer-deps`, { stdio: 'inherit' });
     execSync(`npm install prisma --save-dev --legacy-peer-deps`, { stdio: 'inherit' });
 
     // 5. Generar archivos
     generateFiles(
       tree,
       path.join(__dirname, '../files/apollo-prisma/src'),
-      `${projectRoot}/src`,
+      `services/${serviceName}/src`,
       {
         ...options,
         template: '',
@@ -53,8 +52,8 @@ export async function addApolloPrismaGenerator(
     );
 
     // 6. Crear la carpeta prisma y su schema
-    if (!tree.exists(`${projectRoot}/prisma`)) {
-      tree.mkdir(`${projectRoot}/prisma`);
+    if (!tree.exists(`services/${serviceName}/prisma`)) {
+      tree.write(`services/${serviceName}/prisma/.gitkeep`, '');
     }
 
     const prismaSchema = `
@@ -68,16 +67,26 @@ datasource db {
 }
 `;
 
-    tree.write(`${projectRoot}/prisma/schema.prisma`, prismaSchema);
+    tree.write(`services/${serviceName}/prisma/schema.prisma`, prismaSchema);
 
-    // 7. Commit los cambios en base
+    // Aplicar los cambios del Tree y esperar a que se escriban en disco
+    await formatFiles(tree);
+
+    // 7. CRÍTICO: Asegurarse de añadir todos los archivos - CORREGIDO
+    logger.info('Adding all generated files to Git...');
+    execSync('git add --all', { stdio: 'inherit' });
+
+    // 8. Verificar si hay cambios para confirmar
     if (hasUncommittedChanges()) {
-      addFiles('.');
+      logger.info('Changes detected, creating commit...');
+      // No es necesario llamar a addFiles() ya que ya hemos hecho git add --all
       commit(`Add Apollo+Prisma service: ${serviceName}`);
       logger.info(`Changes committed to base branch`);
+    } else {
+      logger.info('No changes to commit');
     }
 
-    // 8. Intentar merge a develop - CORREGIDO: asegurar que estamos en develop antes de hacer merge
+    // 9. Intentar merge a develop
     try {
       createAndCheckoutBranch('develop');
       logger.info('Switched to develop branch');
@@ -91,19 +100,17 @@ datasource db {
       logger.info('After resolving conflicts, commit your changes and continue.');
     }
 
-    await formatFiles(tree);
-
     logger.info(`✅ Apollo+Prisma service ${serviceName} created successfully!`);
     logger.info('');
     logger.info('Next steps:');
-    logger.info(`1. Run: npx nx serve ${projectRoot}`);
+    logger.info(`1. Run: npx nx serve services-${serviceName}`);
     logger.info(`2. Open http://localhost:4000 in your browser`);
 
     return () => {
       installPackagesTask(tree);
     };
   } catch (error) {
-    // En caso de error, intentamos volver al branch original
+    // En caso de error, intentamos volver al branch develop
     try {
       createAndCheckoutBranch('develop');
     } catch (gitError) {

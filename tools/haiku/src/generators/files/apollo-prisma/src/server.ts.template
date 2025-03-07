@@ -1,11 +1,12 @@
-import { ApolloServer, gql } from 'apollo-server';
+import { ApolloServer } from '@apollo/server';
+import { startStandaloneServer } from '@apollo/server/standalone';
 import { PrismaClient } from '@prisma/client';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
 
 // Define a simple schema
-const typeDefs = gql`
+const typeDefs = `#graphql
   type Query {
     hello: String
   }
@@ -23,11 +24,14 @@ async function bootstrap() {
   const server = new ApolloServer({
     typeDefs,
     resolvers,
-    context: () => ({ prisma }),
   });
 
   // Start the server
-  const { url } = await server.listen(process.env.PORT || 4000);
+  const { url } = await startStandaloneServer(server, {
+    context: async () => ({ prisma }),
+    listen: { port: parseInt(process.env.PORT || '4000') }
+  });
+
   console.log(`🚀 Server ready at ${url}`);
   console.log(`Try your first query: { hello }`);
 }

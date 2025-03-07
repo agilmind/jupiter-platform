@@ -1,4 +1,3 @@
-// tools/haiku/src/utils/git.ts
 import { logger } from '@nx/devkit';
 import { execSync } from 'child_process';
 
@@ -213,6 +212,8 @@ export function setupHaikuBranches(options: GitOptions = {}): void {
 
     // Crear o cambiar a branch develop
     createAndCheckoutBranch('develop', options);
+    execGitCommand(`checkout main`);
+
     logger.info('Successfully set up Haiku branches (base, develop)');
   } catch (error) {
     logger.error(`Failed to set up Haiku branches: ${error instanceof Error ? error.message : String(error)}`);
