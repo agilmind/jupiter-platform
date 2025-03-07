@@ -2,6 +2,7 @@ import { Tree, formatFiles, logger, installPackagesTask, generateFiles } from '@
 import { execSync } from 'child_process';
 import { validateHaikuGitState, createAndCheckoutBranch, hasUncommittedChanges, commit } from './git';
 import * as fs from 'fs';
+import * as path from 'path';
 
 export interface AddProjectOptions {
   name: string;
@@ -28,18 +29,18 @@ export async function generateProject(
     return;
   }
 
-  // Determinar directorio y nombre de proyecto según el tipo
+  // Determinar directorio y nombre de proyecto
   const directoryPrefix = options.projectType === 'app' ? 'apps' : 'services';
   const projectPrefix = options.projectType === 'app' ? 'app' : 'services';
 
   const projectDir = `${directoryPrefix}/${options.name}`;
   const projectName = `${projectPrefix}-${options.name}`;
 
-  // Verificar si el proyecto ya existe físicamente
-  const projectDirExists = fs.existsSync(projectDir);
+  // Verificar si el proyecto ya existe
+  const projectExists = fs.existsSync(projectDir);
 
   // Si existe y no está en modo update, preguntar al usuario
-  if (projectDirExists && !options.update) {
+  if (projectExists && !options.update) {
     const readline = require('readline').createInterface({
       input: process.stdin,
       output: process.stdout
@@ -66,38 +67,57 @@ export async function generateProject(
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
 
-    // 3. Manejo de proyecto existente
-    let needToCreateProject = true;
+    // 3. ENFOQUE DIFERENTE: No intentamos recrear el proyecto NX si ya existe
+    if (!projectExists) {
+      // Solo crear el proyecto si NO existe
+      logger.info(`Creating new project at ${projectDir}...`);
+      execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
+    } else {
+      logger.info(`Project already exists, skipping creation step`);
 
-    if (projectDirExists) {
-      logger.info(`Handling existing project...`);
+      // Limpiar el directorio pero preservar project.json y tsconfig.json
+      logger.info(`Cleaning project directory...`);
 
-      // 3.1 Primero eliminar el proyecto de NX
-      try {
-        execSync(`npx nx g @nx/workspace:remove ${projectName} --forceRemove`, { stdio: 'inherit' });
-        logger.info(`Removed project from NX workspace`);
-      } catch (error) {
-        logger.warn(`Could not remove project from NX workspace, continuing anyway`);
+      // Guardar archivos de configuración importante
+      const projectJsonPath = `${projectDir}/project.json`;
+      const tsConfigJsonPath = `${projectDir}/tsconfig.json`;
+      let projectJsonContent = null;
+      let tsConfigJsonContent = null;
+
+      if (fs.existsSync(projectJsonPath)) {
+        projectJsonContent = fs.readFileSync(projectJsonPath, 'utf8');
       }
 
-      // 3.2 Ahora eliminar el directorio físico
-      try {
-        execSync(`rm -rf ${projectDir}`, { stdio: 'inherit' });
-        logger.info(`Removed project directory ${projectDir}`);
-      } catch (error) {
-        logger.error(`Failed to remove directory: ${error instanceof Error ? error.message : String(error)}`);
-        return;
+      if (fs.existsSync(tsConfigJsonPath)) {
+        tsConfigJsonContent = fs.readFileSync(tsConfigJsonPath, 'utf8');
       }
 
-      // 3.3 Esperar un poco para que el sistema de archivos se actualice
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Limpiar archivos pero no el directorio en sí
+      const filesToExclude = ['project.json', 'tsconfig.json'];
+      const files = fs.readdirSync(projectDir);
+
+      for (const file of files) {
+        if (!filesToExclude.includes(file)) {
+          const filePath = path.join(projectDir, file);
+          if (fs.lstatSync(filePath).isDirectory()) {
+            fs.rmSync(filePath, { recursive: true, force: true });
+          } else {
+            fs.unlinkSync(filePath);
+          }
+        }
+      }
+
+      // Restaurar archivos de configuración si existían
+      if (projectJsonContent) {
+        fs.writeFileSync(projectJsonPath, projectJsonContent);
+      }
+
+      if (tsConfigJsonContent) {
+        fs.writeFileSync(tsConfigJsonPath, tsConfigJsonContent);
+      }
     }
 
-    // 4. Generar un nuevo proyecto
-    logger.info(`Creating new project at ${projectDir}...`);
-    execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
-
-    // 5. Instalar dependencias
+    // 4. Instalar dependencias
     if (options.dependencies) {
       logger.info('Installing dependencies...');
 
@@ -107,6 +127,14 @@ export async function generateProject(
 
       if (options.dependencies.dev && options.dependencies.dev.length > 0) {
         execSync(`npm install ${options.dependencies.dev.join(' ')} --save-dev --legacy-peer-deps`, { stdio: 'inherit' });
+      }
+    }
+
+    // 5. Crear estructura de directorios si no existe
+    for (const subDir of ['src', 'src/app', 'prisma']) {
+      const fullSubDir = path.join(projectDir, subDir);
+      if (!fs.existsSync(fullSubDir)) {
+        fs.mkdirSync(fullSubDir, { recursive: true });
       }
     }
 
@@ -138,7 +166,7 @@ export async function generateProject(
       execSync('git add --all', { stdio: 'inherit' });
 
       if (hasUncommittedChanges()) {
-        const action = projectDirExists ? 'Update' : 'Add';
+        const action = projectExists ? 'Update' : 'Add';
         commit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
         logger.info(`Changes committed to base branch`);
       }
@@ -151,11 +179,11 @@ export async function generateProject(
       logger.info('Successfully merged from base to develop');
 
       if (hasUncommittedChanges()) {
-        const action = projectDirExists ? 'Update' : 'Complete';
+        const action = projectExists ? 'Update' : 'Complete';
         commit(`${action} ${options.type} ${options.projectType} setup: ${options.name}`);
       }
 
-      const action = projectDirExists ? 'updated' : 'created';
+      const action = projectExists ? 'updated' : 'created';
       logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${action} successfully!`);
 
       // Instalar dependencias
@@ -169,7 +197,7 @@ export async function generateProject(
       // Ignorar errores de Git
     }
 
-    logger.error(`Failed to ${projectDirExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }
