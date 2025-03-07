@@ -9,7 +9,6 @@ export async function projectGenerator(
   tree: Tree,
   options: ProjectGeneratorSchema
 ) {
-  // Seleccionar configuración según el tipo
   let configs: Record<ProjectTypes, (options: ProjectGeneratorSchema) => AddProjectOptions>;
   configs = {
     'apollo-prisma': configureApolloPrisma,
@@ -17,20 +16,15 @@ export async function projectGenerator(
     'react-native': configureReactNative
   };
 
-  // Usar la configuración específica para este tipo
   if (!configs[options.type]) {
     logger.error(`Unknown project type: ${options.type}`);
     return;
   }
 
-  // Obtener configuración específica
   const config: AddProjectOptions = configs[options.type](options);
 
-  // Generar proyecto
   return generateProject(tree, {
     ...config,
     update: options.update
   });
 }
-
-export default projectGenerator;

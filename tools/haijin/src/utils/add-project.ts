@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 import { validateHaikuGitState, createAndCheckoutBranch, hasUncommittedChanges, commit } from './git';
 import * as fs from 'fs';
 import * as path from 'path';
+import process from 'node:process';
 
 export interface AddProjectOptions {
   name: string;
