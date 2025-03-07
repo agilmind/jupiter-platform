@@ -2,15 +2,15 @@ import { Tree, logger } from '@nx/devkit';
 import * as path from 'path';
 import * as fs from 'fs';
 import { AddApolloPrismaGeneratorSchema } from './schema';
-import { generateService } from '../../utils/add-service';
+import { generateProject } from '../../utils/add-project';
 
 export async function addApolloPrismaGenerator(
   tree: Tree,
   options: AddApolloPrismaGeneratorSchema
 ) {
-  // Función para actualizar project.json para Apollo+Prisma
-  const updateProjectConfig = (serviceDir: string) => {
-    const projectJsonPath = `${serviceDir}/project.json`;
+  // Función para actualizar project.json
+  const updateProjectConfig = (projectDir: string, projectName: string) => {
+    const projectJsonPath = `${projectDir}/project.json`;
     if (fs.existsSync(projectJsonPath)) {
       const projectJson = JSON.parse(fs.readFileSync(projectJsonPath, 'utf8'));
 
@@ -25,7 +25,7 @@ export async function addApolloPrismaGenerator(
           "executor": "@nx/js:node",
           "options": {
             "command": "npx prisma generate",
-            "cwd": serviceDir
+            "cwd": projectDir
           }
         };
 
@@ -33,7 +33,7 @@ export async function addApolloPrismaGenerator(
           "executor": "@nx/js:node",
           "options": {
             "command": "npx prisma migrate dev",
-            "cwd": serviceDir
+            "cwd": projectDir
           }
         };
       }
@@ -42,25 +42,27 @@ export async function addApolloPrismaGenerator(
     }
   };
 
-  // Generar el servicio usando la función común
-  const result = await generateService(tree, {
+  // Generar el proyecto
+  const task = await generateProject(tree, {
     ...options,
     type: 'Apollo+Prisma',
+    projectType: 'service',  // Especificamos que es un servicio
+    generator: '@nx/node:app',
     dependencies: {
       prod: ['@apollo/server', 'graphql', '@prisma/client'],
       dev: ['prisma']
     },
-    templatePath: path.join(__dirname, '../files/apollo-prisma'),
+    templatePath: path.join(__dirname, '../../files/apollo-prisma'),
     projectUpdates: updateProjectConfig
   });
 
-  // Instrucciones específicas
+  // Mostrar instrucciones específicas
   logger.info('Next steps:');
   logger.info(`1. Run: npx nx serve services-${options.name}`);
   logger.info(`2. Open http://localhost:4000 in your browser`);
   logger.info(`3. Generate Prisma client: npx nx run services-${options.name}:prisma-generate`);
 
-  return result;
+  return task;  // Devolvemos la tarea para que NX la ejecute después
 }
 
 export default addApolloPrismaGenerator;
