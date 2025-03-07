@@ -1,4 +1,4 @@
-import { Tree, formatFiles, logger, installPackagesTask, generateFiles } from '@nx/devkit';
+import { Tree, formatFiles, logger, installPackagesTask } from '@nx/devkit';
 import { execSync } from 'child_process';
 import { AddApolloPrismaGeneratorSchema } from './schema';
 import * as path from 'path';
@@ -22,7 +22,8 @@ export async function addApolloPrismaGenerator(
   }
 
   const serviceName = options.name;
-  const projectName = "services";  // NX crea un proyecto llamado "services"
+  const projectName = `services-${serviceName}`;  // Nombre del proyecto en NX
+  const serviceDir = `services/${serviceName}`;    // Directorio físico
 
   logger.info(`Adding minimal Apollo+Prisma service: ${serviceName}`);
 
@@ -31,34 +32,18 @@ export async function addApolloPrismaGenerator(
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
 
-    // Crear la app base SOLO si no existe
-    if (!fs.existsSync(projectName)) {
-      execSync(`npx nx g @nx/node:app ${projectName} --no-interactive`, { stdio: 'inherit' });
+    // Paso 2: Crear un proyecto NX para este servicio específico
+    execSync(`npx nx g @nx/node:app ${projectName} --directory=${serviceDir} --no-interactive`, { stdio: 'inherit' });
 
-      // Instalar dependencias globales necesarias para Apollo+Prisma
-      logger.info('Installing dependencies...');
-      execSync(`npm install @apollo/server graphql @prisma/client --save --legacy-peer-deps`, { stdio: 'inherit' });
-      execSync(`npm install prisma --save-dev --legacy-peer-deps`, { stdio: 'inherit' });
-    } else {
-      logger.info('Service directory already exists, skipping project creation');
-    }
+    // Instalar dependencias
+    logger.info('Installing dependencies...');
+    execSync(`npm install @apollo/server graphql @prisma/client --save --legacy-peer-deps`, { stdio: 'inherit' });
+    execSync(`npm install prisma --save-dev --legacy-peer-deps`, { stdio: 'inherit' });
 
-    // Paso 2: Crear la estructura específica para este servicio (services/apollo-prisma)
-    const serviceDir = `${projectName}/${serviceName}`;
-
-    // Crear directorios
-    if (!fs.existsSync(serviceDir)) {
-      fs.mkdirSync(serviceDir, { recursive: true });
-    }
-    if (!fs.existsSync(`${serviceDir}/src`)) {
-      fs.mkdirSync(`${serviceDir}/src`, { recursive: true });
-    }
+    // Paso 3: Crear estructura específica para Apollo+Prisma
     if (!fs.existsSync(`${serviceDir}/prisma`)) {
       fs.mkdirSync(`${serviceDir}/prisma`, { recursive: true });
     }
-
-    // Generar archivos directamente con fs
-    logger.info(`Creating Apollo+Prisma files in ${serviceDir}`);
 
     // Contenido de server.ts
     const serverContent = `
@@ -121,8 +106,43 @@ datasource db {
 }
 `;
 
-    // Escribir archivos
+    // Escribir archivo server.ts (reemplazar main.ts)
     fs.writeFileSync(`${serviceDir}/src/server.ts`, serverContent);
+
+    // Cambiar la referencia en project.json de main.ts a server.ts
+    const projectJsonPath = `${serviceDir}/project.json`;
+    if (fs.existsSync(projectJsonPath)) {
+      const projectJson = JSON.parse(fs.readFileSync(projectJsonPath, 'utf8'));
+
+      // Actualizar build.options.main para usar server.ts en lugar de main.ts
+      if (projectJson.targets?.build?.options?.main) {
+        projectJson.targets.build.options.main = projectJson.targets.build.options.main.replace('main.ts', 'server.ts');
+      }
+
+      // Añadir configuración para prisma
+      if (projectJson.targets) {
+        projectJson.targets['prisma-generate'] = {
+          "executor": "@nx/js:node",
+          "options": {
+            "command": "npx prisma generate",
+            "cwd": serviceDir
+          }
+        };
+
+        projectJson.targets['prisma-migrate'] = {
+          "executor": "@nx/js:node",
+          "options": {
+            "command": "npx prisma migrate dev",
+            "cwd": serviceDir
+          }
+        };
+      }
+
+      // Guardar project.json actualizado
+      fs.writeFileSync(projectJsonPath, JSON.stringify(projectJson, null, 2));
+    }
+
+    // Escribir archivos específicos de Prisma
     fs.writeFileSync(`${serviceDir}/.env`, envContent);
     fs.writeFileSync(`${serviceDir}/prisma/schema.prisma`, prismaSchema);
     fs.writeFileSync(`${serviceDir}/prisma/.gitkeep`, '');
@@ -137,7 +157,7 @@ datasource db {
       logger.info(`Changes committed to base branch`);
     }
 
-    // Paso 3: Merge a develop
+    // Paso 4: Merge a develop
     createAndCheckoutBranch('develop');
     logger.info('Switched to develop branch');
 
@@ -153,9 +173,9 @@ datasource db {
     logger.info(`✅ Apollo+Prisma service ${serviceName} created successfully!`);
     logger.info('');
     logger.info('Next steps:');
-    logger.info(`1. Configure package.json to add a script for this service`);
-    logger.info(`2. Run server with: node services/${serviceName}/src/server.js`);
-    logger.info(`3. Open http://localhost:4000 in your browser`);
+    logger.info(`1. Run: npx nx serve ${projectName}`);
+    logger.info(`2. Open http://localhost:4000 in your browser`);
+    logger.info(`3. Generate Prisma client: npx nx run ${projectName}:prisma-generate`);
 
     return () => {
       installPackagesTask(tree);
