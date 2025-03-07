@@ -2,8 +2,8 @@ import { Tree, logger } from '@nx/devkit';
 import { ProjectGeneratorSchema, ProjectTypes } from './schema';
 import { AddProjectOptions, generateProject } from '../../utils/add-project';
 import { configureApolloPrisma } from '../apollo-prisma/config';
-import { configureReact } from '../add-react/config';
-import { configureReactNative } from '../add-react-native/config';
+import { configureReact } from '../react/config';
+import { configureReactNative } from '../react-native/config';
 
 export async function projectGenerator(
   tree: Tree,
