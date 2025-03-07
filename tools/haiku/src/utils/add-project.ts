@@ -66,26 +66,38 @@ export async function generateProject(
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
 
-    // Si estamos actualizando, eliminar el proyecto anterior en base
+    // 3. Manejo de proyecto existente
+    let needToCreateProject = true;
+
     if (projectDirExists) {
-      logger.info(`Removing existing project from base branch...`);
+      logger.info(`Handling existing project...`);
 
-      // Eliminar físicamente el directorio
-      execSync(`rm -rf ${projectDir}`, { stdio: 'inherit' });
-
-      // Intentar eliminar el proyecto de la configuración de NX
+      // 3.1 Primero eliminar el proyecto de NX
       try {
-        execSync(`npx nx g @nx/workspace:remove ${projectName} --forceRemove`, { stdio: 'ignore' });
+        execSync(`npx nx g @nx/workspace:remove ${projectName} --forceRemove`, { stdio: 'inherit' });
+        logger.info(`Removed project from NX workspace`);
       } catch (error) {
-        // Ignorar errores si el proyecto no existe en la configuración
-        logger.debug('Note: Project may not exist in NX workspace, continuing...');
+        logger.warn(`Could not remove project from NX workspace, continuing anyway`);
       }
+
+      // 3.2 Ahora eliminar el directorio físico
+      try {
+        execSync(`rm -rf ${projectDir}`, { stdio: 'inherit' });
+        logger.info(`Removed project directory ${projectDir}`);
+      } catch (error) {
+        logger.error(`Failed to remove directory: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+
+      // 3.3 Esperar un poco para que el sistema de archivos se actualice
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // 3. Generar proyecto con NX (ahora con --force para ignorar cualquier registro previo)
-    execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive --force`, { stdio: 'inherit' });
+    // 4. Generar un nuevo proyecto
+    logger.info(`Creating new project at ${projectDir}...`);
+    execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
 
-    // 4. Instalar dependencias
+    // 5. Instalar dependencias
     if (options.dependencies) {
       logger.info('Installing dependencies...');
 
@@ -98,7 +110,8 @@ export async function generateProject(
       }
     }
 
-    // 5. Generar archivos específicos desde templates
+    // 6. Generar archivos específicos
+    logger.info('Generating template files...');
     generateFiles(
       tree,
       options.templatePath,
@@ -110,15 +123,15 @@ export async function generateProject(
       }
     );
 
-    // 6. Aplicar actualizaciones específicas
+    // 7. Aplicar actualizaciones específicas
     if (options.projectUpdates) {
       options.projectUpdates(projectDir, projectName);
     }
 
-    // 7. Formatear y escribir cambios a disco
+    // 8. Formatear y escribir cambios
     await formatFiles(tree);
 
-    // 8. IMPORTANTE: Devolvemos una función task que se ejecutará después de escribir todo a disco
+    // 9. Función de task
     return () => {
       // Git: add y commit
       logger.info('Adding all generated files to Git...');
