@@ -1,9 +1,8 @@
 import { Tree, formatFiles, logger, installPackagesTask, generateFiles } from '@nx/devkit';
 import { execSync } from 'child_process';
-import { validateHaikuGitState, createAndCheckoutBranch, hasUncommittedChanges, commit } from './git';
+import { validateHaijinGitState, createAndCheckoutBranch, hasUncommittedChanges, commit } from './git';
 import * as fs from 'fs';
 import * as path from 'path';
-import process from 'node:process';
 
 export interface AddProjectOptions {
   name: string;
@@ -24,7 +23,7 @@ export async function generateProject(
   options: AddProjectOptions
 ) {
   // 1. Validar estado de Git
-  const gitStatus = validateHaikuGitState();
+  const gitStatus = validateHaijinGitState();
   if (!gitStatus.valid) {
     logger.error(gitStatus.message);
     return;

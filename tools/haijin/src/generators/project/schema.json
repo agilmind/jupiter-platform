@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/schema",
   "$id": "AddProject",
   "title": "Add Service or Application",
-  "description": "Add a Service or an Application to your Haiku workspace",
+  "description": "Add a Service or an Application to your Haijin workspace",
   "type": "object",
   "properties": {
     "name": {

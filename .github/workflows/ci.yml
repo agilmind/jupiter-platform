@@ -28,7 +28,7 @@ jobs:
       # ELIMINACIÓN COMPLETA de los plugins locales para CI
       - name: Remove local plugins for CI
         run: |
-          node -e "const fs = require('fs'); const config = JSON.parse(fs.readFileSync('nx.json', 'utf8')); config.plugins = config.plugins.filter(p => !p.plugin || (p.plugin !== './dist/tools/create-worker' && p.plugin !== './dist/tools/haiku')); fs.writeFileSync('nx.json', JSON.stringify(config, null, 2));"
+          node -e "const fs = require('fs'); const config = JSON.parse(fs.readFileSync('nx.json', 'utf8')); config.plugins = config.plugins.filter(p => !p.plugin || (p.plugin !== './dist/tools/create-worker' && p.plugin !== './dist/tools/haijin')); fs.writeFileSync('nx.json', JSON.stringify(config, null, 2));"
           cat nx.json
 
       - uses: nrwl/nx-set-shas@v4
@@ -42,9 +42,9 @@ jobs:
           npx tsc -p tsconfig.json
           npx jest
 
-      - name: Build and test haiku plugin
+      - name: Build and test haijin plugin
         if: ${{ always() }}  # Ejecutar incluso si create-worker falla
         run: |
-          cd tools/haiku
+          cd tools/haijin
           npx tsc -p tsconfig.json
           npx jest

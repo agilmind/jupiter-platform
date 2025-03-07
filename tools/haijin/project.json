@@ -1,7 +1,7 @@
 {
-  "name": "haiku",
+  "name": "haijin",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "tools/haiku/src",
+  "sourceRoot": "tools/haijin/src",
   "projectType": "library",
   "tags": [],
   "targets": {
@@ -9,28 +9,28 @@
       "executor": "@nx/js:tsc",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "outputPath": "dist/tools/haiku",
-        "main": "tools/haiku/src/index.ts",
-        "tsConfig": "tools/haiku/tsconfig.lib.json",
+        "outputPath": "dist/tools/haijin",
+        "main": "tools/haijin/src/index.ts",
+        "tsConfig": "tools/haijin/tsconfig.lib.json",
         "assets": [
-          "tools/haiku/*.md",
+          "tools/haijin/*.md",
           {
-            "input": "./tools/haiku/src",
+            "input": "./tools/haijin/src",
             "glob": "**/!(*.ts)",
             "output": "./src"
           },
           {
-            "input": "./tools/haiku/src",
+            "input": "./tools/haijin/src",
             "glob": "**/*.d.ts",
             "output": "./src"
           },
           {
-            "input": "./tools/haiku",
+            "input": "./tools/haijin",
             "glob": "generators.json",
             "output": "."
           },
           {
-            "input": "./tools/haiku",
+            "input": "./tools/haijin",
             "glob": "executors.json",
             "output": "."
           }

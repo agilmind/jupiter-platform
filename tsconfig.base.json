@@ -19,7 +19,7 @@
       "@jupiter-platform/test-worker": ["test-worker/src/index.ts"],
       "@jupiter/worker-framework": ["libs/worker-framework/src/index.ts"],
       "create-worker": ["tools/create-worker/src/index.ts"],
-      "haiku": ["tools/haiku/src/index.ts"]
+      "haijin": ["tools/haijin/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

@@ -113,9 +113,9 @@ export function commit(message: string, options: GitOptions = {}): void {
 }
 
 /**
- * Verifica el estado del repositorio para Haiku (debe estar en main sin cambios)
+ * Verifica el estado del repositorio para Haijin (debe estar en main sin cambios)
  */
-export function validateHaikuGitState(options: GitOptions = {}): { valid: boolean; message?: string } {
+export function validateHaijinGitState(options: GitOptions = {}): { valid: boolean; message?: string } {
   try {
     // Verificar si estamos en un repo Git
     if (!isGitRepo(options)) {
