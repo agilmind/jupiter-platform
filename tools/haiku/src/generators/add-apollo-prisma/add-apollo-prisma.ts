@@ -23,6 +23,11 @@ export async function addApolloPrismaGenerator(
 
   const serviceName = options.name;
 
+  // IMPORTANTE: El proyecto se llamará "services" en lugar de "apollo-prisma"
+  // Tenemos que adaptar nuestro código a esta realidad
+  const projectName = "services";
+  const projectRoot = projectName;
+
   logger.info(`Adding minimal Apollo+Prisma service: ${serviceName}`);
 
   try {
@@ -30,13 +35,8 @@ export async function addApolloPrismaGenerator(
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
 
-    // CORRECCIÓN CLAVE: cambiar cómo llamamos al generador
-    // El formato correcto es: nombre-app --directory=carpeta
-    // Esto creará carpeta/nombre-app
-    execSync(`npx nx g @nx/node:app ${serviceName} --directory=services --no-interactive`, { stdio: 'inherit' });
-
-    // La estructura esperada ahora es:
-    const projectRoot = `services/${serviceName}`;
+    // Crear app Node.js llamada "services"
+    execSync(`npx nx g @nx/node:app services --no-interactive`, { stdio: 'inherit' });
 
     // Instalar dependencias
     logger.info('Installing dependencies...');
@@ -44,6 +44,7 @@ export async function addApolloPrismaGenerator(
     execSync(`npm install prisma --save-dev --legacy-peer-deps`, { stdio: 'inherit' });
 
     // Aplicar cambios a través del Tree API
+    // Ahora modificamos directamente los archivos en services/src
     generateFiles(
       tree,
       path.join(__dirname, '../files/apollo-prisma/src'),
@@ -52,9 +53,8 @@ export async function addApolloPrismaGenerator(
     );
 
     // Crear carpeta prisma y archivos
-    const prismaDir = `${projectRoot}/prisma`;
-    if (!tree.exists(prismaDir)) {
-      tree.write(`${prismaDir}/.gitkeep`, '');
+    if (!tree.exists(`${projectRoot}/prisma`)) {
+      tree.write(`${projectRoot}/prisma/.gitkeep`, '');
     }
 
     const prismaSchema = `
@@ -68,7 +68,7 @@ datasource db {
 }
 `;
 
-    tree.write(`${prismaDir}/schema.prisma`, prismaSchema);
+    tree.write(`${projectRoot}/prisma/schema.prisma`, prismaSchema);
 
     // Aplicar los cambios del Tree
     await formatFiles(tree);
@@ -91,47 +91,26 @@ datasource db {
     execSync('git merge base -X theirs', { stdio: 'inherit' });
     logger.info('Successfully merged from base to develop');
 
-    // PASO CRUCIAL: Asegurar que los archivos generados por el Tree API existan
-    logger.info('Ensuring all files exist in the filesystem...');
+    // PASO CRUCIAL: Verificar archivos después del merge
+    logger.info('Verifying files after merge...');
 
-    // Crear un script shell con las rutas CORREGIDAS
-    const ensureFilesScript = `
-#!/bin/bash
-set -e
+    // Verificar prisma y server.ts explícitamente
+    if (!fs.existsSync(`${projectRoot}/prisma`)) {
+      fs.mkdirSync(`${projectRoot}/prisma`, { recursive: true });
+      logger.info('Created missing directory: services/prisma');
+    }
 
-# Verificar que la carpeta existe
-if [ ! -d "${projectRoot}" ]; then
-  echo "Error: La carpeta ${projectRoot} no existe"
-  exit 1
-fi
+    if (!fs.existsSync(`${projectRoot}/prisma/.gitkeep`)) {
+      fs.writeFileSync(`${projectRoot}/prisma/.gitkeep`, '');
+      logger.info('Created missing file: services/prisma/.gitkeep');
+    }
 
-# Asegurar que existe la estructura de directorios
-mkdir -p ${projectRoot}/prisma
-mkdir -p ${projectRoot}/src
+    if (!fs.existsSync(`${projectRoot}/prisma/schema.prisma`)) {
+      fs.writeFileSync(`${projectRoot}/prisma/schema.prisma`, prismaSchema);
+      logger.info('Created missing file: services/prisma/schema.prisma');
+    }
 
-# Verificar y recrear archivos si no existen
-if [ ! -f "${projectRoot}/prisma/.gitkeep" ]; then
-  touch ${projectRoot}/prisma/.gitkeep
-  echo "Created missing file: ${projectRoot}/prisma/.gitkeep"
-fi
-
-if [ ! -f "${projectRoot}/prisma/schema.prisma" ]; then
-  cat > ${projectRoot}/prisma/schema.prisma << 'EOL'
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
-EOL
-  echo "Created missing file: ${projectRoot}/prisma/schema.prisma"
-fi
-
-# Verificar si existe server.ts
-if [ ! -f "${projectRoot}/src/server.ts" ]; then
-  cat > ${projectRoot}/src/server.ts << 'EOL'
+    const serverContent = `
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { PrismaClient } from '@prisma/client';
@@ -174,37 +153,27 @@ bootstrap().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
-EOL
-  echo "Created missing file: ${projectRoot}/src/server.ts"
-fi
-
-# Añadir explícitamente los archivos a Git
-git add ${projectRoot}/prisma/.gitkeep
-git add ${projectRoot}/prisma/schema.prisma
-git add ${projectRoot}/src/server.ts
-
-echo "All files verified and added to Git"
-git status
 `;
 
-    // Escribir el script a un archivo temporal
-    const scriptPath = '/tmp/ensure-apollo-files.sh';
-    fs.writeFileSync(scriptPath, ensureFilesScript);
-    fs.chmodSync(scriptPath, '755');
+    if (!fs.existsSync(`${projectRoot}/src/server.ts`)) {
+      fs.writeFileSync(`${projectRoot}/src/server.ts`, serverContent);
+      logger.info('Created missing file: services/src/server.ts');
+    }
 
-    // Ejecutar el script
-    execSync(scriptPath, { stdio: 'inherit' });
+    // Añadir los archivos a Git
+    logger.info('Adding verified files to Git...');
+    execSync('git add services/prisma services/src/server.ts', { stdio: 'inherit' });
 
-    // Verificar si hay cambios sin confirmar y crear commit si es necesario
+    // Verificar si hay cambios para commitear
     if (hasUncommittedChanges()) {
-      commit(`Ensure all Apollo+Prisma service files: ${serviceName}`);
+      commit(`Complete Apollo+Prisma service setup: ${serviceName}`);
       logger.info('Additional files committed to develop branch');
     }
 
     logger.info(`✅ Apollo+Prisma service ${serviceName} created successfully!`);
     logger.info('');
     logger.info('Next steps:');
-    logger.info(`1. Run: npx nx serve services-${serviceName}`);
+    logger.info(`1. Run: npx nx serve services`);
     logger.info(`2. Open http://localhost:4000 in your browser`);
 
     return () => {
