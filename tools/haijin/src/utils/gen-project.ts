@@ -80,8 +80,10 @@ export async function generateProject(
       // Guardar archivos de configuración importante
       const projectJsonPath = `${projectDir}/project.json`;
       const tsConfigJsonPath = `${projectDir}/tsconfig.json`;
+      const tsConfigAppJsonPath = `${projectDir}/tsconfig.app.json`;
       let projectJsonContent = null;
       let tsConfigJsonContent = null;
+      let tsConfigAppJsonContent = null;
 
       if (fs.existsSync(projectJsonPath)) {
         projectJsonContent = fs.readFileSync(projectJsonPath, 'utf8');
@@ -91,8 +93,12 @@ export async function generateProject(
         tsConfigJsonContent = fs.readFileSync(tsConfigJsonPath, 'utf8');
       }
 
+      if (fs.existsSync(tsConfigAppJsonPath)) {
+        tsConfigAppJsonContent = fs.readFileSync(tsConfigJsonPath, 'utf8');
+      }
+
       // Limpiar archivos pero no el directorio en sí
-      const filesToExclude = ['project.json', 'tsconfig.json'];
+      const filesToExclude = ['project.json', 'tsconfig.json', 'tsconfig.app.json'];
       const files = fs.readdirSync(projectDir);
 
       for (const file of files) {
@@ -113,6 +119,10 @@ export async function generateProject(
 
       if (tsConfigJsonContent) {
         fs.writeFileSync(tsConfigJsonPath, tsConfigJsonContent);
+      }
+
+      if (tsConfigAppJsonContent) {
+        fs.writeFileSync(tsConfigAppJsonPath, tsConfigAppJsonContent);
       }
     }
 
