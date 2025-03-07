@@ -2,12 +2,13 @@ import {
   Tree,
   formatFiles,
   logger,
-  generateFiles,
-  readJson,
-  writeJson,
 } from '@nx/devkit';
 import { execSync } from 'child_process';
 import { InitHaikuGeneratorSchema } from './schema';
+import {
+  validateHaikuGitState,
+  setupHaikuBranches,
+} from '../../utils/git';
 
 // Función auxiliar para verificar estado de Git
 function checkGitStatus(): { isMain: boolean; hasChanges: boolean } {
@@ -110,16 +111,16 @@ export async function initHaikuGenerator(
   options: InitHaikuGeneratorSchema
 ) {
   // Verificar estado de Git
-  const { isMain, hasChanges } = checkGitStatus();
+  const gitStatus = validateHaikuGitState();
 
-  if (!isMain) {
-    logger.error('You must be on the main branch to run this generator.');
+  if (!gitStatus.valid) {
+    logger.error(gitStatus.message);
     return;
   }
 
-  if (hasChanges) {
-    logger.error('You have pending changes. Please commit or stash them before running this generator.');
-    return;
+  // Inicializar los tipos de proyectos seleccionados
+  if (options.initReact && options.reactAppName) {
+    await initReactApp(tree, options.reactAppName);
   }
 
   // Inicializar los tipos de proyectos seleccionados
@@ -135,8 +136,8 @@ export async function initHaikuGenerator(
     await initApolloPrismaService(tree, options.apolloPrismaServiceName);
   }
 
-  // Manejar los branches de Git
-  handleGitBranches();
+  // Configurar branches de Git para Haiku
+  setupHaikuBranches();
 
   await formatFiles(tree);
 
