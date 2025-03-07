@@ -72,14 +72,13 @@ datasource db {
     // Aplicar los cambios del Tree y esperar a que se escriban en disco
     await formatFiles(tree);
 
-    // 7. CRÍTICO: Asegurarse de añadir todos los archivos - CORREGIDO
+    // 7. Asegurarse de añadir todos los archivos
     logger.info('Adding all generated files to Git...');
     execSync('git add --all', { stdio: 'inherit' });
 
     // 8. Verificar si hay cambios para confirmar
     if (hasUncommittedChanges()) {
       logger.info('Changes detected, creating commit...');
-      // No es necesario llamar a addFiles() ya que ya hemos hecho git add --all
       commit(`Add Apollo+Prisma service: ${serviceName}`);
       logger.info(`Changes committed to base branch`);
     } else {
@@ -94,10 +93,28 @@ datasource db {
       // Uso de estrategia de merge recursiva y theirs para evitar conflictos
       execSync('git merge base -X theirs', { stdio: 'inherit' });
       logger.info('Successfully merged changes from base to develop');
+
+      // NUEVO: Después del merge, verificar y añadir archivos que puedan haber quedado sin añadir
+      // Esto es crucial para los archivos generados por el Tree API
+      logger.info('Checking for untracked files after merge...');
+      execSync('git add --all', { stdio: 'inherit' });
+
+      // Verificar si hay cambios sin commit después del merge
+      if (hasUncommittedChanges()) {
+        logger.info('Additional changes detected after merge, creating commit...');
+        commit(`Complete merge of Apollo+Prisma service: ${serviceName}`);
+      }
     } catch (mergeError) {
       logger.error('Merge conflict detected. Please resolve conflicts manually.');
       logger.info('You are now in the develop branch with the merge conflicts.');
       logger.info('After resolving conflicts, commit your changes and continue.');
+
+      // Incluso con conflictos, intentamos añadir los archivos no rastreados
+      try {
+        execSync('git add --all', { stdio: 'inherit' });
+      } catch (addError) {
+        // Ignorar errores al añadir durante un conflicto
+      }
     }
 
     logger.info(`✅ Apollo+Prisma service ${serviceName} created successfully!`);
@@ -113,6 +130,8 @@ datasource db {
     // En caso de error, intentamos volver al branch develop
     try {
       createAndCheckoutBranch('develop');
+      // También intentamos añadir archivos no rastreados en caso de error
+      execSync('git add --all', { stdio: 'ignore' });
     } catch (gitError) {
       // Ignoramos errores al intentar volver a develop
     }
