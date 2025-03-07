@@ -38,6 +38,11 @@ export async function generateProject(
   const projectDir = `${directoryPrefix}/${options.name}`;
   const projectName = `${projectPrefix}-${options.name}`;
 
+  // 2. Cambiar a branch base
+  createAndCheckoutBranch('base');
+  logger.info('Switched to base branch');
+
+
   // Verificar si el proyecto ya existe
   const projectExists = fs.existsSync(projectDir);
 
@@ -65,10 +70,6 @@ export async function generateProject(
   }
 
   try {
-    // 2. Cambiar a branch base
-    createAndCheckoutBranch('base');
-    logger.info('Switched to base branch');
-
     if (!projectExists) {
       // Solo crear el proyecto si NO existe
       logger.info(`Creating new project at ${projectDir}...`);
