@@ -56,7 +56,7 @@ function handleGitBranches() {
 
     logger.info('Now on develop branch');
   } catch (error) {
-    logger.error('Failed to manage Git branches:', error);
+    logger.error(`Failed to manage Git branches: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }
@@ -67,7 +67,7 @@ async function initReactApp(tree: Tree, appName: string) {
   try {
     execSync(`npx nx g @nx/react:app ${appName}`, { stdio: 'inherit' });
   } catch (error) {
-    logger.error(`Failed to initialize React application: ${appName}`, error);
+    logger.error(`Failed to initialize React application ${appName}: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }
@@ -78,7 +78,7 @@ async function initReactNativeApp(tree: Tree, appName: string) {
   try {
     execSync(`npx nx g @nx/react-native:app ${appName}`, { stdio: 'inherit' });
   } catch (error) {
-    logger.error(`Failed to initialize React Native application: ${appName}`, error);
+    logger.error(`Failed to initialize React Native application ${appName}: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }
@@ -100,7 +100,7 @@ async function initApolloPrismaService(tree: Tree, serviceName: string) {
     // Añadir configuración específica de Apollo-Prisma
     // Esta parte se desarrollaría más adelante
   } catch (error) {
-    logger.error(`Failed to initialize Apollo-Prisma service: ${serviceName}`, error);
+    logger.error(`Failed to initialize Apollo-Prisma service ${serviceName}: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }
