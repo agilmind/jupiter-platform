@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client';
 // Initialize Prisma client
 const prisma = new PrismaClient();
 
-// Define a simple schema
+// Define a simple schema for <%= name %>
 const typeDefs = `#graphql
   type Query {
     hello: String
@@ -15,7 +15,7 @@ const typeDefs = `#graphql
 // Define resolvers
 const resolvers = {
   Query: {
-    hello: () => 'Hello World from Apollo Server!',
+    hello: () => 'Hello World from <%= name %> Apollo Server!',
   },
 };
 
