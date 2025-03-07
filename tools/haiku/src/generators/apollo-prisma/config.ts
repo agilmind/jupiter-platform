@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { updateProjectConfig } from './add-apollo-prisma';
+import { updateProjectConfig } from './apollo-prisma';
 import { AddProjectOptions } from '../../utils/add-project';
 import { ProjectGeneratorSchema } from '../project/schema';
 

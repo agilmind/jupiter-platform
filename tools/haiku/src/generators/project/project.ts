@@ -1,7 +1,7 @@
 import { Tree, logger } from '@nx/devkit';
 import { ProjectGeneratorSchema, ProjectTypes } from './schema';
 import { AddProjectOptions, generateProject } from '../../utils/add-project';
-import { configureApolloPrisma } from '../add-apollo-prisma/config';
+import { configureApolloPrisma } from '../apollo-prisma/config';
 import { configureReact } from '../add-react/config';
 import { configureReactNative } from '../add-react-native/config';
 
