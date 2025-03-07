@@ -14,6 +14,6 @@ export function configureApolloPrisma(options: ProjectGeneratorSchema): AddProje
       dev: ['prisma']
     },
     templatePath: path.join(__dirname, '../files/apollo-prisma'),
-    projectUpdates: updateProjectConfig
+    // projectUpdates: updateProjectConfig
   };
 }
