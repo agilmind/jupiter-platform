@@ -52,7 +52,7 @@ export async function addApolloPrismaGenerator(
       prod: ['@apollo/server', 'graphql', '@prisma/client'],
       dev: ['prisma']
     },
-    templatePath: path.join(__dirname, '../../files/apollo-prisma'),
+    templatePath: path.join(__dirname, '../files/apollo-prisma'),
     projectUpdates: updateProjectConfig
   });
 
