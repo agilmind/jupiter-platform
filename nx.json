@@ -62,6 +62,9 @@
     },
     {
       "plugin": "./dist/tools/create-worker"
+    },
+    {
+      "plugin": "./dist/tools/haiku"
     }
   ],
   "generators": {
