@@ -1,8 +1,0 @@
-{
-  "$schema": "https://json-schema.org/schema",
-  "$id": "InitHaiku",
-  "title": "Initialize Haiku Workspace",
-  "description": "Initialize the basic structure and Git branches for a Haiku workspace",
-  "type": "object",
-  "properties": {}
-}

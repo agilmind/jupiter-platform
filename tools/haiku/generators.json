@@ -1,10 +1,5 @@
 {
   "generators": {
-    "init-haiku": {
-      "factory": "./src/generators/init-haiku/init-haiku",
-      "schema": "./src/generators/init-haiku/schema.json",
-      "description": "Initialize a Haiku workspace"
-    },
     "add-react": {
       "factory": "./src/generators/add-react/add-react",
       "schema": "./src/generators/add-react/schema.json",
