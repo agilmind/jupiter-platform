@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { ProjectGeneratorSchema } from '../project/schema';
-import { AddProjectOptions } from '../../utils/add-project';
+import { AddProjectOptions } from '../../utils/gen-project';
 
 export function configureReactNative(options: ProjectGeneratorSchema): AddProjectOptions {
   return {

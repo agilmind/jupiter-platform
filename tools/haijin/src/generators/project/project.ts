@@ -1,11 +1,11 @@
 import { Tree, logger } from '@nx/devkit';
 import { ProjectGeneratorSchema, ProjectTypes } from './schema';
-import { AddProjectOptions, generateProject } from '../../utils/add-project';
+import { AddProjectOptions, generateProject } from '../../utils/gen-project';
 import { configureApolloPrisma } from '../apollo-prisma/config';
 import { configureReact } from '../react/config';
 import { configureReactNative } from '../react-native/config';
 
-export async function projectGenerator(
+async function projectGenerator(
   tree: Tree,
   options: ProjectGeneratorSchema
 ) {
@@ -28,3 +28,5 @@ export async function projectGenerator(
     update: options.update
   });
 }
+
+export default projectGenerator;

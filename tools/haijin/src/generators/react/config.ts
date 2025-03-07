@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { AddProjectOptions } from '../../utils/add-project';
+import { AddProjectOptions } from '../../utils/gen-project';
 import { ProjectGeneratorSchema } from '../project/schema';
 
 export function configureReact(options: ProjectGeneratorSchema): AddProjectOptions {
