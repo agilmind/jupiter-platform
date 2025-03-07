@@ -18,6 +18,19 @@ export interface AddProjectOptions {
   update?: boolean;  // Indica si estamos explícitamente en modo actualización
 }
 
+function clearBase(projectDir: string) {
+    const files = fs.readdirSync(projectDir);
+
+    for (const file of files) {
+        const filePath = path.join(projectDir, file);
+        if (fs.lstatSync(filePath).isDirectory()) {
+          fs.rmSync(filePath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(filePath);
+        }
+    }
+}
+
 export async function generateProject(
   tree: Tree,
   options: AddProjectOptions
@@ -66,65 +79,69 @@ export async function generateProject(
     // 2. Cambiar a branch base
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
-
-    // 3. ENFOQUE DIFERENTE: No intentamos recrear el proyecto NX si ya existe
-    if (!projectExists) {
-      // Solo crear el proyecto si NO existe
-      logger.info(`Creating new project at ${projectDir}...`);
-      execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
-    } else {
-      logger.info(`Project already exists, skipping creation step`);
-
-      // Limpiar el directorio pero preservar project.json y tsconfig.json
-      logger.info(`Cleaning project directory...`);
-      // Guardar archivos de configuración importante
-      const projectJsonPath = `${projectDir}/project.json`;
-      const tsConfigJsonPath = `${projectDir}/tsconfig.json`;
-      const tsConfigAppJsonPath = `${projectDir}/tsconfig.app.json`;
-      let projectJsonContent = null;
-      let tsConfigJsonContent = null;
-      let tsConfigAppJsonContent = null;
-
-      if (fs.existsSync(projectJsonPath)) {
-        projectJsonContent = fs.readFileSync(projectJsonPath, 'utf8');
-      }
-
-      if (fs.existsSync(tsConfigJsonPath)) {
-        tsConfigJsonContent = fs.readFileSync(tsConfigJsonPath, 'utf8');
-      }
-
-      if (fs.existsSync(tsConfigAppJsonPath)) {
-        tsConfigAppJsonContent = fs.readFileSync(tsConfigJsonPath, 'utf8');
-      }
-
-      // Limpiar archivos pero no el directorio en sí
-      const filesToExclude = ['project.json', 'tsconfig.json', 'tsconfig.app.json'];
-      const files = fs.readdirSync(projectDir);
-
-      for (const file of files) {
-        if (!filesToExclude.includes(file)) {
-          const filePath = path.join(projectDir, file);
-          if (fs.lstatSync(filePath).isDirectory()) {
-            fs.rmSync(filePath, { recursive: true, force: true });
-          } else {
-            fs.unlinkSync(filePath);
-          }
-        }
-      }
-
-      // Restaurar archivos de configuración si existían
-      if (projectJsonContent) {
-        fs.writeFileSync(projectJsonPath, projectJsonContent);
-      }
-
-      if (tsConfigJsonContent) {
-        fs.writeFileSync(tsConfigJsonPath, tsConfigJsonContent);
-      }
-
-      if (tsConfigAppJsonContent) {
-        fs.writeFileSync(tsConfigAppJsonPath, tsConfigAppJsonContent);
-      }
+    if (projectExists) {
+      clearBase(projectDir);
     }
+    logger.info(`Creating new project at ${projectDir}...`);
+    execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
+
+    // if (!projectExists) {
+      // Solo crear el proyecto si NO existe
+    //   logger.info(`Creating new project at ${projectDir}...`);
+    //   execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
+    // } else {
+      // logger.info(`Project already exists, skipping creation step`);
+      //
+      // // Limpiar el directorio pero preservar project.json y tsconfig.json
+      // logger.info(`Cleaning project directory...`);
+      // // Guardar archivos de configuración importante
+      // const projectJsonPath = `${projectDir}/project.json`;
+      // const tsConfigJsonPath = `${projectDir}/tsconfig.json`;
+      // const tsConfigAppJsonPath = `${projectDir}/tsconfig.app.json`;
+      // let projectJsonContent = null;
+      // let tsConfigJsonContent = null;
+      // let tsConfigAppJsonContent = null;
+      //
+      // if (fs.existsSync(projectJsonPath)) {
+      //   projectJsonContent = fs.readFileSync(projectJsonPath, 'utf8');
+      // }
+      //
+      // if (fs.existsSync(tsConfigJsonPath)) {
+      //   tsConfigJsonContent = fs.readFileSync(tsConfigJsonPath, 'utf8');
+      // }
+      //
+      // if (fs.existsSync(tsConfigAppJsonPath)) {
+      //   tsConfigAppJsonContent = fs.readFileSync(tsConfigJsonPath, 'utf8');
+      // }
+      //
+      // // Limpiar archivos pero no el directorio en sí
+      // const filesToExclude = ['project.json', 'tsconfig.json', 'tsconfig.app.json'];
+      // const files = fs.readdirSync(projectDir);
+      //
+      // for (const file of files) {
+      //   if (!filesToExclude.includes(file)) {
+      //     const filePath = path.join(projectDir, file);
+      //     if (fs.lstatSync(filePath).isDirectory()) {
+      //       fs.rmSync(filePath, { recursive: true, force: true });
+      //     } else {
+      //       fs.unlinkSync(filePath);
+      //     }
+      //   }
+      // }
+      //
+      // // Restaurar archivos de configuración si existían
+      // if (projectJsonContent) {
+      //   fs.writeFileSync(projectJsonPath, projectJsonContent);
+      // }
+      //
+      // if (tsConfigJsonContent) {
+      //   fs.writeFileSync(tsConfigJsonPath, tsConfigJsonContent);
+      // }
+      //
+      // if (tsConfigAppJsonContent) {
+      //   fs.writeFileSync(tsConfigAppJsonPath, tsConfigAppJsonContent);
+      // }
+    // }
 
     // 4. Instalar dependencias
     if (options.dependencies) {
