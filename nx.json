@@ -64,7 +64,7 @@
       "plugin": "./dist/tools/create-worker"
     },
     {
-      "plugin": "./dist/tools/haiku"
+      "plugin": "./dist/tools/haijin"
     }
   ],
   "generators": {
