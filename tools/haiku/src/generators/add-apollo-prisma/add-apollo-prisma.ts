@@ -22,8 +22,6 @@ export async function addApolloPrismaGenerator(
   }
 
   const serviceName = options.name;
-  // El generador Node está creando realmente un proyecto llamado "services"
-  const actualProjectRoot = `services`;
 
   logger.info(`Adding minimal Apollo+Prisma service: ${serviceName}`);
 
@@ -32,9 +30,13 @@ export async function addApolloPrismaGenerator(
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
 
-    // Crear app Node.js base
-    // CORREGIDO: Cambiar la forma de llamar al generador
-    execSync(`npx nx g @nx/node:app services --no-interactive`, { stdio: 'inherit' });
+    // CORRECCIÓN CLAVE: cambiar cómo llamamos al generador
+    // El formato correcto es: nombre-app --directory=carpeta
+    // Esto creará carpeta/nombre-app
+    execSync(`npx nx g @nx/node:app ${serviceName} --directory=services --no-interactive`, { stdio: 'inherit' });
+
+    // La estructura esperada ahora es:
+    const projectRoot = `services/${serviceName}`;
 
     // Instalar dependencias
     logger.info('Installing dependencies...');
@@ -45,13 +47,14 @@ export async function addApolloPrismaGenerator(
     generateFiles(
       tree,
       path.join(__dirname, '../files/apollo-prisma/src'),
-      `${actualProjectRoot}/src`,
+      `${projectRoot}/src`,
       { ...options, template: '' }
     );
 
     // Crear carpeta prisma y archivos
-    if (!tree.exists(`${actualProjectRoot}/prisma`)) {
-      tree.write(`${actualProjectRoot}/prisma/.gitkeep`, '');
+    const prismaDir = `${projectRoot}/prisma`;
+    if (!tree.exists(prismaDir)) {
+      tree.write(`${prismaDir}/.gitkeep`, '');
     }
 
     const prismaSchema = `
@@ -65,7 +68,7 @@ datasource db {
 }
 `;
 
-    tree.write(`${actualProjectRoot}/prisma/schema.prisma`, prismaSchema);
+    tree.write(`${prismaDir}/schema.prisma`, prismaSchema);
 
     // Aplicar los cambios del Tree
     await formatFiles(tree);
@@ -96,18 +99,24 @@ datasource db {
 #!/bin/bash
 set -e
 
-# Asegurar que existe la estructura de directorios
-mkdir -p ${actualProjectRoot}/prisma
-mkdir -p ${actualProjectRoot}/src
-
-# Verificar y recrear archivos si no existen
-if [ ! -f "${actualProjectRoot}/prisma/.gitkeep" ]; then
-  touch ${actualProjectRoot}/prisma/.gitkeep
-  echo "Created missing file: ${actualProjectRoot}/prisma/.gitkeep"
+# Verificar que la carpeta existe
+if [ ! -d "${projectRoot}" ]; then
+  echo "Error: La carpeta ${projectRoot} no existe"
+  exit 1
 fi
 
-if [ ! -f "${actualProjectRoot}/prisma/schema.prisma" ]; then
-  cat > ${actualProjectRoot}/prisma/schema.prisma << 'EOL'
+# Asegurar que existe la estructura de directorios
+mkdir -p ${projectRoot}/prisma
+mkdir -p ${projectRoot}/src
+
+# Verificar y recrear archivos si no existen
+if [ ! -f "${projectRoot}/prisma/.gitkeep" ]; then
+  touch ${projectRoot}/prisma/.gitkeep
+  echo "Created missing file: ${projectRoot}/prisma/.gitkeep"
+fi
+
+if [ ! -f "${projectRoot}/prisma/schema.prisma" ]; then
+  cat > ${projectRoot}/prisma/schema.prisma << 'EOL'
 generator client {
   provider = "prisma-client-js"
 }
@@ -117,12 +126,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 EOL
-  echo "Created missing file: ${actualProjectRoot}/prisma/schema.prisma"
+  echo "Created missing file: ${projectRoot}/prisma/schema.prisma"
 fi
 
 # Verificar si existe server.ts
-if [ ! -f "${actualProjectRoot}/src/server.ts" ]; then
-  cat > ${actualProjectRoot}/src/server.ts << 'EOL'
+if [ ! -f "${projectRoot}/src/server.ts" ]; then
+  cat > ${projectRoot}/src/server.ts << 'EOL'
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { PrismaClient } from '@prisma/client';
@@ -166,15 +175,15 @@ bootstrap().catch((err) => {
   process.exit(1);
 });
 EOL
-  echo "Created missing file: ${actualProjectRoot}/src/server.ts"
+  echo "Created missing file: ${projectRoot}/src/server.ts"
 fi
 
 # Añadir explícitamente los archivos a Git
-git add ${actualProjectRoot}/prisma/.gitkeep
-git add ${actualProjectRoot}/prisma/schema.prisma
-git add ${actualProjectRoot}/src/server.ts
+git add ${projectRoot}/prisma/.gitkeep
+git add ${projectRoot}/prisma/schema.prisma
+git add ${projectRoot}/src/server.ts
 
-# Mostrar estado
+echo "All files verified and added to Git"
 git status
 `;
 
@@ -195,7 +204,7 @@ git status
     logger.info(`✅ Apollo+Prisma service ${serviceName} created successfully!`);
     logger.info('');
     logger.info('Next steps:');
-    logger.info(`1. Run: npx nx serve services`);
+    logger.info(`1. Run: npx nx serve services-${serviceName}`);
     logger.info(`2. Open http://localhost:4000 in your browser`);
 
     return () => {
