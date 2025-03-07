@@ -77,7 +77,16 @@ export async function generateProject(
 
       // Limpiar el directorio pero preservar project.json y tsconfig.json
       logger.info(`Cleaning project directory...`);
-      fs.rm(projectDir, { recursive: true, force: true });
+      const files = fs.readdirSync(projectDir);
+
+      for (const file of files) {
+        const filePath = path.join(projectDir, file);
+        if (fs.lstatSync(filePath).isDirectory()) {
+          fs.rmSync(filePath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(filePath);
+        }
+      }
 
       // // Guardar archivos de configuración importante
       // const projectJsonPath = `${projectDir}/project.json`;
