@@ -33,16 +33,15 @@ export async function addApolloPrismaGenerator(
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
 
-    // 3. Crear el servicio en el branch base
-    execSync(`npx nx g @nx/node:app ${serviceName} --directory=services`, { stdio: 'inherit' });
+    // 3. Crear el servicio en el branch base - CORREGIDO: especifica correctamente la ruta
+    execSync(`npx nx g @nx/node:app ${serviceName} --directory=services --no-interactive`, { stdio: 'inherit' });
 
-    // 4. Instalar dependencias
+    // 4. Instalar dependencias - CORREGIDO: añadir --legacy-peer-deps para evitar conflictos
     logger.info('Installing dependencies...');
-    execSync(`npm install apollo-server graphql @prisma/client --save`, { stdio: 'inherit' });
-    execSync(`npm install prisma --save-dev`, { stdio: 'inherit' });
+    execSync(`npm install apollo-server graphql @prisma/client --save --legacy-peer-deps`, { stdio: 'inherit' });
+    execSync(`npm install prisma --save-dev --legacy-peer-deps`, { stdio: 'inherit' });
 
     // 5. Generar archivos
-    // Nota: estamos usando la ruta relativa para acceder a los archivos de plantilla
     generateFiles(
       tree,
       path.join(__dirname, '../files/apollo-prisma/src'),
@@ -78,18 +77,18 @@ datasource db {
       logger.info(`Changes committed to base branch`);
     }
 
-    // 8. Intentar merge a develop
+    // 8. Intentar merge a develop - CORREGIDO: asegurar que estamos en develop antes de hacer merge
     try {
       createAndCheckoutBranch('develop');
       logger.info('Switched to develop branch');
 
-      execSync('git merge base', { stdio: 'inherit' });
+      // Uso de estrategia de merge recursiva y theirs para evitar conflictos
+      execSync('git merge base -X theirs', { stdio: 'inherit' });
       logger.info('Successfully merged changes from base to develop');
     } catch (mergeError) {
       logger.error('Merge conflict detected. Please resolve conflicts manually.');
       logger.info('You are now in the develop branch with the merge conflicts.');
       logger.info('After resolving conflicts, commit your changes and continue.');
-      // No lanzamos el error para que el generador pueda continuar
     }
 
     await formatFiles(tree);
@@ -99,7 +98,6 @@ datasource db {
     logger.info('Next steps:');
     logger.info(`1. Run: npx nx serve ${projectRoot}`);
     logger.info(`2. Open http://localhost:4000 in your browser`);
-    logger.info('');
 
     return () => {
       installPackagesTask(tree);
@@ -107,10 +105,7 @@ datasource db {
   } catch (error) {
     // En caso de error, intentamos volver al branch original
     try {
-      const currentBranch = getCurrentBranch();
-      if (currentBranch !== 'develop') {
-        createAndCheckoutBranch('develop');
-      }
+      createAndCheckoutBranch('develop');
     } catch (gitError) {
       // Ignoramos errores al intentar volver a develop
     }
