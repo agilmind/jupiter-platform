@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/schema",
   "$id": "AddApolloPrisma",
-  "title": "Add Apollo Prisma Application",
-  "description": "Add a Apollo Prisma application to your Haiku workspace",
+  "title": "Add Apollo+Prisma Service",
+  "description": "Add an Apollo+Prisma service to your Haiku workspace",
   "type": "object",
   "properties": {
     "name": {
       "type": "string",
-      "description": "Name of the Apollo Prisma application",
-      "default": "apollo-prisma-service",
+      "description": "Name of the Apollo+Prisma service",
+      "default": "apollo-prisma",
       "x-prompt": "What name would you like to give to your Apollo Prisma service?"
     }
   },

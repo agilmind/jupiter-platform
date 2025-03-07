@@ -8,7 +8,7 @@
     "name": {
       "type": "string",
       "description": "Name of the React application",
-      "default": "react-app",
+      "default": "react",
       "x-prompt": "What name would you like to give to your React application?"
     }
   },

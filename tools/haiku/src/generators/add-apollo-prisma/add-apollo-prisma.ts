@@ -1,24 +1,121 @@
-import { Tree, formatFiles, logger } from '@nx/devkit';
+import { Tree, formatFiles, logger, installPackagesTask, generateFiles } from '@nx/devkit';
 import { execSync } from 'child_process';
 import { AddApolloPrismaGeneratorSchema } from './schema';
+import * as path from 'path';
+import {
+  validateHaikuGitState,
+  getCurrentBranch,
+  createAndCheckoutBranch,
+  hasUncommittedChanges,
+  addFiles,
+  commit
+} from '../../utils/git';
 
 export async function addApolloPrismaGenerator(
   tree: Tree,
   options: AddApolloPrismaGeneratorSchema
 ) {
-  const appName = options.name;
+  // 1. Verificar estado de Git
+  const gitStatus = validateHaikuGitState();
+  if (!gitStatus.valid) {
+    logger.error(gitStatus.message);
+    return;
+  }
 
-  logger.info(`Adding Apollo Prisma application: ${appName}`);
+  const serviceName = options.name;
+  const projectRoot = `services/${serviceName}`;
+
+  logger.info(`Adding minimal Apollo+Prisma service: ${serviceName}`);
+
   try {
-    execSync(`npx nx g @nx/apollo-prisma:app ${appName}`, { stdio: 'inherit' });
+    // 2. Hacer checkout al branch base
+    const originalBranch = getCurrentBranch();
+    createAndCheckoutBranch('base');
+    logger.info('Switched to base branch');
 
-    // Opcionalmente puedes añadir configuraciones específicas para la app
+    // 3. Crear el servicio en el branch base
+    execSync(`npx nx g @nx/node:app ${serviceName} --directory=services`, { stdio: 'inherit' });
+
+    // 4. Instalar dependencias
+    logger.info('Installing dependencies...');
+    execSync(`npm install apollo-server graphql @prisma/client --save`, { stdio: 'inherit' });
+    execSync(`npm install prisma --save-dev`, { stdio: 'inherit' });
+
+    // 5. Generar archivos
+    // Nota: estamos usando la ruta relativa para acceder a los archivos de plantilla
+    generateFiles(
+      tree,
+      path.join(__dirname, '../files/apollo-prisma/src'),
+      `${projectRoot}/src`,
+      {
+        ...options,
+        template: '',
+      }
+    );
+
+    // 6. Crear la carpeta prisma y su schema
+    if (!tree.exists(`${projectRoot}/prisma`)) {
+      tree.mkdir(`${projectRoot}/prisma`);
+    }
+
+    const prismaSchema = `
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+`;
+
+    tree.write(`${projectRoot}/prisma/schema.prisma`, prismaSchema);
+
+    // 7. Commit los cambios en base
+    if (hasUncommittedChanges()) {
+      addFiles('.');
+      commit(`Add Apollo+Prisma service: ${serviceName}`);
+      logger.info(`Changes committed to base branch`);
+    }
+
+    // 8. Intentar merge a develop
+    try {
+      createAndCheckoutBranch('develop');
+      logger.info('Switched to develop branch');
+
+      execSync('git merge base', { stdio: 'inherit' });
+      logger.info('Successfully merged changes from base to develop');
+    } catch (mergeError) {
+      logger.error('Merge conflict detected. Please resolve conflicts manually.');
+      logger.info('You are now in the develop branch with the merge conflicts.');
+      logger.info('After resolving conflicts, commit your changes and continue.');
+      // No lanzamos el error para que el generador pueda continuar
+    }
 
     await formatFiles(tree);
 
-    logger.info(`Apollo Prisma application ${appName} added successfully!`);
+    logger.info(`✅ Apollo+Prisma service ${serviceName} created successfully!`);
+    logger.info('');
+    logger.info('Next steps:');
+    logger.info(`1. Run: npx nx serve ${projectRoot}`);
+    logger.info(`2. Open http://localhost:4000 in your browser`);
+    logger.info('');
+
+    return () => {
+      installPackagesTask(tree);
+    };
   } catch (error) {
-    logger.error(`Failed to add Apollo Prisma application ${appName}: ${error instanceof Error ? error.message : String(error)}`);
+    // En caso de error, intentamos volver al branch original
+    try {
+      const currentBranch = getCurrentBranch();
+      if (currentBranch !== 'develop') {
+        createAndCheckoutBranch('develop');
+      }
+    } catch (gitError) {
+      // Ignoramos errores al intentar volver a develop
+    }
+
+    logger.error(`Failed to create Apollo+Prisma service: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }

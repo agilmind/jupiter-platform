@@ -1,0 +1,38 @@
+import { ApolloServer, gql } from 'apollo-server';
+import { PrismaClient } from '@prisma/client';
+
+// Initialize Prisma client
+const prisma = new PrismaClient();
+
+// Define a simple schema
+const typeDefs = gql`
+  type Query {
+    hello: String
+  }
+`;
+
+// Define resolvers
+const resolvers = {
+  Query: {
+    hello: () => 'Hello World from Apollo Server!',
+  },
+};
+
+async function bootstrap() {
+  // Create Apollo server
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers,
+    context: () => ({ prisma }),
+  });
+
+  // Start the server
+  const { url } = await server.listen(process.env.PORT || 4000);
+  console.log(`🚀 Server ready at ${url}`);
+  console.log(`Try your first query: { hello }`);
+}
+
+bootstrap().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});

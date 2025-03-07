@@ -8,7 +8,7 @@
     "name": {
       "type": "string",
       "description": "Name of the React Native application",
-      "default": "react-native-app",
+      "default": "react-native",
       "x-prompt": "What name would you like to give to your React Native application?"
     }
   },
