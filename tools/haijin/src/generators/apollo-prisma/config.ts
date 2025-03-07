@@ -8,6 +8,7 @@ export function configureApolloPrisma(options: ProjectGeneratorSchema): AddProje
     type: 'Apollo+Prisma',
     projectType: 'service',
     generator: '@nx/node:app',
+    options: "--docker",
     dependencies: {
       prod: ['@apollo/server', 'graphql', '@prisma/client'],
       dev: ['prisma']

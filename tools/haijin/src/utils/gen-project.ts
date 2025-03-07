@@ -9,6 +9,7 @@ export interface AddProjectOptions {
   type: string;
   projectType: 'app' | 'service';
   generator: string;
+  options?: string;
   dependencies?: {
     prod?: string[];
     dev?: string[];
@@ -71,7 +72,7 @@ export async function generateProject(
     if (!projectExists) {
       // Solo crear el proyecto si NO existe
       logger.info(`Creating new project at ${projectDir}...`);
-      execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
+      execSync(`npx nx g ${options.generator} ${projectName} ${options.options || ""}  --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
     } else {
       logger.info(`Project already exists, skipping creation step`);
 
