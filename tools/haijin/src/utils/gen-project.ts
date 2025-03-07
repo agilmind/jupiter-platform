@@ -18,6 +18,30 @@ export interface AddProjectOptions {
   update?: boolean;  // Indica si estamos explícitamente en modo actualización
 }
 
+
+function deleteNxProject(projectName, projectDir) {
+  try {
+    // 1. Eliminar el directorio físico del proyecto
+    rmSync(projectDir, { recursive: true, force: true });
+    console.log(`Directorio ${projectDir} eliminado`);
+
+    // 2. Actualizar nx.json
+    const nxConfigPath = 'nx.json';
+    const nxConfig = JSON.parse(readFileSync(nxConfigPath, 'utf-8'));
+
+    // Verificar si el proyecto existe en nx.json y eliminarlo
+    if (nxConfig.projects && nxConfig.projects[projectName]) {
+      delete nxConfig.projects[projectName];
+      writeFileSync(nxConfigPath, JSON.stringify(nxConfig, null, 2));
+      console.log(`Proyecto ${projectName} eliminado de ${nxConfigPath}`);
+    } else {
+      console.log(`El proyecto ${projectName} no se encontró en ${nxConfigPath}`);
+    }
+  } catch (error) {
+    console.error('Error al eliminar el proyecto:', error);
+  }
+}
+
 function clearBase(projectDir: string) {
     fs.rmSync(projectDir, { recursive: true, force: true });
     // const files = fs.readdirSync(projectDir);
@@ -81,7 +105,8 @@ export async function generateProject(
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
     if (projectExists) {
-      clearBase(projectDir);
+      // clearBase(projectDir);
+      deleteNxProject(projectName, projectDir);
     }
     logger.info(`Creating new project at ${projectDir}...`);
     execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
