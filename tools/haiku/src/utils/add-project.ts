@@ -35,12 +35,11 @@ export async function generateProject(
   const projectDir = `${directoryPrefix}/${options.name}`;
   const projectName = `${projectPrefix}-${options.name}`;
 
-  // Verificar si el proyecto ya existe
-  const projectExists = fs.existsSync(projectDir);
+  // Verificar si el proyecto ya existe físicamente
+  const projectDirExists = fs.existsSync(projectDir);
 
   // Si existe y no está en modo update, preguntar al usuario
-  if (projectExists && !options.update) {
-    // Crear un prompt manual
+  if (projectDirExists && !options.update) {
     const readline = require('readline').createInterface({
       input: process.stdin,
       output: process.stdout
@@ -67,18 +66,38 @@ export async function generateProject(
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
 
-    // Si estamos actualizando, eliminar el proyecto anterior en base
-    if (projectExists) {
-      logger.info(`Removing existing project from base branch...`);
-      if (fs.existsSync(projectDir)) {
-        execSync(`rm -rf ${projectDir}`, { stdio: 'inherit' });
+    // 3. Manejo de proyecto existente
+    let needToCreateProject = true;
+
+    if (projectDirExists) {
+      logger.info(`Handling existing project...`);
+
+      // 3.1 Primero eliminar el proyecto de NX
+      try {
+        execSync(`npx nx g @nx/workspace:remove ${projectName} --forceRemove`, { stdio: 'inherit' });
+        logger.info(`Removed project from NX workspace`);
+      } catch (error) {
+        logger.warn(`Could not remove project from NX workspace, continuing anyway`);
       }
+
+      // 3.2 Ahora eliminar el directorio físico
+      try {
+        execSync(`rm -rf ${projectDir}`, { stdio: 'inherit' });
+        logger.info(`Removed project directory ${projectDir}`);
+      } catch (error) {
+        logger.error(`Failed to remove directory: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+
+      // 3.3 Esperar un poco para que el sistema de archivos se actualice
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // 3. Generar proyecto con NX
+    // 4. Generar un nuevo proyecto
+    logger.info(`Creating new project at ${projectDir}...`);
     execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
 
-    // 4. Instalar dependencias
+    // 5. Instalar dependencias
     if (options.dependencies) {
       logger.info('Installing dependencies...');
 
@@ -91,7 +110,8 @@ export async function generateProject(
       }
     }
 
-    // 5. Generar archivos específicos desde templates
+    // 6. Generar archivos específicos
+    logger.info('Generating template files...');
     generateFiles(
       tree,
       options.templatePath,
@@ -103,22 +123,22 @@ export async function generateProject(
       }
     );
 
-    // 6. Aplicar actualizaciones específicas
+    // 7. Aplicar actualizaciones específicas
     if (options.projectUpdates) {
       options.projectUpdates(projectDir, projectName);
     }
 
-    // 7. Formatear y escribir cambios a disco
+    // 8. Formatear y escribir cambios
     await formatFiles(tree);
 
-    // 8. IMPORTANTE: Devolvemos una función task que se ejecutará después de escribir todo a disco
+    // 9. Función de task
     return () => {
       // Git: add y commit
       logger.info('Adding all generated files to Git...');
       execSync('git add --all', { stdio: 'inherit' });
 
       if (hasUncommittedChanges()) {
-        const action = projectExists ? 'Update' : 'Add';
+        const action = projectDirExists ? 'Update' : 'Add';
         commit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
         logger.info(`Changes committed to base branch`);
       }
@@ -131,11 +151,11 @@ export async function generateProject(
       logger.info('Successfully merged from base to develop');
 
       if (hasUncommittedChanges()) {
-        const action = projectExists ? 'Update' : 'Complete';
+        const action = projectDirExists ? 'Update' : 'Complete';
         commit(`${action} ${options.type} ${options.projectType} setup: ${options.name}`);
       }
 
-      const action = projectExists ? 'updated' : 'created';
+      const action = projectDirExists ? 'updated' : 'created';
       logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${action} successfully!`);
 
       // Instalar dependencias
@@ -149,7 +169,7 @@ export async function generateProject(
       // Ignorar errores de Git
     }
 
-    logger.error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`Failed to ${projectDirExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }
