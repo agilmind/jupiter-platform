@@ -19,16 +19,17 @@ export interface AddProjectOptions {
 }
 
 function clearBase(projectDir: string) {
-    const files = fs.readdirSync(projectDir);
-
-    for (const file of files) {
-        const filePath = path.join(projectDir, file);
-        if (fs.lstatSync(filePath).isDirectory()) {
-          fs.rmSync(filePath, { recursive: true, force: true });
-        } else {
-          fs.unlinkSync(filePath);
-        }
-    }
+    fs.rmSync(projectDir, { recursive: true, force: true });
+    // const files = fs.readdirSync(projectDir);
+    //
+    // for (const file of files) {
+    //     const filePath = path.join(projectDir, file);
+    //     if (fs.lstatSync(filePath).isDirectory()) {
+    //       fs.rmSync(filePath, { recursive: true, force: true });
+    //     } else {
+    //       fs.unlinkSync(filePath);
+    //     }
+    // }
 }
 
 export async function generateProject(
