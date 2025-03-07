@@ -1,20 +1,20 @@
-// tools/haiku/src/utils/add-project.ts
 import { Tree, formatFiles, logger, installPackagesTask, generateFiles } from '@nx/devkit';
 import { execSync } from 'child_process';
-import * as path from 'path';
 import { validateHaikuGitState, createAndCheckoutBranch, hasUncommittedChanges, commit } from './git';
+import * as fs from 'fs';
 
 export interface AddProjectOptions {
   name: string;
   type: string;
-  projectType: 'app' | 'service';  // Indica si es una app o un servicio
-  generator: string;               // El generador NX a usar (ej: '@nx/node:app')
+  projectType: 'app' | 'service';
+  generator: string;
   dependencies?: {
     prod?: string[];
     dev?: string[];
   };
   templatePath: string;
   projectUpdates?: (projectDir: string, projectName: string) => void;
+  update?: boolean;  // Indica si estamos explícitamente en modo actualización
 }
 
 export async function generateProject(
@@ -35,12 +35,45 @@ export async function generateProject(
   const projectDir = `${directoryPrefix}/${options.name}`;
   const projectName = `${projectPrefix}-${options.name}`;
 
-  logger.info(`Adding ${options.type} ${options.projectType}: ${options.name}`);
+  // Verificar si el proyecto ya existe
+  const projectExists = fs.existsSync(projectDir);
+
+  // Si existe y no está en modo update, preguntar al usuario
+  if (projectExists && !options.update) {
+    // Crear un prompt manual
+    const readline = require('readline').createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    const answer = await new Promise<string>(resolve => {
+      readline.question(`Project ${options.name} already exists. Do you want to update it? (y/N): `, resolve);
+    });
+
+    readline.close();
+
+    if (answer.toLowerCase() !== 'y') {
+      logger.info('Update cancelled. Exiting...');
+      return;
+    }
+
+    logger.info(`Updating ${options.type} ${options.projectType}: ${options.name}`);
+  } else {
+    logger.info(`Adding ${options.type} ${options.projectType}: ${options.name}`);
+  }
 
   try {
     // 2. Cambiar a branch base
     createAndCheckoutBranch('base');
     logger.info('Switched to base branch');
+
+    // Si estamos actualizando, eliminar el proyecto anterior en base
+    if (projectExists) {
+      logger.info(`Removing existing project from base branch...`);
+      if (fs.existsSync(projectDir)) {
+        execSync(`rm -rf ${projectDir}`, { stdio: 'inherit' });
+      }
+    }
 
     // 3. Generar proyecto con NX
     execSync(`npx nx g ${options.generator} ${projectName} --directory=${projectDir} --no-interactive`, { stdio: 'inherit' });
@@ -79,14 +112,14 @@ export async function generateProject(
     await formatFiles(tree);
 
     // 8. IMPORTANTE: Devolvemos una función task que se ejecutará después de escribir todo a disco
-    // Esta es la clave para asegurar que git add capture todos los archivos generados
     return () => {
       // Git: add y commit
       logger.info('Adding all generated files to Git...');
       execSync('git add --all', { stdio: 'inherit' });
 
       if (hasUncommittedChanges()) {
-        commit(`Add ${options.type} ${options.projectType}: ${options.name}`);
+        const action = projectExists ? 'Update' : 'Add';
+        commit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
         logger.info(`Changes committed to base branch`);
       }
 
@@ -98,10 +131,12 @@ export async function generateProject(
       logger.info('Successfully merged from base to develop');
 
       if (hasUncommittedChanges()) {
-        commit(`Complete ${options.type} ${options.projectType} setup: ${options.name}`);
+        const action = projectExists ? 'Update' : 'Complete';
+        commit(`${action} ${options.type} ${options.projectType} setup: ${options.name}`);
       }
 
-      logger.info(`✅ ${options.type} ${options.projectType} ${options.name} created successfully!`);
+      const action = projectExists ? 'updated' : 'created';
+      logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${action} successfully!`);
 
       // Instalar dependencias
       installPackagesTask(tree);
@@ -114,7 +149,7 @@ export async function generateProject(
       // Ignorar errores de Git
     }
 
-    logger.error(`Failed to create ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }

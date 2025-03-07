@@ -1,0 +1,17 @@
+import * as path from 'path';
+import { ProjectGeneratorSchema } from '../project/schema';
+import { AddProjectOptions } from '../../utils/add-project';
+
+export function configureReactNative(options: ProjectGeneratorSchema): AddProjectOptions {
+  return {
+    name: options.name,
+    type: 'ReactNative',
+    projectType: 'app',
+    generator: '@nx/node:app',
+    dependencies: {
+      prod: [],
+      dev: []
+    },
+    templatePath: path.join(__dirname, '../files/react-native'),
+  };
+}

@@ -1,19 +1,9 @@
 {
   "generators": {
-    "add-react": {
-      "factory": "./src/generators/add-react/add-react",
-      "schema": "./src/generators/add-react/schema.json",
-      "description": "Add a React application to your Haiku workspace"
-    },
-    "add-react-native": {
-      "factory": "./src/generators/add-react-native/add-react-native",
-      "schema": "./src/generators/add-react-native/schema.json",
-      "description": "Add a React Native application to your Haiku workspace"
-    },
-    "add-apollo-prisma": {
-      "factory": "./src/generators/add-apollo-prisma/add-apollo-prisma",
-      "schema": "./src/generators/add-apollo-prisma/schema.json",
-      "description": "Add an Apollo-Prisma service to your Haiku workspace"
+    "project": {
+      "factory": "./src/generators/project/project",
+      "schema": "./src/generators/project/schema.json",
+      "description": "Add a Service or an Application to your Haiku workspace"
     }
   }
 }

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "AddProject",
+  "title": "Add Service or Application",
+  "description": "Add a Service or an Application to your Haiku workspace",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the Project",
+      "default": "apollo-prisma",
+      "x-prompt": "What name would you like to give to your Project?"
+    },
+    "type": {
+      "type": "string",
+      "description": "Type of the Project",
+      "default": "apollo-prisma",
+      "x-prompt": "What type is your Project?"
+    }
+  },
+  "required": ["name", "type"]
+}
