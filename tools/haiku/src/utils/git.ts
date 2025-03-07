@@ -61,8 +61,8 @@ export function initGitRepo(options: GitOptions = {}): void {
  * Configura Git con nombre y email si no están configurados
  */
 export function configureGit(
-  name: string = 'Haiku Generator',
-  email: string = 'haiku-generator@example.com',
+  name = 'Haiku Generator',
+  email = 'haiku-generator@example.com',
   options: GitOptions = {}
 ): void {
   try {
@@ -126,7 +126,7 @@ export function createAndCheckoutBranch(branchName: string, options: GitOptions 
 /**
  * Añade archivos al stage
  */
-export function addFiles(pattern: string = '.', options: GitOptions = {}): void {
+export function addFiles(pattern = '.', options: GitOptions = {}): void {
   execGitCommand(`add ${pattern}`, options);
 }
 
