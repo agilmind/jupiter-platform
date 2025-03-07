@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "InitHaiku",
+  "title": "Initialize Haiku Projects",
+  "description": "Initialize different types of applications and services for a Haiku workspace",
+  "type": "object",
+  "properties": {
+    "initReact": {
+      "type": "boolean",
+      "description": "Initialize a React application",
+      "default": false,
+      "x-prompt": "Do you want to initialize a React application?"
+    },
+    "reactAppName": {
+      "type": "string",
+      "description": "Name for the React application",
+      "x-prompt": {
+        "message": "What name would you like to give to your React application?",
+        "when": "initReact"
+      }
+    },
+    "initReactNative": {
+      "type": "boolean",
+      "description": "Initialize a React Native application",
+      "default": false,
+      "x-prompt": "Do you want to initialize a React Native application?"
+    },
+    "reactNativeAppName": {
+      "type": "string",
+      "description": "Name for the React Native application",
+      "x-prompt": {
+        "message": "What name would you like to give to your React Native application?",
+        "when": "initReactNative"
+      }
+    },
+    "initApolloPrisma": {
+      "type": "boolean",
+      "description": "Initialize an Apollo-Prisma service",
+      "default": false,
+      "x-prompt": "Do you want to initialize an Apollo-Prisma service?"
+    },
+    "apolloPrismaServiceName": {
+      "type": "string",
+      "description": "Name for the Apollo-Prisma service",
+      "x-prompt": {
+        "message": "What name would you like to give to your Apollo-Prisma service?",
+        "when": "initApolloPrisma"
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "haiku",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/haiku/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/tools/haiku",
+        "main": "tools/haiku/src/index.ts",
+        "tsConfig": "tools/haiku/tsconfig.lib.json",
+        "assets": [
+          "tools/haiku/*.md",
+          {
+            "input": "./tools/haiku/src",
+            "glob": "**/!(*.ts)",
+            "output": "./src"
+          },
+          {
+            "input": "./tools/haiku/src",
+            "glob": "**/*.d.ts",
+            "output": "./src"
+          },
+          {
+            "input": "./tools/haiku",
+            "glob": "generators.json",
+            "output": "."
+          },
+          {
+            "input": "./tools/haiku",
+            "glob": "executors.json",
+            "output": "."
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "init-haiku": {
+      "factory": "./src/generators/init-haiku/init-haiku",
+      "schema": "./src/generators/init-haiku/schema.json",
+      "description": "Initialize a Haiku workspace"
+    }
+  }
+}
