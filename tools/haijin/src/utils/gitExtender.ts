@@ -8,9 +8,9 @@ import * as fs from 'fs-extra';
  * Extensión segura de Git para trabajar con proyectos específicos dentro de un monorepo
  */
 export class NxProjectGit {
-  private rootGit: Git;
-  private projectDir: string;
-  private absoluteProjectPath: string;
+  rootGit: Git;
+  projectDir: string;
+  absoluteProjectPath: string;
 
   constructor(rootPath: string, projectDir: string) {
     this.rootGit = new Git(rootPath);
