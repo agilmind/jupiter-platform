@@ -104,7 +104,7 @@ export async function generateProject(
         template: '',
         dot: '.'
       },
-      {overwriteStrategy: OverwriteStrategy.Overwrite}
+       { overwrite: true }
     );
 
     // 6. Aplicar actualizaciones específicas
