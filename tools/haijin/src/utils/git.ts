@@ -1,5 +1,6 @@
 import { logger } from '@nx/devkit';
 import { execSync } from 'child_process';
+import {SimpleGit, simpleGit} from "simple-git";
 
 // Tipos para configuración
 export interface GitOptions {
@@ -90,7 +91,7 @@ export function createAndCheckoutBranch(branchName: string, options: GitOptions 
 export function prepareForGerneration(projectDir, options: GitOptions = {}) {
   const currentBranch = getCurrentBranch(options);
   if (currentBranch === 'base') {
-    execGitCommand(`rm -rf ${projectDir}/*`, options);
+    execGitCommand(`rm -r ${projectDir}/*`, options);
     logger.info(`${currentBranch} prepared`);
   } else {
     throw new Error('Not in base branch to clean up')
