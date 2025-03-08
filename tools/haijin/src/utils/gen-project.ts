@@ -79,7 +79,8 @@ export async function generateProject(
 
       // Limpiar el directorio pero preservar project.json y tsconfig.json
       logger.info(`Cleaning project directory...`);
-      await git.prepareForGenerationWithGit(projectDir);
+      // await git.prepareForGenerationWithGit(projectDir);
+      await git.prepareForGeneration(projectDir);
     }
 
     // 4. Instalar dependencias
@@ -95,10 +96,10 @@ export async function generateProject(
       }
     }
 
-    if (projectExists) {
-      logger.info('Cleaning destination directory before generation...');
-      cleanDirectoryExcept(tree, projectDir, []);
-    }
+    // if (projectExists) {
+    //   logger.info('Cleaning destination directory before generation...');
+    //   cleanDirectoryExcept(tree, projectDir, []);
+    // }
 
     // 5. Generar archivos específicos
     logger.info('Generating template files...');
