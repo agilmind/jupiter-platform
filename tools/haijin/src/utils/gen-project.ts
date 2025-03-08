@@ -263,14 +263,54 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
         logger.info(`Changes committed to base branch`);
 
         // 7. Pasar cambios a develop
+        let conflictsDetected = false;
+
         if (projectExists) {
           // Si ya existía, usar patch para aplicar los cambios
-          await projectGit.patchToDevelop();
-          logger.info('Applied patch to develop branch');
+          const patchSuccess = await projectGit.patchToDevelop();
+          if (!patchSuccess) {
+            conflictsDetected = true;
+            logger.warn(`
+==========================================================================
+⚠️ ATENCIÓN: CONFLICTO EN LA APLICACIÓN DEL PARCHE
+
+Se encontraron conflictos al intentar aplicar el parche a la rama develop.
+Por favor, sigue las instrucciones anteriores para resolver los conflictos.
+
+Una vez resueltos los conflictos, el proyecto estará actualizado en develop.
+Los archivos ya fueron actualizados correctamente en la rama base.
+==========================================================================`);
+          } else {
+            logger.info('Applied patch to develop branch');
+          }
         } else {
           // Si es nuevo, usar rebase para sincronizar
-          await projectGit.rebaseToDevelop();
-          logger.info('Rebased changes to develop branch');
+          const rebaseSuccess = await projectGit.rebaseToDevelop();
+
+          if (!rebaseSuccess) {
+            conflictsDetected = true;
+            logger.warn(`
+==========================================================================
+⚠️ ATENCIÓN: CONFLICTO DE REBASE DETECTADO
+
+Se encontraron conflictos al intentar aplicar los cambios a la rama develop.
+Por favor, sigue las instrucciones anteriores para resolver los conflictos.
+
+Una vez resueltos todos los conflictos y completado el rebase, el proyecto
+estará actualizado en la rama develop.
+
+Los archivos ya fueron actualizados correctamente en la rama base.
+==========================================================================`);
+          } else {
+            logger.info('Rebased changes to develop branch');
+          }
+        }
+
+        // Si hay conflictos, no continuar con el flujo normal
+        if (conflictsDetected) {
+          // No volver a la rama original - dejar al usuario en el estado actual
+          // para que pueda resolver los conflictos
+          return;
         }
 
         // 8. Volver a la rama original
