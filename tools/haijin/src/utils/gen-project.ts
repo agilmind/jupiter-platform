@@ -2,7 +2,7 @@ import { logger, Tree, installPackagesTask } from '@nx/devkit';
 import { execSync } from 'child_process';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { NxProjectGit } from './gitExtender';
+import { NxProjectGit } from './git-handler';
 
 // Función para generar archivos de manera sincrónica (en lugar de usar generateFiles de nx)
 function generateFilesSync(sourcePath: string, targetPath: string, options: any) {
