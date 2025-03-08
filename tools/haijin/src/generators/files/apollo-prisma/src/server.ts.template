@@ -4,6 +4,8 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Hello form BASE
+
 const typeDefs = `#graphql
   type Query {
     hello: String
