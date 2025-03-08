@@ -15,5 +15,10 @@
   },
   "timeFormats": { "es": "es-AR", "en": "en-US", "pt": "pt-BR" },
   "multiTenancy": true,
+  "services": {
+    "jupiter-server": "apollo-prisma",
+    "jupiter-webapp": "react"
+  },
+  "defaultService": "jupiter-server",
   "seeds": []
 }

@@ -72,5 +72,13 @@
       "factory": "./tools/workspace-generators/worker-service",
       "schema": "./tools/workspace-generators/worker-service/schema.json"
     }
+  },
+  "tasksRunnerOptions": {
+    "default": {
+      "runner": "nx/tasks-runners/default",
+      "options": {
+        "cacheableOperations": ["build", "lint", "test", "e2e"]
+      }
+    }
   }
 }
