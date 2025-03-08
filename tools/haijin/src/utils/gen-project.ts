@@ -1,8 +1,49 @@
-import { Tree, formatFiles, logger, installPackagesTask, generateFiles } from '@nx/devkit';
+import { logger, Tree, installPackagesTask } from '@nx/devkit';
 import { execSync } from 'child_process';
-import { Git } from './gitShell';
-import * as fs from 'fs';
+import * as fs from 'fs-extra';
 import * as path from 'path';
+import { Git } from './gitShell';
+
+// Función para generar archivos de manera sincrónica (en lugar de usar generateFiles de nx)
+function generateFilesSync(sourcePath: string, targetPath: string, options: any) {
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error(`Template directory not found: ${sourcePath}`);
+  }
+
+  // Asegurarse de que el directorio destino existe
+  fs.ensureDirSync(targetPath);
+
+  // Leer todos los archivos de la plantilla
+  const files = fs.readdirSync(sourcePath, { withFileTypes: true });
+
+  files.forEach(file => {
+    const sourceFilePath = path.join(sourcePath, file.name);
+    let targetFileName = file.name.replace(/__dot__/g, '.');
+    const targetFilePath = path.join(targetPath, targetFileName);
+
+    if (file.isDirectory()) {
+      // Recursivamente procesar subdirectorios
+      generateFilesSync(sourceFilePath, targetFilePath, options);
+    } else {
+      // Leer contenido del archivo
+      let content = fs.readFileSync(sourceFilePath, 'utf8');
+
+      // Procesar plantillas (similar a lo que hace generateFiles de nx)
+      // Este es un procesamiento simple, se puede hacer más sofisticado si es necesario
+      for (const [key, value] of Object.entries(options)) {
+        if (typeof value === 'string') {
+          const regex = new RegExp(`<%= ${key} %>`, 'g');
+          content = content.replace(regex, value);
+        }
+      }
+
+      // Escribir el archivo procesado
+      fs.writeFileSync(targetFilePath, content);
+    }
+  });
+
+  logger.info(`Files generated in ${targetPath}`);
+}
 
 export interface AddProjectOptions {
   name: string;
@@ -19,41 +60,46 @@ export interface AddProjectOptions {
   cwd?: string;
 }
 
-export async function generateProject(
-  tree: Tree,
-  options: AddProjectOptions
-) {
+export async function generateProject(tree: Tree, options: AddProjectOptions) {
   // Determinar directorio y nombre de proyecto
   const directoryPrefix = options.projectType === 'app' ? 'apps' : 'services';
   const projectPrefix = options.projectType === 'app' ? 'app' : 'services';
 
   const projectDir = `${directoryPrefix}/${options.name}`;
   const projectName = `${projectPrefix}-${options.name}`;
+  const projectRoot = path.join(process.cwd(), projectDir);
 
-  // Verificar si el proyecto ya existe
-  const projectExists = fs.existsSync(projectDir);
-
-  // Si existe y no está en modo update, preguntar al usuario
-  if (projectExists && !options.update) {
-    const readline = require('readline').createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-    const answer = await new Promise<string>(resolve => {
-      readline.question(`Project ${options.name} already exists. Do you want to update it? (y/N): `, resolve);
-    });
-    readline.close();
-    if (answer.toLowerCase() !== 'y') {
-      logger.info('Update cancelled. Exiting...');
-      return;
-    }
-    logger.info(`Updating ${options.type} ${options.projectType}: ${options.name}`);
-  } else {
-    logger.info(`Adding ${options.type} ${options.projectType}: ${options.name}`);
-  }
+  // Inicializar Git con el directorio del workspace
+  const git = new Git(process.cwd());
 
   try {
-    // Instalar dependencias (esto se puede hacer antes de generar archivos)
+    // Verificar si el proyecto ya existe
+    const projectExists = fs.existsSync(projectRoot);
+
+    if (projectExists && !options.update) {
+      // Preguntar si quiere actualizar el proyecto existente
+      const readline = require('readline').createInterface({
+        input: process.stdin,
+        output: process.stdout
+      });
+
+      const answer = await new Promise<string>(resolve => {
+        readline.question(`Project ${options.name} already exists. Do you want to update it? (y/N): `, resolve);
+      });
+
+      readline.close();
+
+      if (answer.toLowerCase() !== 'y') {
+        logger.info('Update cancelled. Exiting...');
+        return;
+      }
+
+      logger.info(`Updating ${options.type} ${options.projectType}: ${options.name}`);
+    } else if (!projectExists) {
+      logger.info(`Creating ${options.type} ${options.projectType}: ${options.name}`);
+    }
+
+    // Instalar dependencias si se especificaron
     if (options.dependencies) {
       logger.info('Installing dependencies...');
 
@@ -66,206 +112,69 @@ export async function generateProject(
       }
     }
 
-    // Generar archivos - esto modifica el árbol virtual
-    logger.info('Generating template files...');
-    generateFiles(
-      tree,
-      options.templatePath,
-      projectDir,
-      {
-        ...options,
-        template: '',
-        dot: '.'
-      },
-      { overwrite: true }
-    );
+    // 1. Si es la primera vez, inicializar Git
+    if (!projectExists) {
+      // Crear el directorio del proyecto
+      fs.ensureDirSync(projectRoot);
 
-    // Aplicar actualizaciones específicas si es necesario
-    if (options.projectUpdates) {
-      options.projectUpdates(projectDir, projectName);
+      // Inicializar Git en el directorio principal
+      logger.info('Initializing Git workflow...');
+      await git.init(options.name);
     }
 
-    // Formatear y escribir cambios
-    await formatFiles(tree);
+    // 2. Preparar para generación (checkout a base y limpiar)
+    try {
+      await git.prepareForGeneration(projectDir);
+      logger.info('Prepared for generation in base branch');
 
-    // *** IMPORTANTE: TODAS LAS OPERACIONES DE GIT VAN EN LA FUNCIÓN DE RETORNO ***
-    // Esta función se ejecutará DESPUÉS de que Nx escriba físicamente los archivos
-    return () => {
-      logger.info('Executing post-generation Git operations...');
-
-      // Obtener el estado actual de Git
-      const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
-      logger.info(`Current branch: ${currentBranch}`);
-
-      try {
-        // Crear directorio temporal FUERA del repo
-        const homeDir = require('os').homedir();
-        const tempDir = path.join(homeDir, '.haijin-temp-files');
-
-        // Asegurarnos que el directorio temporal existe
-        if (!fs.existsSync(tempDir)) {
-          fs.mkdirSync(tempDir, { recursive: true });
-        } else {
-          // Limpiar cualquier contenido previo
-          fs.rmSync(tempDir, { recursive: true, force: true });
-          fs.mkdirSync(tempDir, { recursive: true });
+      // 3. Generar archivos de manera sincrónica (en lugar de usar generateFiles de nx)
+      logger.info('Generating project files...');
+      generateFilesSync(
+        options.templatePath,
+        projectRoot,
+        {
+          ...options,
+          template: '',
+          dot: '.'
         }
+      );
 
-        logger.info(`Created temporary directory at ${tempDir}`);
-
-        // Crear la estructura completa de directorios en el temp
-        const tempProjectDir = path.join(tempDir, projectDir);
-        fs.mkdirSync(tempProjectDir, { recursive: true });
-
-        // PASO CRÍTICO 1: Copiar los archivos generados al directorio temporal
-        logger.info(`Backing up generated files...`);
-        execSync(`cp -r ${projectDir}/* ${tempProjectDir}/`, { stdio: 'inherit' });
-
-        // PASO CRÍTICO 2: Eliminar archivos generados del branch actual
-        logger.info(`Removing generated files from current branch...`);
-        execSync(`rm -rf ${projectDir}`, { stdio: 'inherit' });
-
-        // Guardar el estado actual antes de cambiar de branch
-        let stashCreated = false;
-        const hasUncommittedChanges = execSync('git status --porcelain', { encoding: 'utf8' }).trim().length > 0;
-
-        if (hasUncommittedChanges) {
-          logger.info('Creating stash with current changes...');
-          execSync('git add --all', { stdio: 'inherit' });
-          execSync('git stash push -m "Temporary stash for haijin generator"', { stdio: 'inherit' });
-          stashCreated = true;
-        }
-
-        // ===== PASO A BASE =====
-        const branchExists = execSync('git branch --list base', { encoding: 'utf8' }).trim().length > 0;
-
-        if (branchExists) {
-          execSync('git checkout base', { stdio: 'inherit' });
-        } else {
-          execSync('git checkout -b base', { stdio: 'inherit' });
-        }
-        logger.info('✓ Switched to base branch');
-
-        // Verificar que estamos realmente en base
-        const actualBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
-        if (actualBranch !== 'base') {
-          throw new Error(`Failed to switch to base branch! Currently on ${actualBranch}`);
-        }
-
-        // PASO CRÍTICO 3: Recrear el directorio del proyecto en base
-        logger.info(`Recreating project directory in base branch...`);
-        fs.mkdirSync(projectDir, { recursive: true });
-
-        // PASO CRÍTICO 4: Copiar archivos desde el directorio temporal
-        logger.info(`Copying files to ${projectDir} in base branch...`);
-        execSync(`cp -r ${tempProjectDir}/* ${projectDir}/`, { stdio: 'inherit' });
-
-        // Añadir y hacer commit de los archivos
-        logger.info(`Adding generated files in ${projectDir}...`);
-        execSync(`git add ${projectDir}`, { stdio: 'inherit' });
-
-        const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' });
-        if (gitStatus.trim().length > 0) {
-          const action = projectExists ? 'Update' : 'Add';
-          execSync(`git commit -m "${action} ${options.type} ${options.projectType}: ${options.name}"`, { stdio: 'inherit' });
-          logger.info(`✓ Changes committed to base branch`);
-
-          // Crear un parche con los cambios para usar en caso de conflictos
-          logger.info(`Creating patch file with changes...`);
-          const patchFile = path.join(process.cwd(), `${options.name}-changes.patch`);
-          execSync(`git format-patch -1 HEAD --stdout > ${patchFile}`, { stdio: 'inherit' });
-          logger.info(`✓ Patch file created: ${patchFile}`);
-        } else {
-          logger.info(`No changes detected in ${projectDir}`);
-        }
-
-        // ===== MERGE A DEVELOP =====
-        const developExists = execSync('git branch --list develop', { encoding: 'utf8' }).trim().length > 0;
-
-        if (developExists) {
-          execSync('git checkout develop', { stdio: 'inherit' });
-        } else {
-          execSync('git checkout -b develop', { stdio: 'inherit' });
-        }
-        logger.info('✓ Switched to develop branch');
-
-        // Intentar merge desde base
-        logger.info('Attempting to merge from base to develop...');
-        try {
-          // Añadimos un mensaje de commit predefinido al merge para evitar la solicitud interactiva
-          const mergeMsg = `Merge ${options.type} ${options.projectType} ${options.name} from base to develop`;
-          execSync(`git merge base -X theirs -m "${mergeMsg}"`, { stdio: 'inherit' });
-          logger.info('✓ Successfully merged from base to develop');
-
-          const gitStatus2 = execSync('git status --porcelain', { encoding: 'utf8' });
-          if (gitStatus2.trim().length > 0) {
-            const action = projectExists ? 'Update' : 'Complete';
-            execSync(`git commit -m "${action} ${options.type} ${options.projectType} setup: ${options.name}"`, { stdio: 'inherit' });
-            logger.info('✓ Merge changes committed');
-          }
-        } catch (mergeError) {
-          logger.error(`❌ Merge conflict detected. Aborting merge.`);
-          execSync('git merge --abort', { stdio: 'inherit' });
-          logger.info(`💡 Please resolve conflicts manually by applying the patch file: ${options.name}-changes.patch`);
-          logger.info(`   You can use: git apply --reject ${options.name}-changes.patch`);
-        }
-
-        // ===== VOLVER AL BRANCH ORIGINAL =====
-        if (currentBranch && currentBranch !== 'develop') {
-          execSync(`git checkout ${currentBranch}`, { stdio: 'inherit' });
-          logger.info(`✓ Returned to original branch: ${currentBranch}`);
-
-          if (stashCreated) {
-            logger.info('Applying stashed changes...');
-            execSync('git stash pop', { stdio: 'inherit' });
-            logger.info('✓ Original changes restored');
-          }
-        }
-
-        // Limpiar directorio temporal
-        logger.info('Cleaning up temporary directory...');
-        fs.rmSync(tempDir, { recursive: true, force: true });
-
-        const action = projectExists ? 'updated' : 'created';
-        logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${action} successfully!`);
-
-        // Instalar dependencias
-        installPackagesTask(tree);
-      } catch (error) {
-        logger.error(`❌ Git operations failed: ${error instanceof Error ? error.message : String(error)}`);
-
-        try {
-          // Intentar volver al branch original
-          if (currentBranch) {
-            execSync(`git checkout ${currentBranch}`, { stdio: 'ignore' });
-            logger.info(`Returned to original branch: ${currentBranch}`);
-
-            // Intentar recuperar el stash si existe
-            try {
-              const hasStash = execSync('git stash list | grep "Temporary stash for haijin generator"', { stdio: 'ignore', encoding: 'utf8' }).trim().length > 0;
-              if (hasStash) {
-                logger.info('Applying stashed changes after error...');
-                execSync('git stash pop', { stdio: 'ignore' });
-                logger.info('✓ Original changes restored');
-              }
-            } catch (e) {
-              // Si el comando grep falla, no hay stash o hay otro problema
-            }
-          }
-
-          // Limpiar directorio temporal si existe
-          const homeDir = require('os').homedir();
-          const tempDir = path.join(homeDir, '.haijin-temp-files');
-          if (fs.existsSync(tempDir)) {
-            fs.rmSync(tempDir, { recursive: true, force: true });
-          }
-        } catch (e) {
-          logger.error(`Failed to clean up: ${e instanceof Error ? e.message : String(e)}`);
-        }
+      // 4. Aplicar actualizaciones específicas si es necesario
+      if (options.projectUpdates) {
+        options.projectUpdates(projectDir, projectName);
       }
-    };
+
+      // 5. Git: add y commit
+      const action = projectExists ? 'Update' : 'Add';
+      await git.addAndCommit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
+      logger.info(`Changes committed to base branch`);
+
+      // 6. Pasar los cambios a develop
+      if (projectExists) {
+        // Si ya existía, usar patch para aplicar los cambios
+        await git.patchToDevelop();
+        logger.info('Applied patch to develop branch');
+      } else {
+        // Si es nuevo, usar rebase para sincronizar
+        await git.rebaseToDevelop();
+        logger.info('Rebased changes to develop branch');
+      }
+
+      const resultAction = projectExists ? 'updated' : 'created';
+      logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${resultAction} successfully!`);
+
+      // Para mantener consistencia con Nx, devolvemos una función que instala dependencias
+      return () => {
+        installPackagesTask(tree);
+      };
+    } catch (error) {
+      // Si algo sale mal, revertir los cambios
+      await git.revertPrepareForGeneration();
+      logger.error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   } catch (error) {
-    logger.error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`Project generation failed: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }
