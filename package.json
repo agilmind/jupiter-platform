@@ -23,7 +23,8 @@
     "lint:fix": "nx run-many --target=lint --all --fix",
     "affected:lint": "nx affected --target=lint",
     "affected:lint:fix": "nx affected --target=lint --fix",
-    "pre-push": "npm run affected:lint:fix && npm run affected --target=test"
+    "affected:test": "nx affected --target=test",
+    "pre-push": "npm run affected:lint:fix && npm run affected:test"
   },
   "private": true,
   "devDependencies": {
