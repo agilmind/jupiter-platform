@@ -1,7 +1,6 @@
 import { Git } from './gitShell';
 import * as path from 'path';
 import { logger } from '@nx/devkit';
-import { execSync } from 'child_process';
 import * as fs from 'fs-extra';
 
 /**

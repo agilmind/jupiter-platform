@@ -1,4 +1,4 @@
-import { formatFiles, logger, Tree, installPackagesTask } from '@nx/devkit';
+import { logger, Tree, installPackagesTask } from '@nx/devkit';
 import { execSync } from 'child_process';
 import * as fs from 'fs-extra';
 import * as path from 'path';
