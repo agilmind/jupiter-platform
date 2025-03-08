@@ -136,25 +136,77 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
       }
     }
 
-    // Generar archivos sincrónicamente, pero usamos Nx tree para que funcione con el sistema de Nx
-    logger.info('Setting up template files in the Nx tree...');
-    generateFilesSync(
-      options.templatePath,
-      projectRoot,
-      {
-        ...options,
-        template: '',
-        dot: '.'
+    // FASE 1: Procesar las plantillas mientras estamos en main y guardar el contenido en memoria
+    logger.info('Processing template files while in main branch...');
+
+    // Estructura para almacenar el contenido procesado de los archivos
+    const processedFiles = [];
+
+    // Función recursiva para procesar directorios y guardar contenido
+    const processTemplateDir = (sourcePath, relativePath = '') => {
+      if (!fs.existsSync(sourcePath)) {
+        throw new Error(`Template directory not found: ${sourcePath}`);
       }
-    );
 
-    // 4. Aplicar actualizaciones específicas si es necesario
-    if (options.projectUpdates) {
-      options.projectUpdates(projectDir, projectName);
-    }
+      const files = fs.readdirSync(sourcePath, { withFileTypes: true });
 
-    // IMPORTANTE: Retornar una función que ejecute TODAS las operaciones Git
-    // Esta función se ejecutará DESPUÉS de que Nx escriba todos los archivos al sistema
+      files.forEach(file => {
+        const sourceFilePath = path.join(sourcePath, file.name);
+        let targetFileName = file.name
+          .replace(/__dot__/g, '.')
+          .replace(/\.template$/, '');
+
+        // Procesar variables en el nombre del archivo
+        targetFileName = targetFileName.replace(/__([a-zA-Z0-9]+)__/g, (match, key) => {
+          return options[key] || match;
+        });
+
+        const targetRelativePath = path.join(relativePath, targetFileName);
+
+        if (file.isDirectory()) {
+          // Procesar subdirectorios recursivamente
+          processTemplateDir(sourceFilePath, targetRelativePath);
+        } else {
+          // Leer y procesar el contenido del archivo
+          let content = fs.readFileSync(sourceFilePath, 'utf8');
+
+          // Procesamiento de plantilla
+          content = content.replace(/<%=\s*([^%>]+)\s*%>/g, (match, expr) => {
+            try {
+              if (/^[a-zA-Z0-9_]+$/.test(expr.trim())) {
+                const key = expr.trim();
+                return options[key] !== undefined ? options[key] : match;
+              }
+
+              const sandbox = { ...options };
+              const result = new Function(...Object.keys(sandbox), `return ${expr}`)(
+                ...Object.values(sandbox)
+              );
+
+              return result !== undefined ? result : match;
+            } catch (e) {
+              logger.warn(`Error processing expression: ${expr}`);
+              return match;
+            }
+          });
+
+          // Guardar el contenido procesado y la ruta relativa para escribirlo después
+          processedFiles.push({
+            relativePath: targetRelativePath,
+            content
+          });
+
+          logger.debug(`Processed template: ${targetRelativePath}`);
+        }
+      });
+    };
+
+    // Procesar todos los templates y guardar contenido
+    processTemplateDir(options.templatePath);
+    logger.info(`Processed ${processedFiles.length} template files, ready for Git operations`);
+
+    // FASE 2: Ejecutar operaciones Git y escribir archivos procesados
+    // Esta función se ejecutará DESPUÉS de que Nx complete sus operaciones
     return async () => {
       // Guardar la rama original
       const originalBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
@@ -167,15 +219,50 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
         // 1. Asegurarse de que las ramas base y develop existen
         await projectGit.ensureBranches();
 
-        // 2. Preparar para generación - esto elimina los archivos generados por Nx y cambia a base
-        await projectGit.prepareForGeneration();
+        // 2. Eliminar archivos en la rama actual para poder cambiar a base
+        if (fs.existsSync(projectRoot)) {
+          logger.info(`Removing files in current branch before checkout...`);
+          fs.removeSync(projectRoot);
+        }
 
-        // 3. Nx ha copiado los archivos a la rama base, ahora hacemos add y commit
+        // 3. Cambiar a la rama base
+        await projectGit.rootGit.git.checkout('base');
+        logger.info('Switched to base branch');
+
+        // 4. Limpiar directorio en base si existe
+        try {
+          await projectGit.rootGit.git.rm(['-r', `${projectDir}/*`]);
+          logger.info('Cleaned existing files in base branch');
+        } catch (rmError) {
+          if (rmError.message.includes('did not match any files')) {
+            logger.info('No existing files to clean in base branch');
+          } else {
+            throw rmError;
+          }
+        }
+
+        // 5. Escribir archivos procesados en la rama base
+        logger.info(`Writing processed files to base branch...`);
+
+        for (const file of processedFiles) {
+          const fullPath = path.join(process.cwd(), projectDir, file.relativePath);
+
+          // Asegurar que el directorio exista
+          fs.ensureDirSync(path.dirname(fullPath));
+
+          // Escribir el contenido procesado
+          fs.writeFileSync(fullPath, file.content);
+          logger.debug(`Wrote file: ${fullPath}`);
+        }
+
+        logger.info(`Successfully wrote ${processedFiles.length} files to base branch`);
+
+        // 6. Git add y commit
         const action = projectExists ? 'Update' : 'Add';
         await projectGit.addAndCommit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
         logger.info(`Changes committed to base branch`);
 
-        // 4. Pasar los cambios a develop
+        // 7. Pasar cambios a develop
         if (projectExists) {
           // Si ya existía, usar patch para aplicar los cambios
           await projectGit.patchToDevelop();
@@ -186,13 +273,12 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
           logger.info('Rebased changes to develop branch');
         }
 
-        // 5. Volver a la rama original
+        // 8. Volver a la rama original
         if (originalBranch && originalBranch !== 'base' && originalBranch !== 'develop') {
           await projectGit.rootGit.git.checkout(originalBranch);
           logger.info(`Returned to original branch: ${originalBranch}`);
 
-          // PASO CRÍTICO: Eliminar archivos del proyecto en la rama original
-          // Nx puede haber recreado los archivos, así que los eliminamos
+          // Eliminar archivos del proyecto en la rama original si existen
           if (fs.existsSync(projectRoot)) {
             logger.info(`Removing generated files from ${originalBranch} branch...`);
             fs.removeSync(projectRoot);
@@ -218,7 +304,6 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
             if (fs.existsSync(projectRoot)) {
               logger.info(`Removing generated files from ${originalBranch} branch...`);
               fs.removeSync(projectRoot);
-              logger.info(`Files removed from ${originalBranch} branch`);
             }
           } catch (checkoutError) {
             logger.error(`Failed to return to original branch: ${checkoutError.message}`);
