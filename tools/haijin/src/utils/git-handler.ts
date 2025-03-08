@@ -15,9 +15,9 @@ export class Git {
 
     constructor(
       appDir: string,
-      generatorBranch: string = "base",
-      developerBranch: string = "develop",
-      mainBranch: string = "main") {
+      generatorBranch = "base",
+      developerBranch = "develop",
+      mainBranch = "main") {
         this.dirApp = appDir;
         this.genBranch = generatorBranch;
         this.developerBranch = developerBranch;
@@ -26,34 +26,30 @@ export class Git {
     }
 
     async init(projectName: string) {
-      try {
-          await this.git.init();
-          await this.git.checkout(["-b", this.mainBranch]);
-          await fs.writeFile(
-            path.join(this.dirApp, `${this.mainBranch}.json`),
-            `{"projectName": "${projectName}"}`
-          );
-          await this.git.add("./*");
-          await this.git.commit("initial");
+      await this.git.init();
+      await this.git.checkout(["-b", this.mainBranch]);
+      await fs.writeFile(
+        path.join(this.dirApp, `${this.mainBranch}.json`),
+        `{"projectName": "${projectName}"}`
+      );
+      await this.git.add("./*");
+      await this.git.commit("initial");
 
-          await this.git.checkout(["-b", this.developerBranch]);
-          await fs.writeFile(
-            path.join(this.dirApp, `${this.developerBranch}.json`),
-            `{"projectName": "${projectName}"}`
-          );
-          await this.git.add("./*");
-          await this.git.commit("initial");
+      await this.git.checkout(["-b", this.developerBranch]);
+      await fs.writeFile(
+        path.join(this.dirApp, `${this.developerBranch}.json`),
+        `{"projectName": "${projectName}"}`
+      );
+      await this.git.add("./*");
+      await this.git.commit("initial");
 
-          await this.git.checkout(["-b", this.genBranch]);
-          await fs.writeFile(
-            path.join(this.dirApp, `${this.genBranch}.json`),
-            `{"projectName": "${projectName}"}`
-          );
-          await this.git.add("./*");
-          await this.git.commit("initial");
-      } catch(e) {
-          throw e;
-      }
+      await this.git.checkout(["-b", this.genBranch]);
+      await fs.writeFile(
+        path.join(this.dirApp, `${this.genBranch}.json`),
+        `{"projectName": "${projectName}"}`
+      );
+      await this.git.add("./*");
+      await this.git.commit("initial");
     }
 
     async prepareForGeneration() {

@@ -71,12 +71,10 @@
     "amqplib": "^0.10.5",
     "cross-fetch": "^4.1.0",
     "dotenv": "^16.4.7",
-    "fs-extra": "^11.3.0",
     "graphql": "^16.10.0",
     "nodemailer": "^6.10.0",
     "playwright": "^1.50.1",
     "shelljs": "^0.8.5",
-    "simple-git": "^3.27.0",
     "winston": "^3.17.0"
   },
   "nx": {
