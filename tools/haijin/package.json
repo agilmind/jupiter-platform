@@ -6,11 +6,8 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
-    "@apollo/server": "^4.11.3",
     "@nx/devkit": "20.4.6",
-    "@prisma/client": "^6.4.1",
     "fs-extra": "^11.3.0",
-    "graphql": "^16.10.0",
     "simple-git": "^3.27.0",
     "tslib": "^2.3.0"
   },
