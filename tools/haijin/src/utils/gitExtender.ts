@@ -23,26 +23,38 @@ export class NxProjectGit {
    */
   async prepareForGeneration() {
     try {
-      // Cambiar a branch base directamente (sin verificar pendientes)
+      // PASO 1: Eliminar físicamente los archivos generados por Nx en la rama actual
+      // para poder cambiar a la rama base sin conflictos
+      if (fs.existsSync(this.absoluteProjectPath)) {
+        logger.info(`Removing Nx-generated files from current branch before checkout...`);
+        fs.removeSync(this.absoluteProjectPath);
+        logger.info(`Files removed successfully`);
+      }
+
+      // PASO 2: Cambiar a la rama base
       await this.rootGit.git.checkout('base');
       logger.info('Switched to base branch');
 
-      // Asegurarse de que el directorio existe
+      // PASO 3: Asegurarse de que el directorio existe en base
       fs.ensureDirSync(this.absoluteProjectPath);
 
-      // Eliminar archivos usando git rm
+      // PASO 4: Eliminar archivos existentes en base con git rm (si hay)
       try {
-        logger.info(`Removing all files in ${this.projectDir}`);
+        logger.info(`Removing existing files from base branch...`);
         await this.rootGit.git.rm(['-r', `${this.projectDir}/*`]);
-        logger.info(`Project directory cleaned with git rm`);
+        logger.info(`Project directory cleaned in base branch`);
       } catch (rmError) {
         // Si el error es por archivos inexistentes (primer uso), lo ignoramos
         if (rmError.message && rmError.message.includes('did not match any files')) {
-          logger.info(`No files found to remove, directory may be empty or project is new`);
+          logger.info(`No files found to remove in base branch`);
         } else {
           throw rmError;
         }
       }
+
+      // Ahora estamos en la rama base con el directorio limpio
+      // Nx copiará los archivos del árbol virtual al sistema de archivos
+      logger.info(`Ready for file generation in base branch`);
     } catch (error) {
       logger.error(`Failed to prepare project directory: ${error instanceof Error ? error.message : String(error)}`);
       throw error;

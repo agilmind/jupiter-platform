@@ -156,6 +156,10 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
     // IMPORTANTE: Retornar una función que ejecute TODAS las operaciones Git
     // Esta función se ejecutará DESPUÉS de que Nx escriba todos los archivos al sistema
     return async () => {
+      // Guardar la rama original
+      const originalBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+      logger.info(`Starting Git operations (current branch: ${originalBranch})`);
+
       // Inicializar GitExtender con el directorio del workspace y el directorio del proyecto
       const projectGit = new NxProjectGit(process.cwd(), projectDir);
 
@@ -163,53 +167,62 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
         // 1. Asegurarse de que las ramas base y develop existen
         await projectGit.ensureBranches();
 
-        // 2. Preparar para generación (checkout a base y limpiar SOLO el directorio del proyecto)
+        // 2. Preparar para generación - esto elimina los archivos generados por Nx y cambia a base
         await projectGit.prepareForGeneration();
-        logger.info('Prepared for generation in base branch');
 
-        // 3. Git: add y commit SOLO los archivos del proyecto
+        // 3. Nx ha copiado los archivos a la rama base, ahora hacemos add y commit
         const action = projectExists ? 'Update' : 'Add';
         await projectGit.addAndCommit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
         logger.info(`Changes committed to base branch`);
 
         // 4. Pasar los cambios a develop
-        try {
-          if (projectExists) {
-            // Si ya existía, usar patch para aplicar los cambios
-            await projectGit.patchToDevelop();
-            logger.info('Applied patch to develop branch');
-          } else {
-            // Si es nuevo, usar rebase para sincronizar
-            await projectGit.rebaseToDevelop();
-            logger.info('Rebased changes to develop branch');
-          }
-
-          const resultAction = projectExists ? 'updated' : 'created';
-          logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${resultAction} successfully!`);
-
-          // Instalar dependencias
-          installPackagesTask(tree);
-        } catch (gitMergeError) {
-          // Capturar específicamente errores en la etapa de merge/rebase
-          logger.error(`Git merge/rebase failed: ${gitMergeError instanceof Error ? gitMergeError.message : String(gitMergeError)}`);
-
-          // Intentar volver al estado original
-          await projectGit.revertPrepareForGeneration();
-          logger.info('Reverted changes due to merge failure');
-
-          // Propagar el error para que el usuario sepa que algo falló
-          throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${gitMergeError instanceof Error ? gitMergeError.message : String(gitMergeError)}`);
+        if (projectExists) {
+          // Si ya existía, usar patch para aplicar los cambios
+          await projectGit.patchToDevelop();
+          logger.info('Applied patch to develop branch');
+        } else {
+          // Si es nuevo, usar rebase para sincronizar
+          await projectGit.rebaseToDevelop();
+          logger.info('Rebased changes to develop branch');
         }
-      } catch (error) {
-        // Si algo sale mal en cualquier paso después de prepareForGeneration
-        logger.error(`Generation process failed: ${error instanceof Error ? error.message : String(error)}`);
 
-        // Intentar revertir los cambios
-        try {
-          await projectGit.revertPrepareForGeneration();
-          logger.info('Reverted changes due to error');
-        } catch (revertError) {
-          logger.error(`Failed to revert changes: ${revertError instanceof Error ? revertError.message : String(revertError)}`);
+        // 5. Volver a la rama original
+        if (originalBranch && originalBranch !== 'base' && originalBranch !== 'develop') {
+          await projectGit.rootGit.git.checkout(originalBranch);
+          logger.info(`Returned to original branch: ${originalBranch}`);
+
+          // PASO CRÍTICO: Eliminar archivos del proyecto en la rama original
+          // Nx puede haber recreado los archivos, así que los eliminamos
+          if (fs.existsSync(projectRoot)) {
+            logger.info(`Removing generated files from ${originalBranch} branch...`);
+            fs.removeSync(projectRoot);
+            logger.info(`Files removed from ${originalBranch} branch`);
+          }
+        }
+
+        const resultAction = projectExists ? 'updated' : 'created';
+        logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${resultAction} successfully!`);
+
+        // Instalar dependencias
+        installPackagesTask(tree);
+      } catch (error) {
+        logger.error(`Git operations failed: ${error instanceof Error ? error.message : String(error)}`);
+
+        // Intentar volver a la rama original
+        if (originalBranch) {
+          try {
+            await projectGit.rootGit.git.checkout(originalBranch);
+            logger.info(`Returned to original branch: ${originalBranch}`);
+
+            // Eliminar archivos del proyecto en la rama original
+            if (fs.existsSync(projectRoot)) {
+              logger.info(`Removing generated files from ${originalBranch} branch...`);
+              fs.removeSync(projectRoot);
+              logger.info(`Files removed from ${originalBranch} branch`);
+            }
+          } catch (checkoutError) {
+            logger.error(`Failed to return to original branch: ${checkoutError.message}`);
+          }
         }
 
         throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
