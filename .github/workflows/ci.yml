@@ -27,6 +27,20 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
+      # Create a simple root Jest config that uses ts-jest instead of SWC
+      - name: Configure Jest to use ts-jest
+        run: |
+          echo 'module.exports = {
+            preset: "ts-jest",
+            testEnvironment: "node",
+            transform: {
+              "^.+\\\\.(ts|tsx)$": "ts-jest"
+            }
+          };' > jest.config.ci.js
+
+          # Tell NX to use our custom config
+          echo 'NX_JEST_PRESET=./jest.config.ci.js' >> $GITHUB_ENV
+
       # ELIMINACIÓN COMPLETA de los plugins locales para CI
       - name: Remove local plugins for CI
         run: |
@@ -35,22 +49,19 @@ jobs:
 
       - uses: nrwl/nx-set-shas@v4
 
-      # Skip tests - only run lint and build
-      - name: Run lint and build (skipping tests)
-        run: npx nx affected -t lint build --verbose
+      # Run all targets with custom Jest config
+      - run: npx nx affected -t lint test build --verbose
 
-      # Build plugins without testing
-      - name: Build create-worker plugin (skipping tests)
+      # Compile plugins separately with ts-jest for tests
+      - name: Build and test create-worker plugin
         run: |
           cd tools/create-worker
           npx tsc -p tsconfig.json
+          JEST_PRESET=../../jest.config.ci.js npx jest
 
-      - name: Build haijin plugin (skipping tests)
-        if: ${{ always() }}
+      - name: Build and test haijin plugin
+        if: ${{ always() }}  # Ejecutar incluso si create-worker falla
         run: |
           cd tools/haijin
           npx tsc -p tsconfig.json
-
-      # Add a note about skipped tests for transparency
-      - name: Note about skipped tests
-        run: echo "::warning::Tests temporarily skipped due to SWC/Jest configuration issues. Working on a permanent fix."
+          JEST_PRESET=../../jest.config.ci.js npx jest

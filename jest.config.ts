@@ -1,8 +1,9 @@
-import { getJestProjectsAsync } from '@nx/jest';
-
-export default async () => ({
-  projects: await getJestProjectsAsync(),
-  transform: {
-    '^.+\\.[tj]sx?$': 'ts-jest',
-  },
-});
+export default {
+  displayName: '@jupiter-platform/source',
+  preset: './jest.preset.js',
+  coverageDirectory: './coverage/@jupiter-platform/source',
+  testMatch: [
+    '<rootDir>/src/**/__tests__/**/*.[jt]s?(x)',
+    '<rootDir>/src/**/*(*.)@(spec|test).[jt]s?(x)',
+  ],
+};
