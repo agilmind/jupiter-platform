@@ -27,33 +27,21 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
-      # Fix SWC/Jest compatibility issues
-      - name: Fix SWC/Jest compatibility issues
+      # Fix Jest configurations by modifying them directly
+      - name: Fix Jest configurations for SWC compatibility
         run: |
-          # Create a Jest transformer that uses Babel instead of SWC for CI
-          cat > jest-transformer.js << 'EOL'
-          const babelJest = require('babel-jest').default;
-
-          module.exports = babelJest.createTransformer({
-            presets: [
-              ['@babel/preset-env', { targets: { node: 'current' } }],
-              '@babel/preset-typescript',
-            ],
-          });
-          EOL
-
-          # Install necessary Babel dependencies
-          npm install --save-dev babel-jest @babel/core @babel/preset-env @babel/preset-typescript
-
-          # Update Jest configs to use Babel transformer in CI
           for config in $(find . -name "jest.config.ts"); do
             echo "Fixing $config"
-            # Create a CI-specific Jest config that uses Babel instead of SWC
-            cat > $(dirname $config)/jest.ci-config.js << 'EOL'
+            # Create a simpler jest.config.js alongside each jest.config.ts
+            cat > $(dirname $config)/jest.config.js << 'EOL'
             module.exports = {
+              preset: 'ts-jest',
+              testEnvironment: 'node',
               transform: {
-                '^.+\\.[tj]sx?$': '<rootDir>/../../jest-transformer.js'
+                '^.+\\.[tj]s$': 'ts-jest'
               },
+              moduleFileExtensions: ['ts', 'js', 'html'],
+              coverageDirectory: '../../coverage/$(dirname $config)'
             };
             EOL
           done
@@ -66,21 +54,24 @@ jobs:
 
       - uses: nrwl/nx-set-shas@v4
 
-      # Run with NX_JEST_EXTRA_CONFIG for all Jest operations
-      - name: Run affected tasks with Babel transformer for Jest
+      # Run nx affected with --skip-nx-cache to avoid any caching issues
+      - name: Run affected tasks
         run: |
-          NX_JEST_EXTRA_CONFIG=jest.ci-config.js npx nx affected -t lint test build --verbose
+          # Use the JS config files instead of TS
+          export NX_JEST_TESTFILE_PATTERN="**/*.spec.{js,ts}"
+          npx nx affected -t lint build --verbose
+          npx nx affected -t test --configuration=ci --verbose
 
       # Compilar y probar los plugins por separado
       - name: Build and test create-worker plugin
         run: |
           cd tools/create-worker
           npx tsc -p tsconfig.json
-          NX_JEST_EXTRA_CONFIG=jest.ci-config.js npx jest
+          npx jest --config=jest.config.js
 
       - name: Build and test haijin plugin
         if: ${{ always() }}  # Ejecutar incluso si create-worker falla
         run: |
           cd tools/haijin
           npx tsc -p tsconfig.json
-          NX_JEST_EXTRA_CONFIG=jest.ci-config.js npx jest
+          npx jest --config=jest.config.js
