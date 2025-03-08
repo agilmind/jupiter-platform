@@ -14,7 +14,10 @@ jobs:
   main:
     runs-on: ubuntu-latest
     env:
+      # Disable SWC completely for Jest, force it to use ts-jest
       NX_SKIP_NX_CACHE: "true"
+      SWC_NODE_REGISTER_DISABLE: "true"
+      NX_SWC_DISABLE_TRANSFORM: "true"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,19 +30,32 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
-      # Create a simple root Jest config that uses ts-jest instead of SWC
-      - name: Configure Jest to use ts-jest
+      # Create a temporary workaround for the Jest configs
+      - name: Create JS versions of Jest configs
         run: |
+          # Create a simpler jest.config.js in the root
           echo 'module.exports = {
-            preset: "ts-jest",
-            testEnvironment: "node",
-            transform: {
-              "^.+\\\\.(ts|tsx)$": "ts-jest"
-            }
-          };' > jest.config.ci.js
+            projects: ["<rootDir>/libs/*/jest.config.js", "<rootDir>/tools/*/jest.config.js"],
+          };' > jest.config.js
 
-          # Tell NX to use our custom config
-          echo 'NX_JEST_PRESET=./jest.config.ci.js' >> $GITHUB_ENV
+          # Create JS versions of all Jest configs
+          find . -name "jest.config.ts" | while read -r config; do
+            dir=$(dirname "$config")
+            echo "Creating JS version for $config"
+            echo 'module.exports = {
+              displayName: "'$(basename "$dir")'",
+              preset: "../../jest.preset.js",
+              testEnvironment: "node",
+              transform: {
+                "^.+\\\\.[tj]s$": "ts-jest"
+              },
+              moduleFileExtensions: ["ts", "js", "html"],
+              coverageDirectory: "../../coverage/'$dir'"
+            };' > "$dir/jest.config.js"
+          done
+
+          # Tell NX to use .js files instead of .ts for Jest configs
+          echo "NODE_OPTIONS=--require=ts-node/register" >> $GITHUB_ENV
 
       # ELIMINACIÓN COMPLETA de los plugins locales para CI
       - name: Remove local plugins for CI
@@ -49,19 +65,38 @@ jobs:
 
       - uses: nrwl/nx-set-shas@v4
 
-      # Run all targets with custom Jest config
-      - run: npx nx affected -t lint test build --verbose
+      # Run lint and build first to identify any non-test related issues
+      - name: Lint and build
+        run: npx nx affected -t lint build --verbose
 
-      # Compile plugins separately with ts-jest for tests
+      # Run tests separately with JS configs
+      - name: Run tests
+        run: |
+          # Add Jest preset file if it doesn't exist
+          if [ ! -f "jest.preset.js" ]; then
+            echo 'module.exports = {
+              testMatch: ["**/+(*.)+(spec|test).+(ts|js)?(x)"],
+              transform: {
+                "^.+\\.(ts|js|html)$": "ts-jest"
+              },
+              resolver: "@nx/jest/plugins/resolver",
+              moduleFileExtensions: ["ts", "js", "html"],
+              coverageReporters: ["html"]
+            };' > jest.preset.js
+          fi
+
+          npx nx affected -t test --verbose
+
+      # Build plugins separately
       - name: Build and test create-worker plugin
         run: |
           cd tools/create-worker
           npx tsc -p tsconfig.json
-          JEST_PRESET=../../jest.config.ci.js npx jest
+          npx jest --config=jest.config.js
 
       - name: Build and test haijin plugin
-        if: ${{ always() }}  # Ejecutar incluso si create-worker falla
+        if: ${{ always() }}
         run: |
           cd tools/haijin
           npx tsc -p tsconfig.json
-          JEST_PRESET=../../jest.config.ci.js npx jest
+          npx jest --config=jest.config.js
