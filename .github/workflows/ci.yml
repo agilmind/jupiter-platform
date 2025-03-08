@@ -35,7 +35,7 @@ jobs:
 
       - uses: nrwl/nx-set-shas@v4
 
-      - run: npx nx affected -t lint test build
+      - run: npx nx affected -t lint test build --verbose
 
       # Compilar y probar los plugins por separado
       - name: Build and test create-worker plugin
