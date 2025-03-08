@@ -1,28 +1,8 @@
-import { Tree, formatFiles, logger, installPackagesTask, generateFiles, OverwriteStrategy } from '@nx/devkit';
+import { formatFiles, generateFiles, installPackagesTask, logger, OverwriteStrategy, Tree } from '@nx/devkit';
 import { execSync } from 'child_process';
-// Importamos la clase Git desde gitShell
 import { Git } from './gitShell';
-// Importamos los adaptadores
-import {
-  validateHaijinGitStateWithGit,
-  createAndCheckoutBranchWithGit,
-  hasUncommittedChangesWithGit,
-  commitWithGit,
-  setCurrentBranchWithGit,
-  prepareForGenerationWithGit,
-  mergeWithGit
-} from './git-adapter';
-// Mantenemos las importaciones de git.ts temporalmente durante la migración
-import {
-  validateHaijinGitState,
-  createAndCheckoutBranch,
-  hasUncommittedChanges,
-  commit,
-  setCurrentBranch,
-  prepareForGerneration
-} from './git';
 import * as fs from 'fs';
-import * as path from 'path';
+import { cleanDirectoryExcept } from './forced-overwrite';
 
 export interface AddProjectOptions {
   name: string;
@@ -49,7 +29,7 @@ export async function generateProject(
 
   // 1. Validar estado de Git usando la clase Git
   // Este es el primer paso de la migración
-  const gitStatus = await validateHaijinGitStateWithGit(git);
+  const gitStatus = await git.validateHaijinGitStateWithGit();
   if (!gitStatus.valid) {
     logger.error(gitStatus.message);
     return;
@@ -66,7 +46,7 @@ export async function generateProject(
   // ...resto del código sin cambios...
 
   // 2. Cambiar a branch base usando la clase Git
-  await createAndCheckoutBranchWithGit(git, 'base');
+  await git.createAndCheckoutBranchWithGit('base');
   // El log ya está incluido en la función adaptadora
 
   // Verificar si el proyecto ya existe
@@ -99,7 +79,7 @@ export async function generateProject(
 
       // Limpiar el directorio pero preservar project.json y tsconfig.json
       logger.info(`Cleaning project directory...`);
-      await prepareForGenerationWithGit(git, projectDir);
+      await git.prepareForGenerationWithGit(projectDir);
     }
 
     // 4. Instalar dependencias
@@ -115,6 +95,11 @@ export async function generateProject(
       }
     }
 
+    if (projectExists) {
+      logger.info('Cleaning destination directory before generation...');
+      cleanDirectoryExcept(tree, projectDir, []);
+    }
+
     // 5. Generar archivos específicos
     logger.info('Generating template files...');
     generateFiles(
@@ -126,7 +111,7 @@ export async function generateProject(
         template: '',
         dot: '.'
       },
-       { overwrite: true }
+      {overwriteStrategy: OverwriteStrategy.Overwrite}
     );
 
     // 6. Aplicar actualizaciones específicas
@@ -142,21 +127,21 @@ export async function generateProject(
       // Git: add y commit usando la clase Git
       logger.info('Adding all generated files to Git...');
 
-      if (await hasUncommittedChangesWithGit(git)) {
+      if (await git.hasUncommittedChangesWithGit) {
         const action = projectExists ? 'Update' : 'Add';
-        await commitWithGit(git, `${action} ${options.type} ${options.projectType}: ${options.name}`);
+        await git.commitWithGit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
         logger.info(`Changes committed to base branch`);
       }
 
       // Merge a develop usando la clase Git
-      await createAndCheckoutBranchWithGit(git, 'develop');
+      await git.createAndCheckoutBranchWithGit('develop');
 
       // Usamos la función de merge del adaptador
-      await mergeWithGit(git, 'base', ['-X', 'theirs']);
+      await git.mergeWithGit('base', ['-X', 'theirs']);
 
-      if (await hasUncommittedChangesWithGit(git)) {
+      if (await git.hasUncommittedChangesWithGit()) {
         const action = projectExists ? 'Update' : 'Complete';
-        await commitWithGit(git, `${action} ${options.type} ${options.projectType} setup: ${options.name}`);
+        await git.commitWithGit(`${action} ${options.type} ${options.projectType} setup: ${options.name}`);
       }
 
       const action = projectExists ? 'updated' : 'created';
@@ -166,12 +151,12 @@ export async function generateProject(
       installPackagesTask(tree);
 
       if (gitStatus.originalBranch) {
-        await setCurrentBranchWithGit(git, gitStatus.originalBranch);
+        await git.setCurrentBranchWithGit(gitStatus.originalBranch);
       }
     };
   } catch (error) {
     try {
-      await createAndCheckoutBranchWithGit(git, 'develop');
+      await git.createAndCheckoutBranchWithGit('develop');
       // No necesitamos 'git add' aquí, pues commitWithGit ya hace el add
     } catch {
       // Ignorar errores de Git
