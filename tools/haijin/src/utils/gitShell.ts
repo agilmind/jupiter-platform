@@ -1,6 +1,5 @@
 import * as sh from "shelljs";
 import path from "path";
-import {write} from "../haiku/fileSystem";
 import {SimpleGit, simpleGit} from "simple-git";
 // import * as fs from "fs-extra";
 
@@ -24,28 +23,6 @@ export class Git {
         this.developerBranch = developerBranch;
         this.mainBranch = mainBranch;
         this.git = simpleGit(this.dirApp);
-    }
-
-    async init(projectName: string) {
-        try {
-            await this.git.init();
-            await this.git.checkout(["-b", this.mainBranch]);
-            await write(path.join(this.dirApp, `${this.mainBranch}.json`), `{"projectName": "${projectName}"}`);
-            await this.git.add("./*");
-            await this.git.commit("initial");
-
-            await this.git.checkout(["-b", this.developerBranch]);
-            await write(path.join(this.dirApp, `${this.developerBranch}.json`), `{"projectName": "${projectName}"}`);
-            await this.git.add("./*");
-            await this.git.commit("initial");
-
-            await this.git.checkout(["-b", this.genBranch]);
-            await write(path.join(this.dirApp, `${this.genBranch}.json`), `{"projectName": "${projectName}"}`);
-            await this.git.add("./*");
-            await this.git.commit("initial");
-        } catch(e) {
-            throw e;
-        }
     }
 
     async prepareForGeneration() {
