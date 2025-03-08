@@ -96,9 +96,6 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
   const projectName = `${projectPrefix}-${options.name}`;
   const projectRoot = path.join(process.cwd(), projectDir);
 
-  // Inicializar GitExtender con el directorio del workspace y el directorio del proyecto
-  const projectGit = new NxProjectGit(process.cwd(), projectDir);
-
   try {
     // Verificar si el proyecto ya existe
     const projectExists = fs.existsSync(projectRoot);
@@ -139,80 +136,85 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
       }
     }
 
-    // 1. Asegurarse de que las ramas base y develop existen
-    await projectGit.ensureBranches();
-
-    // 2. Preparar para generación (checkout a base y limpiar SOLO el directorio del proyecto)
-    try {
-      await projectGit.prepareForGeneration();
-      logger.info('Prepared for generation in base branch');
-
-      // 3. Generar archivos de manera sincrónica (en lugar de usar generateFiles de nx)
-      logger.info('Generating project files...');
-      generateFilesSync(
-        options.templatePath,
-        projectRoot,
-        {
-          ...options,
-          template: '',
-          dot: '.'
-        }
-      );
-
-      // 4. Aplicar actualizaciones específicas si es necesario
-      if (options.projectUpdates) {
-        options.projectUpdates(projectDir, projectName);
+    // Generar archivos sincrónicamente, pero usamos Nx tree para que funcione con el sistema de Nx
+    logger.info('Setting up template files in the Nx tree...');
+    generateFilesSync(
+      options.templatePath,
+      projectRoot,
+      {
+        ...options,
+        template: '',
+        dot: '.'
       }
+    );
 
-      // 5. Git: add y commit SOLO los archivos del proyecto
-      const action = projectExists ? 'Update' : 'Add';
-      await projectGit.addAndCommit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
-      logger.info(`Changes committed to base branch`);
-
-      // 6. Pasar los cambios a develop
-      try {
-        if (projectExists) {
-          // Si ya existía, usar patch para aplicar los cambios
-          await projectGit.patchToDevelop();
-          logger.info('Applied patch to develop branch');
-        } else {
-          // Si es nuevo, usar rebase para sincronizar
-          await projectGit.rebaseToDevelop();
-          logger.info('Rebased changes to develop branch');
-        }
-
-        const resultAction = projectExists ? 'updated' : 'created';
-        logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${resultAction} successfully!`);
-
-        // Para mantener consistencia con Nx, devolvemos una función que instala dependencias
-        return () => {
-          installPackagesTask(tree);
-        };
-      } catch (gitMergeError) {
-        // Capturar específicamente errores en la etapa de merge/rebase
-        logger.error(`Git merge/rebase failed: ${gitMergeError instanceof Error ? gitMergeError.message : String(gitMergeError)}`);
-
-        // Intentar volver al estado original
-        await projectGit.revertPrepareForGeneration();
-        logger.info('Reverted changes due to merge failure');
-
-        // Propagar el error para que el usuario sepa que algo falló
-        throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${gitMergeError instanceof Error ? gitMergeError.message : String(gitMergeError)}`);
-      }
-    } catch (error) {
-      // Si algo sale mal en cualquier paso después de prepareForGeneration
-      logger.error(`Generation process failed: ${error instanceof Error ? error.message : String(error)}`);
-
-      // Intentar revertir los cambios
-      try {
-        await projectGit.revertPrepareForGeneration();
-        logger.info('Reverted changes due to error');
-      } catch (revertError) {
-        logger.error(`Failed to revert changes: ${revertError instanceof Error ? revertError.message : String(revertError)}`);
-      }
-
-      throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
+    // 4. Aplicar actualizaciones específicas si es necesario
+    if (options.projectUpdates) {
+      options.projectUpdates(projectDir, projectName);
     }
+
+    // IMPORTANTE: Retornar una función que ejecute TODAS las operaciones Git
+    // Esta función se ejecutará DESPUÉS de que Nx escriba todos los archivos al sistema
+    return async () => {
+      // Inicializar GitExtender con el directorio del workspace y el directorio del proyecto
+      const projectGit = new NxProjectGit(process.cwd(), projectDir);
+
+      try {
+        // 1. Asegurarse de que las ramas base y develop existen
+        await projectGit.ensureBranches();
+
+        // 2. Preparar para generación (checkout a base y limpiar SOLO el directorio del proyecto)
+        await projectGit.prepareForGeneration();
+        logger.info('Prepared for generation in base branch');
+
+        // 3. Git: add y commit SOLO los archivos del proyecto
+        const action = projectExists ? 'Update' : 'Add';
+        await projectGit.addAndCommit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
+        logger.info(`Changes committed to base branch`);
+
+        // 4. Pasar los cambios a develop
+        try {
+          if (projectExists) {
+            // Si ya existía, usar patch para aplicar los cambios
+            await projectGit.patchToDevelop();
+            logger.info('Applied patch to develop branch');
+          } else {
+            // Si es nuevo, usar rebase para sincronizar
+            await projectGit.rebaseToDevelop();
+            logger.info('Rebased changes to develop branch');
+          }
+
+          const resultAction = projectExists ? 'updated' : 'created';
+          logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${resultAction} successfully!`);
+
+          // Instalar dependencias
+          installPackagesTask(tree);
+        } catch (gitMergeError) {
+          // Capturar específicamente errores en la etapa de merge/rebase
+          logger.error(`Git merge/rebase failed: ${gitMergeError instanceof Error ? gitMergeError.message : String(gitMergeError)}`);
+
+          // Intentar volver al estado original
+          await projectGit.revertPrepareForGeneration();
+          logger.info('Reverted changes due to merge failure');
+
+          // Propagar el error para que el usuario sepa que algo falló
+          throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${gitMergeError instanceof Error ? gitMergeError.message : String(gitMergeError)}`);
+        }
+      } catch (error) {
+        // Si algo sale mal en cualquier paso después de prepareForGeneration
+        logger.error(`Generation process failed: ${error instanceof Error ? error.message : String(error)}`);
+
+        // Intentar revertir los cambios
+        try {
+          await projectGit.revertPrepareForGeneration();
+          logger.info('Reverted changes due to error');
+        } catch (revertError) {
+          logger.error(`Failed to revert changes: ${revertError instanceof Error ? revertError.message : String(revertError)}`);
+        }
+
+        throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
   } catch (error) {
     logger.error(`Project generation failed: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
