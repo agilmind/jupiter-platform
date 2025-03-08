@@ -23,35 +23,29 @@ export class NxProjectGit {
    */
   async prepareForGeneration() {
     try {
-      // Verificar si hay cambios pendientes en developer branch
-      await this.rootGit.git.checkout('develop');
-      const status = await this.rootGit.git.status();
+      // Cambiar a branch base directamente (sin verificar pendientes)
+      await this.rootGit.git.checkout('base');
+      logger.info('Switched to base branch');
 
-      if (status.files.length === 0) {
-        // Cambiar a branch base
-        await this.rootGit.git.checkout('base');
+      // Asegurarse de que el directorio existe
+      fs.ensureDirSync(this.absoluteProjectPath);
 
-        // Eliminar archivos del proyecto usando git rm (igual que en tu implementación original)
+      // Eliminar archivos usando git rm
+      try {
         logger.info(`Removing all files in ${this.projectDir}`);
         await this.rootGit.git.rm(['-r', `${this.projectDir}/*`]);
-
         logger.info(`Project directory cleaned with git rm`);
-      } else {
-        // Si hay cambios pendientes, lanzar error
-        const filesStr = status.files.map(x => x.path).join('\n');
-        throw new Error(`develop branch has pending commits\n${filesStr}`);
+      } catch (rmError) {
+        // Si el error es por archivos inexistentes (primer uso), lo ignoramos
+        if (rmError.message && rmError.message.includes('did not match any files')) {
+          logger.info(`No files found to remove, directory may be empty or project is new`);
+        } else {
+          throw rmError;
+        }
       }
     } catch (error) {
-      // Si el error es por archivos inexistentes (primer uso), lo manejamos
-      if (error.message && error.message.includes('did not match any files')) {
-        logger.info(`No files found to remove, directory may be empty or project is new`);
-
-        // Asegurarnos de que el directorio existe para la siguiente fase
-        fs.ensureDirSync(this.absoluteProjectPath);
-      } else {
-        logger.error(`Failed to prepare project directory: ${error instanceof Error ? error.message : String(error)}`);
-        throw error;
-      }
+      logger.error(`Failed to prepare project directory: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     }
   }
 
