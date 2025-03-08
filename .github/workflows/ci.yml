@@ -37,6 +37,15 @@ jobs:
 
       - run: npx nx affected -t lint test build --verbose
 
+      # Add this before running nx affected
+      - name: Fix Jest configurations
+        run: |
+          for config in $(find . -name "jest.config.ts"); do
+            echo "Checking $config"
+            # Make sure it exports a proper configuration object
+            sed -i 's/export default/export default /' $config
+          done
+
       # Compilar y probar los plugins por separado
       - name: Build and test create-worker plugin
         run: |
