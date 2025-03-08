@@ -18,7 +18,19 @@ function generateFilesSync(sourcePath: string, targetPath: string, options: any)
 
   files.forEach(file => {
     const sourceFilePath = path.join(sourcePath, file.name);
-    let targetFileName = file.name.replace(/__dot__/g, '.');
+
+    // Procesar el nombre del archivo:
+    // 1. Reemplazar __dot__ por .
+    // 2. Eliminar la extensión .template
+    let targetFileName = file.name
+      .replace(/__dot__/g, '.')
+      .replace(/\.template$/, '');
+
+    // 3. Procesar variables en el nombre del archivo (similar a __dot__)
+    targetFileName = targetFileName.replace(/__([a-zA-Z0-9]+)__/g, (match, key) => {
+      return options[key] || match;
+    });
+
     const targetFilePath = path.join(targetPath, targetFileName);
 
     if (file.isDirectory()) {
@@ -28,17 +40,32 @@ function generateFilesSync(sourcePath: string, targetPath: string, options: any)
       // Leer contenido del archivo
       let content = fs.readFileSync(sourceFilePath, 'utf8');
 
-      // Procesar plantillas (similar a lo que hace generateFiles de nx)
-      // Este es un procesamiento simple, se puede hacer más sofisticado si es necesario
-      for (const [key, value] of Object.entries(options)) {
-        if (typeof value === 'string') {
-          const regex = new RegExp(`<%= ${key} %>`, 'g');
-          content = content.replace(regex, value);
+      // Procesamiento de plantilla mejorado que soporta tanto <%= variable %> como <%= expresión %>
+      content = content.replace(/<%=\s*([^%>]+)\s*%>/g, (match, expr) => {
+        try {
+          // Si es una variable simple (sin espacios o operadores), usar directamente
+          if (/^[a-zA-Z0-9_]+$/.test(expr.trim())) {
+            const key = expr.trim();
+            return options[key] !== undefined ? options[key] : match;
+          }
+
+          // Si es una expresión más compleja, evaluar con un contexto seguro
+          const sandbox = { ...options };
+          const result = new Function(...Object.keys(sandbox), `return ${expr}`)(
+            ...Object.values(sandbox)
+          );
+
+          return result !== undefined ? result : match;
+        } catch (e) {
+          // Si algo falla, dejar la expresión original
+          logger.warn(`Error processing expression: ${expr}`);
+          return match;
         }
-      }
+      });
 
       // Escribir el archivo procesado
       fs.writeFileSync(targetFilePath, content);
+      logger.debug(`Generated file: ${targetFilePath}`);
     }
   });
 
@@ -143,28 +170,48 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
       logger.info(`Changes committed to base branch`);
 
       // 6. Pasar los cambios a develop
-      if (projectExists) {
-        // Si ya existía, usar patch para aplicar los cambios
-        await projectGit.patchToDevelop();
-        logger.info('Applied patch to develop branch');
-      } else {
-        // Si es nuevo, usar rebase para sincronizar
-        await projectGit.rebaseToDevelop();
-        logger.info('Rebased changes to develop branch');
+      try {
+        if (projectExists) {
+          // Si ya existía, usar patch para aplicar los cambios
+          await projectGit.patchToDevelop();
+          logger.info('Applied patch to develop branch');
+        } else {
+          // Si es nuevo, usar rebase para sincronizar
+          await projectGit.rebaseToDevelop();
+          logger.info('Rebased changes to develop branch');
+        }
+
+        const resultAction = projectExists ? 'updated' : 'created';
+        logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${resultAction} successfully!`);
+
+        // Para mantener consistencia con Nx, devolvemos una función que instala dependencias
+        return () => {
+          installPackagesTask(tree);
+        };
+      } catch (gitMergeError) {
+        // Capturar específicamente errores en la etapa de merge/rebase
+        logger.error(`Git merge/rebase failed: ${gitMergeError instanceof Error ? gitMergeError.message : String(gitMergeError)}`);
+
+        // Intentar volver al estado original
+        await projectGit.revertPrepareForGeneration();
+        logger.info('Reverted changes due to merge failure');
+
+        // Propagar el error para que el usuario sepa que algo falló
+        throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${gitMergeError instanceof Error ? gitMergeError.message : String(gitMergeError)}`);
+      }
+    } catch (error) {
+      // Si algo sale mal en cualquier paso después de prepareForGeneration
+      logger.error(`Generation process failed: ${error instanceof Error ? error.message : String(error)}`);
+
+      // Intentar revertir los cambios
+      try {
+        await projectGit.revertPrepareForGeneration();
+        logger.info('Reverted changes due to error');
+      } catch (revertError) {
+        logger.error(`Failed to revert changes: ${revertError instanceof Error ? revertError.message : String(revertError)}`);
       }
 
-      const resultAction = projectExists ? 'updated' : 'created';
-      logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${resultAction} successfully!`);
-
-      // Para mantener consistencia con Nx, devolvemos una función que instala dependencias
-      return () => {
-        installPackagesTask(tree);
-      };
-    } catch (error) {
-      // Si algo sale mal, revertir los cambios
-      await projectGit.revertPrepareForGeneration();
-      logger.error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+      throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
     }
   } catch (error) {
     logger.error(`Project generation failed: ${error instanceof Error ? error.message : String(error)}`);

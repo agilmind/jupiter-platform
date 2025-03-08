@@ -1,6 +1,7 @@
 import { Git } from './gitShell';
 import * as path from 'path';
 import { logger } from '@nx/devkit';
+import { execSync } from 'child_process';
 import * as fs from 'fs-extra';
 
 /**
@@ -70,24 +71,95 @@ export class NxProjectGit {
    * Añadir y commitear cambios específicos del proyecto
    */
   async addAndCommit(message: string) {
-    // Añadir solo los archivos del directorio del proyecto
-    await this.rootGit.git.add(path.join(this.projectDir, '/*'));
-    await this.rootGit.git.commit(message);
+    try {
+      // Cambiamos al directorio del proyecto para asegurarnos de estar en el contexto correcto
+      logger.info(`Adding changes in ${this.projectDir}`);
+
+      // Añadir solo los archivos del directorio del proyecto
+      // Escapamos correctamente la ruta para manejar espacios y caracteres especiales
+      const projectDirPattern = this.projectDir.replace(/\\/g, '/') + '/**/*';
+      await this.rootGit.git.add([projectDirPattern]);
+
+      // Verificar si hay cambios para commit
+      const status = await this.rootGit.git.status();
+      if (status.files.length > 0) {
+        await this.rootGit.git.commit(message);
+        logger.info(`Changes committed: ${message}`);
+      } else {
+        logger.info('No changes to commit');
+      }
+    } catch (error) {
+      logger.error(`Failed to add and commit changes: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   /**
    * Aplicar cambios como parche a develop
    */
   async patchToDevelop() {
-    await this.rootGit.git.checkout('base');
-    const fileName = await this.rootGit.git.raw('format-patch', '-n', 'HEAD^');
-    const patchFilePath = path.join(process.cwd(), fileName.trim());
-    await this.rootGit.git.checkout('develop');
-    await this.rootGit.git.applyPatch([patchFilePath], ['--ignore-space-change', '--ignore-whitespace', '--verbose']);
+    try {
+      // Verificar si hay cambios sin confirmar
+      const status = await this.rootGit.git.status();
+      let stashCreated = false;
 
-    // Limpiar el archivo de parche después de aplicarlo
-    if (fs.existsSync(patchFilePath)) {
-      fs.unlinkSync(patchFilePath);
+      // Si hay cambios sin confirmar, hacer stash
+      if (status.files.length > 0) {
+        logger.info('Stashing uncommitted changes before patch...');
+        await this.rootGit.git.add('.');
+        await this.rootGit.git.stash(['push', '-m', 'Temporary stash before patch']);
+        stashCreated = true;
+      }
+
+      try {
+        // Crear el parche desde branch base
+        await this.rootGit.git.checkout('base');
+        logger.info('Switched to base branch to create patch');
+
+        const fileName = await this.rootGit.git.raw('format-patch', '-n', 'HEAD^');
+        const patchFilePath = path.join(process.cwd(), fileName.trim());
+        logger.info(`Created patch file: ${patchFilePath}`);
+
+        // Cambiar a develop y aplicar el parche
+        await this.rootGit.git.checkout('develop');
+        logger.info('Switched to develop branch');
+
+        await this.rootGit.git.applyPatch([patchFilePath], ['--ignore-space-change', '--ignore-whitespace', '--verbose']);
+        logger.info('Patch applied successfully to develop branch');
+
+        // Commit automático de los cambios aplicados
+        await this.rootGit.git.add('.');
+        await this.rootGit.git.commit(`Apply patch from base to develop: ${path.basename(this.projectDir)}`);
+        logger.info('Committed patched changes to develop branch');
+
+        // Limpiar el archivo de parche después de aplicarlo
+        if (fs.existsSync(patchFilePath)) {
+          fs.unlinkSync(patchFilePath);
+          logger.info('Deleted patch file after applying');
+        }
+
+        // Si se creó un stash, intentar aplicarlo
+        if (stashCreated) {
+          logger.info('Applying stashed changes...');
+          await this.rootGit.git.stash(['pop']);
+          logger.info('Stashed changes applied successfully');
+        }
+      } catch (patchError) {
+        // Si hay un error al aplicar el parche pero creamos un stash, asegurarnos de restaurarlo
+        if (stashCreated) {
+          try {
+            logger.info('Applying stashed changes after patch error...');
+            await this.rootGit.git.stash(['pop']);
+            logger.info('Stashed changes applied successfully');
+          } catch (stashError) {
+            logger.error(`Failed to apply stash: ${stashError instanceof Error ? stashError.message : String(stashError)}`);
+          }
+        }
+        throw patchError;
+      }
+    } catch (error) {
+      logger.error(`Patch failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     }
   }
 
@@ -95,8 +167,50 @@ export class NxProjectGit {
    * Rebase a develop
    */
   async rebaseToDevelop() {
-    await this.rootGit.git.checkout('develop');
-    await this.rootGit.git.rebase(['base']);
+    try {
+      // Verificar si hay cambios sin confirmar
+      const status = await this.rootGit.git.status();
+      let stashCreated = false;
+
+      // Si hay cambios sin confirmar, hacer stash
+      if (status.files.length > 0) {
+        logger.info('Stashing uncommitted changes before rebase...');
+        await this.rootGit.git.add('.');
+        await this.rootGit.git.stash(['push', '-m', 'Temporary stash before rebase']);
+        stashCreated = true;
+      }
+
+      try {
+        // Cambiar a develop y hacer rebase
+        await this.rootGit.git.checkout('develop');
+        logger.info('Switched to develop branch');
+
+        await this.rootGit.git.rebase(['base']);
+        logger.info('Successfully rebased develop on base');
+
+        // Si se creó un stash, intentar aplicarlo
+        if (stashCreated) {
+          logger.info('Applying stashed changes...');
+          await this.rootGit.git.stash(['pop']);
+          logger.info('Stashed changes applied successfully');
+        }
+      } catch (rebaseError) {
+        // Si hay un error en el rebase pero creamos un stash, asegurarnos de restaurarlo
+        if (stashCreated) {
+          try {
+            logger.info('Applying stashed changes after rebase error...');
+            await this.rootGit.git.stash(['pop']);
+            logger.info('Stashed changes applied successfully');
+          } catch (stashError) {
+            logger.error(`Failed to apply stash: ${stashError instanceof Error ? stashError.message : String(stashError)}`);
+          }
+        }
+        throw rebaseError;
+      }
+    } catch (error) {
+      logger.error(`Rebase failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   /**
