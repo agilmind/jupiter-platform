@@ -5,7 +5,7 @@ import {
   createAndCheckoutBranch,
   hasUncommittedChanges,
   commit,
-  setCurrentBranch
+  setCurrentBranch, prepareForGerneration
 } from './git';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -77,17 +77,7 @@ export async function generateProject(
 
       // Limpiar el directorio pero preservar project.json y tsconfig.json
       logger.info(`Cleaning project directory...`);
-      // Limpiar archivos pero no el directorio en sí
-      const files = fs.readdirSync(projectDir);
-
-      for (const file of files) {
-        const filePath = path.join(projectDir, file);
-        if (fs.lstatSync(filePath).isDirectory()) {
-          fs.rmSync(filePath, { recursive: true, force: true });
-        } else {
-          fs.unlinkSync(filePath);
-        }
-      }
+      prepareForGerneration();
     }
 
     // 4. Instalar dependencias

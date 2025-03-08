@@ -87,6 +87,16 @@ export function createAndCheckoutBranch(branchName: string, options: GitOptions 
   }
 }
 
+export function prepareForGerneration(options: GitOptions = {}) {
+  const currentBranch = getCurrentBranch(options);
+  if (currentBranch === 'base') {
+    execGitCommand(`rm -r ./*`, options);
+    logger.info(`${currentBranch} prepared`);
+  } else {
+    throw new Error('Not in base branch to clean up')
+  }
+}
+
 /**
  * Crea y cambia a un nuevo branch
  */
