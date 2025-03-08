@@ -4,241 +4,173 @@ import { logger } from '@nx/devkit';
 import * as fs from 'fs-extra';
 
 /**
- * Clase que maneja operaciones Git para generadores de proyectos.
- * Proporciona funcionalidad básica de Git y métodos especializados para
- * trabajar con proyectos dentro de un monorepo Nx.
+ * Clase base que maneja operaciones Git para generadores de proyectos.
  */
-export class GitHandler {
-  // Base Git properties
-  protected dirApp: string;
-  protected git: SimpleGit;
-  protected baseBranch: string = "base";
-  protected developBranch: string = "develop";
-  protected mainBranch: string = "main";
+export class Git {
+    dirApp: string;
+    genBranch: string;
+    developerBranch: string;
+    mainBranch: string;
+    git: SimpleGit;
 
-  // Project specific properties (for NX monorepo context)
-  protected projectDir?: string;
-  protected absoluteProjectPath?: string;
-
-  /**
-   * Constructor para uso general
-   * @param rootPath Directorio raíz del repositorio Git
-   */
-  constructor(rootPath: string);
-
-  /**
-   * Constructor para uso con proyectos específicos dentro de un monorepo
-   * @param rootPath Directorio raíz del repositorio Git
-   * @param projectDir Directorio relativo del proyecto dentro del monorepo (ej: 'apps/myapp')
-   */
-  constructor(rootPath: string, projectDir?: string);
-
-  constructor(rootPath: string, projectDir?: string) {
-    this.dirApp = rootPath;
-    this.git = simpleGit(this.dirApp);
-
-    if (projectDir) {
-      this.projectDir = projectDir;
-      this.absoluteProjectPath = path.join(rootPath, projectDir);
-    }
-  }
-
-  // ------------------------------------------------------------------------
-  // Métodos básicos de Git (funcionalidad del antiguo GitShell)
-  // ------------------------------------------------------------------------
-
-  /**
-   * Inicializa un repositorio Git con tres ramas: main, develop y base.
-   * @param projectName Nombre del proyecto para usar en archivos iniciales
-   */
-  async init(projectName: string) {
-    try {
-      await this.git.init();
-
-      // Crear rama main
-      await this.git.checkout(["-b", this.mainBranch]);
-      await fs.writeFile(
-        path.join(this.dirApp, `${this.mainBranch}.json`),
-        `{"projectName": "${projectName}"}`
-      );
-      await this.git.add("./*");
-      await this.git.commit("initial");
-
-      // Crear rama develop
-      await this.git.checkout(["-b", this.developBranch]);
-      await fs.writeFile(
-        path.join(this.dirApp, `${this.developBranch}.json`),
-        `{"projectName": "${projectName}"}`
-      );
-      await this.git.add("./*");
-      await this.git.commit("initial");
-
-      // Crear rama base
-      await this.git.checkout(["-b", this.baseBranch]);
-      await fs.writeFile(
-        path.join(this.dirApp, `${this.baseBranch}.json`),
-        `{"projectName": "${projectName}"}`
-      );
-      await this.git.add("./*");
-      await this.git.commit("initial");
-    } catch(e) {
-      throw e;
-    }
-  }
-
-  /**
-   * Añade todos los archivos y crea un commit
-   * @param message Mensaje de commit
-   */
-  async addAndCommit(message: string) {
-    if (this.projectDir) {
-      return this.addAndCommitProject(message);
+    constructor(
+      appDir: string,
+      generatorBranch: string = "base",
+      developerBranch: string = "develop",
+      mainBranch: string = "main") {
+        this.dirApp = appDir;
+        this.genBranch = generatorBranch;
+        this.developerBranch = developerBranch;
+        this.mainBranch = mainBranch;
+        this.git = simpleGit(this.dirApp);
     }
 
-    await this.git.add("./*");
-    await this.git.commit(message);
-    logger.info(`Changes committed: ${message}`);
-  }
+    async init(projectName: string) {
+      try {
+          await this.git.init();
+          await this.git.checkout(["-b", this.mainBranch]);
+          await fs.writeFile(
+            path.join(this.dirApp, `${this.mainBranch}.json`),
+            `{"projectName": "${projectName}"}`
+          );
+          await this.git.add("./*");
+          await this.git.commit("initial");
 
-  /**
-   * Revierte cambios a HEAD
-   */
-  async revertChanges() {
-    await this.git.reset(["--hard", "HEAD"]);
-  }
+          await this.git.checkout(["-b", this.developerBranch]);
+          await fs.writeFile(
+            path.join(this.dirApp, `${this.developerBranch}.json`),
+            `{"projectName": "${projectName}"}`
+          );
+          await this.git.add("./*");
+          await this.git.commit("initial");
 
-  /**
-   * Obtiene el último mensaje de commit
-   */
-  async getLastMessage() {
-    const message = await this.git.log(["-1", "--pretty=%B"]);
-    return message && message.latest ? message.latest.hash : "base changes";
-  }
-
-  /**
-   * Verifica si hay cambios pendientes en una rama
-   * @param branchName Nombre de la rama
-   * @returns Array de archivos con cambios
-   */
-  async hasPendingCommits(branchName: string) {
-    await this.git.checkout(branchName);
-    const status = await this.git.status();
-    return status.files;
-  }
-
-  /**
-   * Aplica cambios de base a develop usando un parche
-   */
-  async patchToDevelop() {
-    if (this.projectDir) {
-      return this.patchProjectToDevelop();
+          await this.git.checkout(["-b", this.genBranch]);
+          await fs.writeFile(
+            path.join(this.dirApp, `${this.genBranch}.json`),
+            `{"projectName": "${projectName}"}`
+          );
+          await this.git.add("./*");
+          await this.git.commit("initial");
+      } catch(e) {
+          throw e;
+      }
     }
 
-    await this.git.checkout(this.baseBranch);
-    const fileName = await this.git.raw("format-patch", "-n", "HEAD^");
-    const patchFilePath = path.join(this.dirApp, fileName.trim());
-    await this.git.checkout(this.developBranch);
-    await this.git.applyPatch([patchFilePath], ["--ignore-space-change", "--ignore-whitespace", '--verbose']);
-
-    // Limpiar el archivo de parche
-    if (fs.existsSync(patchFilePath)) {
-      fs.unlinkSync(patchFilePath);
+    async prepareForGeneration() {
+        const files = await this.hasPendingCommits(this.developerBranch);
+        if (files.length === 0) {
+            await this.git.checkout(this.genBranch);
+            await this.git.rm(["-r", "./*"]);
+        } else {
+            const filesStr = files.map(x=>x.path).join("\n");
+            throw Error(`${this.developerBranch} has pending commits\n${filesStr}`)
+        }
     }
 
-    return true;
+    async revertPrepareForGeneration() {
+        await this.git.reset(["--hard", "HEAD"]);
+    }
+
+    async addAndCommit(message: string) {
+        await this.git.add("./*");
+        await this.git.commit(message);
+    }
+
+    async getLastMessage() {
+        const message = await this.git.log(["-1", "--pretty=%B"]);
+        return message && message.latest ? message.latest.hash : "base changes";
+    }
+
+    async hasPendingCommits(branchName: string) {
+        await this.git.checkout(branchName);
+        const status = await this.git.status();
+        return status.files;
+    }
+
+    async patchToDevelop() {
+        await this.git.checkout(this.genBranch);
+        const fileName = await this.git.raw("format-patch", "-n", "HEAD^");
+        const patchFilePath = path.join(this.dirApp, fileName.trim());
+        await this.git.checkout(this.developerBranch);
+        await this.git.applyPatch([patchFilePath], ["--ignore-space-change", "--ignore-whitespace", '--verbose']);
+
+        // Limpiar el archivo de parche después de aplicarlo
+        if (fs.existsSync(patchFilePath)) {
+          fs.unlinkSync(patchFilePath);
+        }
+
+        return true;
+    }
+
+    async rebaseToDevelop() {
+        await this.git.checkout(this.developerBranch);
+        await this.git.rebase([this.genBranch]);
+        return true;
+    }
+}
+
+/**
+ * Extensión para trabajar con proyectos específicos dentro de un monorepo Nx
+ */
+export class NxProjectGit {
+  rootGit: Git;
+  projectDir: string;
+  absoluteProjectPath: string;
+
+  constructor(rootPath: string, projectDir: string) {
+    this.rootGit = new Git(rootPath);
+    this.projectDir = projectDir;
+    this.absoluteProjectPath = path.join(rootPath, projectDir);
   }
-
-  /**
-   * Aplica cambios de base a develop usando rebase
-   */
-  async rebaseToDevelop() {
-    if (this.projectDir) {
-      return this.rebaseProjectToDevelop();
-    }
-
-    await this.git.checkout(this.developBranch);
-    await this.git.rebase([this.baseBranch]);
-    return true;
-  }
-
-  /**
-   * Prepara el directorio para generación, limpiando archivos existentes
-   */
-  async prepareForGeneration() {
-    if (this.projectDir) {
-      return this.prepareProjectForGeneration();
-    }
-
-    const files = await this.hasPendingCommits(this.developBranch);
-    if (files.length === 0) {
-      await this.git.checkout(this.baseBranch);
-      await this.git.rm(["-r", "./*"]);
-    } else {
-      const filesStr = files.map(x => x.path).join("\n");
-      throw Error(`${this.developBranch} has pending commits\n${filesStr}`)
-    }
-  }
-
-  // ------------------------------------------------------------------------
-  // Métodos específicos para proyectos en monorepo (antiguo GitExtender)
-  // ------------------------------------------------------------------------
 
   /**
    * Asegura que existan las ramas base y develop
    */
   async ensureBranches() {
-    if (!this.projectDir) {
-      throw new Error("Project directory not specified for ensureBranches()");
-    }
-
-    const branches = await this.git.branch();
+    const branches = await this.rootGit.git.branch();
 
     // Guardar el branch actual
-    const currentBranch = await this.git.revparse(['--abbrev-ref', 'HEAD']);
+    const currentBranch = await this.rootGit.git.revparse(['--abbrev-ref', 'HEAD']);
 
     // Verificar y crear branch base si no existe
     if (!branches.all.includes('base')) {
-      await this.git.checkout(['-b', 'base']);
-      await this.git.checkout(currentBranch);
+      await this.rootGit.git.checkout(['-b', 'base']);
+      await this.rootGit.git.checkout(currentBranch);
     }
 
     // Verificar y crear branch develop si no existe
     if (!branches.all.includes('develop')) {
-      await this.git.checkout(['-b', 'develop']);
-      await this.git.checkout(currentBranch);
+      await this.rootGit.git.checkout(['-b', 'develop']);
+      await this.rootGit.git.checkout(currentBranch);
     }
   }
 
   /**
-   * Prepara el directorio de proyecto específico para generación
+   * Preparar el directorio del proyecto específico para generación
    */
-  private async prepareProjectForGeneration() {
-    if (!this.projectDir || !this.absoluteProjectPath) {
-      throw new Error("Project directory not specified for prepareProjectForGeneration()");
-    }
-
+  async prepareForGeneration() {
     try {
-      // Eliminar archivos físicamente en la rama actual antes de checkout
+      // PASO 1: Eliminar físicamente los archivos generados por Nx en la rama actual
       if (fs.existsSync(this.absoluteProjectPath)) {
-        logger.info(`Removing files from current branch before checkout...`);
+        logger.info(`Removing Nx-generated files from current branch before checkout...`);
         fs.removeSync(this.absoluteProjectPath);
         logger.info(`Files removed successfully`);
       }
 
-      // Cambiar a rama base
-      await this.git.checkout('base');
+      // PASO 2: Cambiar a la rama base
+      await this.rootGit.git.checkout('base');
       logger.info('Switched to base branch');
 
-      // Asegurar que existe el directorio
+      // PASO 3: Asegurarse de que el directorio existe en base
       fs.ensureDirSync(this.absoluteProjectPath);
 
-      // Eliminar archivos existentes en base
+      // PASO 4: Eliminar archivos existentes en base con git rm (si hay)
       try {
         logger.info(`Removing existing files from base branch...`);
-        await this.git.rm(['-r', `${this.projectDir}/*`]);
+        await this.rootGit.git.rm(['-r', `${this.projectDir}/*`]);
         logger.info(`Project directory cleaned in base branch`);
       } catch (rmError) {
-        // Si el error es por archivos inexistentes, ignorarlo
+        // Si el error es por archivos inexistentes (primer uso), lo ignoramos
         if (rmError.message && rmError.message.includes('did not match any files')) {
           logger.info(`No files found to remove in base branch`);
         } else {
@@ -246,6 +178,7 @@ export class GitHandler {
         }
       }
 
+      // Ahora estamos en la rama base con el directorio limpio
       logger.info(`Ready for file generation in base branch`);
     } catch (error) {
       logger.error(`Failed to prepare project directory: ${error instanceof Error ? error.message : String(error)}`);
@@ -254,24 +187,28 @@ export class GitHandler {
   }
 
   /**
-   * Añade y commitea cambios específicos del proyecto
+   * Revertir cambios a HEAD
    */
-  private async addAndCommitProject(message: string) {
-    if (!this.projectDir) {
-      throw new Error("Project directory not specified for addAndCommitProject()");
-    }
+  async revertPrepareForGeneration() {
+    await this.rootGit.git.reset(['--hard', 'HEAD']);
+  }
 
+  /**
+   * Añadir y commitear cambios específicos del proyecto
+   */
+  async addAndCommit(message: string) {
     try {
+      // Cambiamos al directorio del proyecto para asegurarnos de estar en el contexto correcto
       logger.info(`Adding changes in ${this.projectDir}`);
 
-      // Listar archivos del proyecto para log
+      // Verificar qué archivos están en el directorio del proyecto
       const projectFiles = await this.listAllProjectFiles();
       logger.info(`Found ${projectFiles.length} files in project directory`);
 
-      // Añadir directorio del proyecto completo
-      await this.git.add([this.projectDir]);
+      // Añadir todos los archivos del proyecto explícitamente
+      await this.rootGit.git.add([this.projectDir]);
 
-      // Verificar archivos críticos específicamente
+      // Verificación adicional para files específicos que puedan estar dando problemas
       const criticalFiles = [
         path.join(this.projectDir, 'project.json'),
         path.join(this.projectDir, 'tsconfig.json'),
@@ -280,42 +217,78 @@ export class GitHandler {
 
       for (const file of criticalFiles) {
         if (fs.existsSync(file)) {
-          await this.git.add([file]);
-          logger.debug(`Explicitly added: ${file}`);
+          // Forzar add explícito de estos archivos
+          await this.rootGit.git.add([file]);
+          logger.info(`Explicitly added: ${file}`);
         }
       }
 
-      // Verificar cambios pendientes para commit
-      const status = await this.git.status();
+      // Verificar si hay cambios para commit
+      const status = await this.rootGit.git.status();
 
+      // Registrar qué archivos están pendientes para commit
       if (status.files.length > 0) {
-        const filesPaths = status.files.map(f => f.path).join(', ');
-        logger.debug(`Files to be committed: ${filesPaths}`);
-        await this.git.commit(message);
-        logger.info(`Changes committed with message: ${message}`);
-        return true;
+        logger.info(`Files to be committed: ${status.files.map(f => f.path).join(', ')}`);
+        await this.rootGit.git.commit(message);
+        logger.info(`Changes committed: ${message}`);
       } else {
         logger.info('No changes to commit');
-        return false;
+      }
+
+      // Verificar después del commit si quedaron archivos sin commitear
+      const postStatus = await this.rootGit.git.status();
+      if (postStatus.files.length > 0) {
+        logger.warn(`WARNING: Some files were not committed: ${postStatus.files.map(f => f.path).join(', ')}`);
+
+        // Intento adicional para commitear archivos restantes
+        await this.rootGit.git.add([this.projectDir]);
+        await this.rootGit.git.commit(`${message} (additional files)`);
       }
     } catch (error) {
-      logger.error(`Failed to add and commit project: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(`Failed to add and commit changes: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
 
   /**
-   * Aplica cambios desde base a develop con rebase, específico para proyectos
+   * Lista todos los archivos en el directorio del proyecto
    */
-  private async rebaseProjectToDevelop() {
+  private async listAllProjectFiles(): Promise<string[]> {
+    const files: string[] = [];
+
+    // Función recursiva para listar archivos
+    const listFilesRecursively = (dir: string) => {
+      if (!fs.existsSync(dir)) return;
+
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== '.git' && entry.name !== 'node_modules') {
+            listFilesRecursively(fullPath);
+          }
+        } else {
+          files.push(fullPath);
+        }
+      }
+    };
+
+    listFilesRecursively(this.absoluteProjectPath);
+    return files;
+  }
+
+  /**
+   * Rebase a develop
+   */
+  async rebaseToDevelop() {
     try {
       // Cambiar a develop y hacer rebase
-      await this.git.checkout('develop');
+      await this.rootGit.git.checkout('develop');
       logger.info('Switched to develop branch');
 
       try {
         // Intentar rebase
-        await this.git.rebase(['base']);
+        await this.rootGit.git.rebase(['base']);
         logger.info('Successfully rebased develop on base');
         return true; // Rebase exitoso
       } catch (rebaseError) {
@@ -349,15 +322,16 @@ que puede ser útil para resolver manualmente los conflictos.
 
           // Crear un patch para ayudar a resolver manualmente
           try {
-            const patchFilePath = path.join(process.cwd(), `${path.basename(this.projectDir || 'project')}-conflict-resolution.patch`);
-            const diffOutput = await this.git.diff(['base', 'HEAD']);
+            const patchFilePath = path.join(process.cwd(), `${path.basename(this.projectDir)}-conflict-resolution.patch`);
+            const diffOutput = await this.rootGit.git.diff(['base', 'HEAD']);
             fs.writeFileSync(patchFilePath, diffOutput);
             logger.info(`Patch file created at: ${patchFilePath}`);
           } catch (patchError) {
             logger.warn(`Could not create patch file: ${patchError.message}`);
           }
 
-          return false; // Hay conflictos
+          // No arrojamos una excepción - simplemente retornamos false para indicar que hay conflicto
+          return false;
         } else {
           // Si es otro tipo de error, lanzarlo
           throw rebaseError;
@@ -370,49 +344,49 @@ que puede ser útil para resolver manualmente los conflictos.
   }
 
   /**
-   * Aplica cambios desde base a develop usando patch, específico para proyectos
+   * Aplicar cambios como parche a develop
    */
-  private async patchProjectToDevelop() {
+  async patchToDevelop() {
     try {
-      // Crear parche desde branch base
-      await this.git.checkout('base');
+      // Crear el parche desde branch base
+      await this.rootGit.git.checkout('base');
       logger.info('Switched to base branch to create patch');
 
-      // Crear y aplicar parche
+      // Crear y aplicar el parche
       let patchFilePath;
       try {
         // Intentar con format-patch primero
-        const fileName = await this.git.raw('format-patch', '-1', 'HEAD');
+        const fileName = await this.rootGit.git.raw('format-patch', '-1', 'HEAD');
         patchFilePath = path.join(process.cwd(), fileName.trim());
         logger.info(`Created patch file: ${patchFilePath}`);
       } catch (formatError) {
         logger.warn(`Failed to create patch with format-patch: ${formatError.message}`);
 
-        // Alternativa usando diff
-        const diffOutput = await this.git.diff(['HEAD~1', 'HEAD']);
-        patchFilePath = path.join(process.cwd(), `${path.basename(this.projectDir || 'project')}.patch`);
+        // Enfoque alternativo: usar diff
+        const diffOutput = await this.rootGit.git.diff(['HEAD~1', 'HEAD']);
+        patchFilePath = path.join(process.cwd(), `${path.basename(this.projectDir)}.patch`);
         fs.writeFileSync(patchFilePath, diffOutput);
         logger.info(`Created patch file using diff: ${patchFilePath}`);
       }
 
       // Cambiar a develop
-      await this.git.checkout('develop');
+      await this.rootGit.git.checkout('develop');
       logger.info('Switched to develop branch');
 
       try {
-        // Aplicar parche con opciones extendidas
-        await this.git.applyPatch([patchFilePath], [
+        // Aplicar el parche con opciones extendidas
+        await this.rootGit.git.applyPatch([patchFilePath], [
           '--ignore-space-change',
           '--ignore-whitespace',
-          '--reject',
-          '--whitespace=fix'
+          '--reject',  // Permite aplicar parcialmente el parche, rechazando partes problemáticas
+          '--whitespace=fix'  // Arregla problemas de espacios en blanco
         ]);
         logger.info('Patch applied successfully to develop branch');
 
-        // Verificar archivos rechazados (.rej) por conflictos
+        // Verificar si hay archivos .rej (rechazados por conflictos)
         const rejFiles = await this.findRejFiles();
         if (rejFiles.length > 0) {
-          // Hay conflictos
+          // Hay archivos rechazados, hay conflictos
           logger.warn(`
 ==========================================================================
 CONFLICTO EN APLICACIÓN DE PARCHE DETECTADO
@@ -435,30 +409,27 @@ Para cada archivo con conflicto:
 El parche original queda guardado en: ${patchFilePath}
 ==========================================================================`);
 
-          return false; // Hay conflictos
+          // Retornamos false para indicar que hay conflictos
+          return false;
         }
 
-        // Añadir y commitear cambios
-        if (this.projectDir) {
-          await this.git.add([this.projectDir]);
-        } else {
-          await this.git.add('.');
-        }
-        await this.git.commit(`Apply patch from base to develop: ${path.basename(this.projectDir || 'project')}`);
+        // Añadir y commitear todos los cambios
+        await this.rootGit.git.add([this.projectDir]);
+        await this.rootGit.git.commit(`Apply patch from base to develop: ${path.basename(this.projectDir)}`);
         logger.info('Committed patched changes to develop branch');
 
-        // Limpiar archivo de parche
+        // Limpiar el archivo de parche después de aplicarlo
         if (fs.existsSync(patchFilePath)) {
           fs.unlinkSync(patchFilePath);
           logger.info('Deleted patch file after applying');
         }
 
-        return true; // Patch exitoso
+        return true; // Patch aplicado con éxito
       } catch (applyError) {
         logger.error(`Error applying patch: ${applyError.message}`);
 
-        // Guardar copia del parche para referencia
-        const backupPatchPath = path.join(process.cwd(), `${path.basename(this.projectDir || 'project')}-manual-patch.patch`);
+        // Guardar una copia del parche para referencia
+        const backupPatchPath = path.join(process.cwd(), `${path.basename(this.projectDir)}-manual-patch.patch`);
         fs.copyFileSync(patchFilePath, backupPatchPath);
 
         logger.warn(`
@@ -483,39 +454,9 @@ Para aplicar manualmente los cambios:
   }
 
   /**
-   * Lista todos los archivos en el directorio del proyecto
-   */
-  private async listAllProjectFiles(): Promise<string[]> {
-    if (!this.absoluteProjectPath) return [];
-
-    const files: string[] = [];
-
-    const listFilesRecursively = (dir: string) => {
-      if (!fs.existsSync(dir)) return;
-
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          if (entry.name !== '.git' && entry.name !== 'node_modules') {
-            listFilesRecursively(fullPath);
-          }
-        } else {
-          files.push(fullPath);
-        }
-      }
-    };
-
-    listFilesRecursively(this.absoluteProjectPath);
-    return files;
-  }
-
-  /**
    * Encuentra archivos .rej (rechazados durante la aplicación de un parche)
    */
   private async findRejFiles(): Promise<string[]> {
-    if (!this.absoluteProjectPath) return [];
-
     const rejFiles: string[] = [];
 
     const findRejInDir = (dir: string) => {
@@ -535,15 +476,5 @@ Para aplicar manualmente los cambios:
 
     findRejInDir(this.absoluteProjectPath);
     return rejFiles;
-  }
-}
-
-// Para mantener compatibilidad con código existente
-export class Git extends GitHandler {}
-
-// Para mantener compatibilidad con código existente
-export class NxProjectGit extends GitHandler {
-  constructor(rootPath: string, projectDir: string) {
-    super(rootPath, projectDir);
   }
 }
