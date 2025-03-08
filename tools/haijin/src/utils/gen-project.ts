@@ -192,7 +192,9 @@ export async function generateProject(
         // Intentar merge desde base
         logger.info('Attempting to merge from base to develop...');
         try {
-          execSync('git merge base -X theirs', { stdio: 'inherit' });
+          // Añadimos un mensaje de commit predefinido al merge para evitar la solicitud interactiva
+          const mergeMsg = `Merge ${options.type} ${options.projectType} ${options.name} from base to develop`;
+          execSync(`git merge base -X theirs -m "${mergeMsg}"`, { stdio: 'inherit' });
           logger.info('✓ Successfully merged from base to develop');
 
           const gitStatus2 = execSync('git status --porcelain', { encoding: 'utf8' });
