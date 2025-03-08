@@ -123,10 +123,10 @@ export function validateHaijinGitState(options: GitOptions = {}): { valid: boole
     }
 
     // Verificar branch
-    const currentBranch = getCurrentBranch(options);
-    if (currentBranch !== 'main') {
-      return { valid: false, message: `You must be on the main branch to run this generator. Current branch: ${currentBranch}` };
-    }
+    // const currentBranch = getCurrentBranch(options);
+    // if (currentBranch !== 'main') {
+    //   return { valid: false, message: `You must be on the main branch to run this generator. Current branch: ${currentBranch}` };
+    // }
 
     // Verificar cambios pendientes
     if (hasUncommittedChanges(options)) {

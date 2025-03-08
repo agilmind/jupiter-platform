@@ -1,0 +1,127 @@
+#################
+# users.hk
+#################
+
+User: entity
+  .userEntity
+  .pluralName("Users")
+  .labels(
+    en=["User", "Users"],
+    es=["Usuario", "Usuarios", "m"],
+    pt=["Usuário", "Usuários", "m"])
+  .listDisplay("email", "name", "active")
+  .listAvoid("profile")
+  .createAvoid("profile")
+  .listTextSearch(email, name)
+  .displayId(email, "' '", name)
+  .superUser(SysAdmin)
+{
+  main: group
+      .labels(
+         en=["Main"],
+         es=["Datos principales"],
+         pt=["Dados principais"])
+  {
+    email: userEmail
+      .unique
+      .labels(
+         en=["Email"],
+         es=["Email"],
+         pt=["Email"])
+
+    password: userPassword
+
+    name: string
+      .labels(
+         en=["Name"],
+         es=["Nombre"],
+         pt=["Nome"])
+
+    tenant: ref(Tenant)
+      .labels(
+        es=["Cliente", "Cliente"],
+        en=["Tenant", "Tenant"],
+        pt=["Cliente", "Cliente"]
+      )
+    .visibleForRole(SysAdmin)
+
+    active: userActive
+      .labels(
+         en=["Is active?"],
+         es=["Está activo?"],
+         pt=["Está ativo?"])
+  }
+
+  details: group
+      .labels(
+         en=["Details"],
+         es=["Detalles"],
+         pt=["Detalhes"])
+  {
+    profile: maybe(json)
+      .labels(
+        en=["Profile"],
+        es=["Perfil"],
+        pt=["Perfil"])
+
+    roles: maybe(set(ref(Role)))
+      .labels(
+        en=["Roles"],
+        es=["Roles"],
+        pt=["Funções"])
+  }
+}
+
+
+Role: entity
+  .roleEntity
+  .labels(
+    en=["Role", "Roles"],
+    es=["Rol", "Roles", "m"],
+    pt=["Papel", "Funções", "f"])
+  .listDisplay("name")
+  .listTextSearch(name)
+  .displayId(name)
+  .superUser(SysAdmin)
+  .allTenants(isTenantUsable)
+{
+  name: string
+    .unique
+    .labels(
+       en=["Name"],
+       es=["Nombre"],
+       pt=["Nome"])
+    .multilang
+
+  isTenantUsable: boolean
+    .labels(
+       en=["Tenant usable"],
+       es=["Disponible para inquilinos"],
+       pt=["Disponível para inquilinos"])
+
+  permissions: maybe(set(ref(Permission)))
+    .labels(
+       en=["Permissions"],
+       es=["Permisos"],
+       pt=["Permissões"])
+}
+
+
+Permission: entity
+  .labels(
+    en=["Permission", "Permissions"],
+    es=["Permiso", "Permisos", "m"],
+    pt=["Permisão", "Permissões", "m"])
+  .listDisplay(name)
+  .listTextSearch(id, name)
+  .displayId(name)
+  .allTenants
+{
+  name: string
+    .unique
+    .labels(
+       en=["Name"],
+       es=["Nombre"],
+       pt=["Nome"])
+    .multilang
+}

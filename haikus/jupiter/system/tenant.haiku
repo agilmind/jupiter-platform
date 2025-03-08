@@ -1,0 +1,496 @@
+Tenant: entity
+  .labels(
+    es=["Cliente Júpiter", "Clientes Júpiter"],
+    en=["Tenant", "Tenants"],
+    pt=["Cliente Júpiter", "Clientes Júpiter"]
+  )
+  .displayId(name)
+  .listDisplay(name, active)
+  .listTextSearch(name)
+  .superUser(SysAdmin)
+{
+  tenant: group
+      .labels(
+         en=["Tenant"],
+         es=["Cliente"],
+         pt=["Cliente"])
+  {
+      name: string
+        .labels(
+          es=["Nombre", "Nombre completo del cliente"],
+          en=["Name", "Full name of the tenant"],
+          pt=["Nome", "Nome completo do cliente"]
+        )
+        .unique
+
+      country: maybe(ref(Country))
+        .labels(
+           en=["Country"],
+           es=["País"],
+           pt=["País"])
+
+      active: boolean
+        .labels(
+          es=["Activo", "Cliente activo"],
+          en=["Active", "Active tenant"],
+          pt=["Ativo", "Cliente ativo"]
+        )
+
+      tenantType: maybe(ref(TenantType))
+        .labels(
+          es=["Tipo de Cliente", "Tipo de Cliente (e.g., Corporativo, Individual, etc.)"],
+          en=["Tenant Type", "Type of tenant (e.g., Corporate, Individual, etc.)"],
+          pt=["Tipo de Cliente", "Tipo de Cliente (por exemplo, Corporativo, Individual, etc.)"]
+        )
+
+      status: maybe(ref(TenantStatus))
+        .labels(
+          es=["Estado", "Estado del Cliente (Activo, Inactivo, Suspendido, etc.)"],
+          en=["Status", "Status of the tenant (Active, Inactive, Suspended, etc.)"],
+          pt=["Status", "Status do Cliente (Ativo, Inativo, Suspenso, etc.)"]
+        )
+
+      plan: maybe(ref(TenantPlan))
+        .labels(
+          es=["Plan", "Condiciones especiales aplicables al Cliente"],
+          en=["Plan", "Special conditions applicable to the Tenant"],
+          pt=["Plano", "Condições especiais aplicáveis ao Cliente"]
+        )
+  }
+
+  business: group
+      .labels(
+         en=["Business data"],
+         es=["Datos de la empresa"],
+         pt=["Dados da empresa"])
+  {
+      businessId: maybe(string)
+        .labels(
+          es=["ID de Negocio", "Identificador único del cliente según el país (DNI, CUIT, etc.)"],
+          en=["Business ID", "Unique tenant identifier according to country (DNI, CUIT, etc.)"],
+          pt=["ID de Negócio", "Identificador único do cliente de acordo com o país (DNI, CUIT, etc.)"]
+        )
+        .unique
+
+      enterpriseGroup: maybe(ref(EnterpriseGroup))
+        .labels(
+          es=["Grupo Empresarial", "Grupo empresarial al que pertenece el cliente, si aplica"],
+          en=["Enterprise Group", "Enterprise group to which the tenant belongs, if applicable"],
+          pt=["Grupo Empresarial", "Grupo empresarial ao qual o cliente pertence, se aplicável"]
+        )
+
+      address: maybe(set(TenantAddress))
+        .labels(
+          es=["Direcciones"],
+          en=["Addresses"],
+          pt=["Endereços"]
+        )
+
+      email: maybe(set(TenantEmail))
+        .labels(
+          es=["Correos Electrónicos"],
+          en=["Emails"],
+          pt=["Emails"]
+        )
+
+      phone: maybe(set(TenantPhone))
+        .labels(
+          es=["Teléfonos"],
+          en=["Phones"],
+          pt=["Telefones"]
+        )
+
+      registeredDate: date
+        .labels(
+          es=["Fecha de Registro", "Fecha en que el Cliente fue registrado en el sistema"],
+          en=["Registration Date", "Date the tenant was registered in the system"],
+          pt=["Data de Registro", "Data em que o Cliente foi registrado no sistema"]
+        )
+        .fillingOnServer
+
+      contacts: maybe(set(TenantContact))
+        .labels(
+          es=["Contactos del Cliente", "Lista de contactos asociados al Cliente"],
+          en=["Tenant Contacts", "List of contacts associated with the tenant"],
+          pt=["Contatos do Cliente", "Lista de contatos associados ao Cliente"]
+        )
+  }
+
+  billing: group
+      .labels(
+         en=["Billing data"],
+         es=["Datos de facturación"],
+         pt=["Dados de faturamento"])
+  {
+      billingCurrency: maybe(ref(Currency))
+        .labels(
+          es=["Moneda de Facturación", "Moneda usada para la facturación"],
+          en=["Billing Currency", "Currency used for billing"],
+          pt=["Moeda de Faturamento", "Moeda usada para faturamento"]
+        )
+
+      idERP: maybe(string)
+        .labels(
+          es=["ID ERP", "Identificador del Cliente en el sistema ERP"],
+          en=["ERP ID", "Tenant's identifier in the ERP system"],
+          pt=["ID ERP", "Identificador do Cliente no sistema ERP"]
+        )
+
+      idCRM: maybe(string)
+        .labels(
+          es=["ID CRM", "Identificador del Cliente en el sistema CRM"],
+          en=["CRM ID", "Tenant's identifier in the CRM system"],
+          pt=["ID CRM", "Identificador do Cliente no sistema CRM"]
+        )
+
+      discounts: maybe(set(TenantDiscount))
+        .labels(
+          es=["Descuentos", "Descuentos del Cliente"],
+          en=["Discounts", "Tenant Discounts"],
+          pt=["Descontos", "Descontos do Cliente"]
+        )
+  }
+}
+
+
+TenantContact: entity
+  .labels(
+    es=["Contacto del Cliente", "Contactos del Cliente"],
+    en=["Tenant Contact", "Tenant Contacts"],
+    pt=["Contato do Cliente", "Contatos do Cliente"]
+  )
+  .displayId(firstName, "' '", lastName)
+  .listDisplay(firstName, lastName, contactType)
+  .listTextSearch(firstName, lastName, contactType)
+  .unique(__parent, firstName, lastName)
+  .superUser(SysAdmin)
+{
+  contactType: string
+    .labels(
+      es=["Tipo de Contacto", "Tipo de contacto (por ejemplo, Ventas, Soporte, Administración)"],
+      en=["Contact Type", "Contact type (e.g., Sales, Support, Admin)"],
+      pt=["Tipo de Contato", "Tipo de contato (ex., Vendas, Suporte, Admin)"]
+    )
+
+  firstName: string
+    .labels(
+      es=["Nombre", "Nombre del contacto"],
+      en=["First Name", "Contact's first name"],
+      pt=["Nome", "Primeiro nome do contato"]
+    )
+
+  lastName: string
+    .labels(
+      es=["Apellido", "Apellido del contacto"],
+      en=["Last Name", "Contact's last name"],
+      pt=["Sobrenome", "Sobrenome do contato"]
+    )
+
+  emails: maybe(set(string))
+    .labels(
+      es=["Emails", "Lista de emails del contacto"],
+      en=["Emails", "Contact's email list"],
+      pt=["Emails", "Lista de emails do contato"]
+    )
+
+  phones: maybe(set(string))
+    .labels(
+      es=["Teléfonos", "Lista de teléfonos del contacto"],
+      en=["Phones", "Contact's phone list"],
+      pt=["Telefones", "Lista de telefones do contato"]
+    )
+
+  isActive: boolean
+    .labels(
+      es=["Activo", "Indica si el contacto está activo"],
+      en=["Active", "Indicates if the contact is active"],
+      pt=["Ativo", "Indica se o contato está ativo"]
+    )
+
+  comments: maybe(string)
+    .labels(
+      es=["Comentarios", "Comentarios adicionales sobre el contacto"],
+      en=["Comments", "Additional comments about the contact"],
+      pt=["Comentários", "Comentários adicionais sobre o contato"]
+    )
+}
+
+
+TenantType: entity
+  .labels(
+    es=["Tipo de Cliente", "Tipos de Cliente"],
+    en=["Tenant Type", "Tenant Types"],
+    pt=["Tipo de Cliente", "Tipos de Cliente"]
+  )
+  .displayId(name)
+  .listDisplay(name, description)
+  .superUser(SysAdmin)
+{
+  name: string
+    .labels(
+      es=["Código", "Código único del tipo de cliente"],
+      en=["Code", "Unique code for the tenant type"],
+      pt=["Código", "Código único do tipo de cliente"]
+    )
+    .multilang
+
+  description: string
+    .labels(
+      es=["Descripción", "Descripción del tipo de cliente"],
+      en=["Description", "Description of the tenant type"],
+      pt=["Descrição", "Descrição do tipo de cliente"]
+    )
+    .multilang
+}
+
+
+TenantStatus: entity
+  .labels(
+    es=["Estado de Cliente", "Estados de Cliente"],
+    en=["Tenant Status", "Tenant Statuses"],
+    pt=["Cliente do Cliente", "Status dos Cliente"]
+  )
+  .displayId(name)
+  .listDisplay(name, description)
+  .superUser(SysAdmin)
+{
+  name: string
+    .labels(
+      es=["Código", "Código único del estado del cliente"],
+      en=["Code", "Unique code for the tenant status"],
+      pt=["Código", "Código único do status do cliente"]
+    )
+    .unique
+
+  description: string
+    .labels(
+      es=["Descripción", "Descripción del estado del cliente"],
+      en=["Description", "Description of the tenant status"],
+      pt=["Descrição", "Descrição do status do cliente"]
+    )
+    .multilang
+}
+
+
+TenantAddress: entity
+  .labels(
+    es=["Dirección", "Direcciones"],
+    en=["Address", "Addresses"],
+    pt=["Endereço", "Endereços"]
+  )
+  .displayId(type)
+  .listDisplay(type, address)
+  .unique(__parent, type)
+  .superUser(SysAdmin)
+{
+  type: string
+    .labels(
+      es=["Tipo de Dirección"],
+      en=["Address Type"],
+      pt=["Tipo de Endereço"]
+    )
+    
+  address: string
+    .labels(
+      es=["Dirección"],
+      en=["Address"],
+      pt=["Endereço"]
+    )
+}
+
+
+TenantEmail: entity
+  .labels(
+    es=["Correo Electrónico del Cliente", "Correos Electrónicos del Cliente"],
+    en=["Tenant Email", "Tenant Emails"],
+    pt=["Email do Cliente", "Emails do Cliente"]
+  )
+  .displayId(email)
+  .listDisplay(type, email)
+  .unique(__parent, email)
+  .superUser(SysAdmin)
+{
+  type: string
+    .labels(
+      es=["Tipo de Correo Electrónico"],
+      en=["Email Type"],
+      pt=["Tipo de Email"]
+    )
+    
+  email: string
+    .labels(
+      es=["Correo Electrónico"],
+      en=["Email"],
+      pt=["Email"]
+    )
+}
+
+
+TenantPhone: entity
+  .labels(
+    es=["Teléfono del Cliente", "Teléfonos del Cliente"],
+    en=["Tenant Phone", "Tenant Phones"],
+    pt=["Telefone do Cliente", "Telefones do Cliente"]
+  )
+  .displayId(type)
+  .listDisplay(type, phone)
+  .unique(__parent, type, phone)
+  .superUser(SysAdmin)
+{
+  type: string
+    .labels(
+      es=["Tipo de Teléfono"],
+      en=["Phone Type"],
+      pt=["Tipo de Telefone"]
+    )
+    
+  phone: string
+    .labels(
+      es=["Teléfono"],
+      en=["Phone"],
+      pt=["Telefone"]
+    )
+}
+
+
+Currency: entity
+  .labels(
+    es=["Moneda", "Monedas"],
+    en=["Currency", "Currencies"],
+    pt=["Moeda", "Moedas"]
+  )
+  .displayId(code, "' '", name)
+  .listDisplay(code, name)
+  .listTextSearch(code, name)
+  .allTenants
+{
+  code: string
+    .labels(
+      es=["Código", "Código corto de la moneda (por ejemplo, USD, EUR)"],
+      en=["Code", "Short code of the currency (e.g., USD, EUR)"],
+      pt=["Código", "Código curto da moeda (por exemplo, USD, EUR)"]
+    )
+    .unique
+    
+  name: string
+    .labels(
+      es=["Nombre", "Nombre completo de la moneda (por ejemplo, Dólar estadounidense)"],
+      en=["Name", "Full name of the currency (e.g., United States Dollar)"],
+      pt=["Nome", "Nome completo da moeda (por exemplo, Dólar americano)"]
+    )
+}
+
+
+EnterpriseGroup: entity
+  .labels(
+    es=["Grupo Empresarial", "Grupos Empresariales"],
+    en=["Enterprise Group", "Enterprise Groups"],
+    pt=["Grupo Empresarial", "Grupos Empresariais"]
+  )
+  .displayId(name)
+  .listDisplay(name)
+  .listTextSearch(name)
+  .superUser(SysAdmin)
+{
+  name: string
+    .labels(
+      es=["Nombre", "Nombre del grupo empresarial"],
+      en=["Name", "Name of the business group"],
+      pt=["Nome", "Nome do grupo empresarial"]
+    )
+    .unique
+}
+
+
+TenantPlan: entity
+  .labels(
+    es=["Plan del Cliente", "Planes del Cliente"],
+    en=["Tenant Plan", "Tenant Plans"],
+    pt=["Plano do Cliente", "Planos do Cliente"]
+  )
+  .displayId(name)
+  .listDisplay(name, description, limits)
+  .listTextSearch(name)
+  .superUser(SysAdmin)
+{
+  name: string
+    .labels(
+      es=["Nombre", "Nombre de la condición (por ejemplo, 'Requiere orden de compra')"],
+      en=["Name", "Condition name (e.g., 'Requires purchase order')"],
+      pt=["Nome", "Nome da condição (ex., 'Requer ordem de compra')"]
+    )
+    .multilang
+
+  description: maybe(string)
+    .labels(
+      es=["Descripción", "Descripción detallada de la condición"],
+      en=["Description", "Detailed description of the condition"],
+      pt=["Descrição", "Descrição detalhada da condição"]
+    )
+    .multilang
+
+  limits: maybe(json)
+    .labels(
+      es=["Características del plan", "Descripción detallada del plan"],
+      en=["Plan features", "Detailed description of the plan"],
+      pt=["Características do plano", "Descrição detalhada do plano"]
+    )
+}
+
+
+TenantDiscount: entity
+  .labels(
+    es=["Descuento de Cliente", "Descuentos de Cliente"],
+    en=["Tenant Discount", "Tenant Discounts"],
+    pt=["Desconto do Cliente", "Descontos do Cliente"]
+  )
+  .displayId(startDate, "' - '", endDate)
+  .listDisplay(discountPercentage, startDate, endDate)
+  .unique(__parent, startDate)
+  .superUser(SysAdmin)
+{
+  startDate: date
+    .labels(
+      es=["Fecha de inicio", "Fecha en la que comienza el descuento"],
+      en=["Start Date", "Date when the discount starts"],
+      pt=["Data de início", "Data em que o desconto começa"]
+    )
+
+  endDate: maybe(date)
+    .labels(
+      es=["Fecha de fin", "Fecha en la que finaliza el descuento (opcional)"],
+      en=["End Date", "Date when the discount ends (optional)"],
+      pt=["Data de fim", "Data em que o desconto termina (opcional)"]
+    )
+
+  discountPercentage: decimal
+    .labels(
+      es=["Porcentaje de descuento", "Porcentaje de descuento aplicado al Cliente"],
+      en=["Discount Percentage", "Discount percentage applied to the tenant"],
+      pt=["Percentual de desconto", "Percentual de desconto aplicado ao Cliente"]
+    )
+
+  comment: string
+    .labels(
+      es=["Comentario", "Comentarios adicionales sobre el descuento"],
+      en=["Comment", "Additional comments about the discount"],
+      pt=["Comentário", "Comentários adicionais sobre o desconto"]
+    )
+}
+
+Country: entity
+  .labels(
+     en=["Country", "Countries"],
+     es=["País", "Países", "m"],
+     pt=["País", "Países", "m"])
+  .displayId(name)
+  .listDisplay(name)
+  .allTenants
+{
+  name: string
+    .labels(
+       en=["Name"],
+       es=["Nombre"],
+       pt=["Nome"])
+    .unique
+}

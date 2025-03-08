@@ -7,7 +7,6 @@ export function configureReactNative(options: ProjectGeneratorSchema): AddProjec
     name: options.name,
     type: 'ReactNative',
     projectType: 'app',
-    generator: '@nx/node:app',
     dependencies: {
       prod: [],
       dev: []

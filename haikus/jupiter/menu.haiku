@@ -1,0 +1,88 @@
+MainMenu: menu
+  .labels("Menú")
+  {
+      sysTenant: group
+          .labels(
+            en=["Tenants", "Tenants"],
+            es=["Clientes Júpiter", "Clientes Júpiter", "m"],
+            pt=["Clientes Júpiter", "Clientes Júpiter", "m"])
+        .icon("Badge")
+      {
+        tenant: item
+          .labels(es=["Clientes"], en=["Tenants"], pt=["Clientes"])
+          .icon("Group")
+          .url("/tenant/list")
+          .permission("tenant_retrieve")
+
+        tenantType: item
+          .labels(es=["Tipos de Cliente"], en=["Tenant Types"], pt=["Tipos de Cliente"])
+          .icon("FolderShared")
+          .url("/tenantType/list")
+          .permission("tenantType_retrieve")
+
+        tenantStatus: item
+          .labels(es=["Estados de Cliente"], en=["Tenant Statuses"], pt=["Status dos Clientes"])
+          .icon("SignalWifiStatusbarConnectedNoInternet4")
+          .url("/tenantStatus/list")
+          .permission("tenantStatus_retrieve")
+
+        enterpriseGroup: item
+          .labels(es=["Grupos Empresariales"], en=["Enterprise Groups"], pt=["Grupos Empresariais"])
+          .icon("Domain")
+          .url("/enterpriseGroup/list")
+          .permission("enterpriseGroup_retrieve")
+
+        tenantPlans: item
+          .labels(es=["Planes"], en=["Plans"], pt=["Planos"])
+          .icon("Tune")
+          .url("/tenantPlan/list")
+          .permission("tenantPlan_retrieve")
+
+        currency: item
+          .labels(es=["Monedas"], en=["Currencies"], pt=["Moedas"])
+          .icon("AttachMoney")
+          .url("/currency/list")
+          .permission("currency_retrieve")
+
+        countries: item
+          .labels(es=["Países"], en=["Countries"], pt=["Países"])
+          .icon("Flag")
+          .url("/country/list")
+          .permission("country_retrieve")
+      }
+
+      sysUsers: group
+          .labels(
+            en=["Users", "Users"],
+            es=["Usuarios", "Usuarios", "m"],
+            pt=["Usuários", "Usuários", "m"])
+        .icon("PeopleOutline")
+      {
+        users: item
+          .labels(
+            en=["Users", "Users"],
+            es=["Usuarios", "Usuarios", "m"],
+            pt=["Usuários", "Usuários", "m"])
+          .icon("PersonOutline")
+          .url("/user/list")
+          .permission("user_retrieve")
+
+        roles: item
+          .labels(
+            en=["Roles", "Roles"],
+            es=["Roles", "Roles", "m"],
+            pt=["Funções", "Funções", "f"])
+          .icon("EngineeringOutlined")
+          .url("/role/list")
+          .permission("role_retrieve")
+
+        permissions: item
+          .labels(
+            en=["Permissions", "Permissions"],
+            es=["Permisos", "Permisos", "m"],
+            pt=["Permissões", "Permissões", "m"])
+          .icon("VpnKeyOutlined")
+          .url("/permission/list")
+          .permission("permission_retrieve")
+      }
+}

@@ -7,7 +7,6 @@ export function configureReact(options: ProjectGeneratorSchema): AddProjectOptio
     name: options.name,
     type: 'React',
     projectType: 'app',
-    generator: '@nx/node:app',
     dependencies: {
       prod: [],
       dev: []

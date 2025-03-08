@@ -1,0 +1,19 @@
+{
+  "name": "Jupiter",
+  "systemOwner": "AGILMIND",
+  "sources": ["./jupiter.haiku", "./menu.haiku", "./system/users.haiku", "./system/tenant.haiku"],
+  "site": "jupiter.ar",
+  "serverIP": "82.29.62.16",
+  "adminEmail": "garciafido@gmail.com",
+  "superAdminEmail": "garciafido@gmail.com",
+  "title": { "es": "Jupiter", "en": "Jupiter", "pt": "Jupiter" },
+  "languages": { "es_AR": "es",  "en_US": "en",  "pt_BR": "pt" },
+  "timeZones": {
+    "es": "America/Argentina/Buenos_Aires",
+    "en": "America/Argentina/Buenos_Aires",
+    "pt": "America/Argentina/Buenos_Aires"
+  },
+  "timeFormats": { "es": "es-AR", "en": "en-US", "pt": "pt-BR" },
+  "multiTenancy": true,
+  "seeds": []
+}
