@@ -1,4 +1,4 @@
-import { Tree, formatFiles, logger, installPackagesTask, generateFiles } from '@nx/devkit';
+import { Tree, formatFiles, logger, installPackagesTask, generateFiles, OverwriteStrategy } from '@nx/devkit';
 import { execSync } from 'child_process';
 import {
   validateHaijinGitState,
@@ -93,15 +93,7 @@ export async function generateProject(
       }
     }
 
-    // 5. Crear estructura de directorios si no existe
-    for (const subDir of ['src', 'src/app', 'prisma']) {
-      const fullSubDir = path.join(projectDir, subDir);
-      if (!fs.existsSync(fullSubDir)) {
-        fs.mkdirSync(fullSubDir, { recursive: true });
-      }
-    }
-
-    // 6. Generar archivos específicos
+    // 5. Generar archivos específicos
     logger.info('Generating template files...');
     generateFiles(
       tree,
@@ -111,18 +103,19 @@ export async function generateProject(
         ...options,
         template: '',
         dot: '.'
-      }
+      },
+      {overwriteStrategy: OverwriteStrategy.Overwrite}
     );
 
-    // 7. Aplicar actualizaciones específicas
+    // 6. Aplicar actualizaciones específicas
     if (options.projectUpdates) {
       options.projectUpdates(projectDir, projectName);
     }
 
-    // 8. Formatear y escribir cambios
+    // 7. Formatear y escribir cambios
     await formatFiles(tree);
 
-    // 9. Función de task
+    // 8. Función de task
     return () => {
       // Git: add y commit
       logger.info('Adding all generated files to Git...');
