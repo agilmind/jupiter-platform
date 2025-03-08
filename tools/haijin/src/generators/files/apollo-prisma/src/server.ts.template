@@ -2,7 +2,7 @@ import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { PrismaClient } from '@prisma/client';
 
-// hola desde BASE 2
+// hola desde BASE 656
 
 const prisma5 = new PrismaClient();
 const prisma = prisma5;
