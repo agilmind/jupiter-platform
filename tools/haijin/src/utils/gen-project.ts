@@ -1,6 +1,12 @@
 import { Tree, formatFiles, logger, installPackagesTask, generateFiles } from '@nx/devkit';
 import { execSync } from 'child_process';
-import { validateHaijinGitState, createAndCheckoutBranch, hasUncommittedChanges, commit } from './git';
+import {
+  validateHaijinGitState,
+  createAndCheckoutBranch,
+  hasUncommittedChanges,
+  commit,
+  setCurrentBranch
+} from './git';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -155,6 +161,10 @@ export async function generateProject(
 
       // Instalar dependencias
       installPackagesTask(tree);
+
+      if (gitStatus.originalBranch) {
+        setCurrentBranch(gitStatus.originalBranch);
+      }
     };
   } catch (error) {
     try {

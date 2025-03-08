@@ -88,6 +88,16 @@ export function createAndCheckoutBranch(branchName: string, options: GitOptions 
 }
 
 /**
+ * Crea y cambia a un nuevo branch
+ */
+export function setCurrentBranch(branchName: string, options: GitOptions = {}): void {
+  if (branchExists(branchName, options)) {
+    execGitCommand(`checkout ${branchName}`, options);
+    logger.info(`Switched to existing branch: ${branchName}`);
+  }
+}
+
+/**
  * Añade archivos al stage
  */
 export function addFiles(pattern = '.', options: GitOptions = {}): void {
@@ -115,29 +125,34 @@ export function commit(message: string, options: GitOptions = {}): void {
 /**
  * Verifica el estado del repositorio para Haijin (debe estar en main sin cambios)
  */
-export function validateHaijinGitState(options: GitOptions = {}): { valid: boolean; message?: string } {
+export function validateHaijinGitState(options: GitOptions = {}): { valid: boolean; message?: string; originalBranch?: string; } {
+  let originalBranch;
   try {
     // Verificar si estamos en un repo Git
     if (!isGitRepo(options)) {
-      return { valid: false, message: 'Not a Git repository. Please run git init first.' };
+      return { valid: false, message: 'Not a Git repository. Please run git init first.', originalBranch: originalBranch };
     }
 
     // Verificar branch
-    // const currentBranch = getCurrentBranch(options);
+    const currentBranch = getCurrentBranch(options);
     // if (currentBranch !== 'main') {
     //   return { valid: false, message: `You must be on the main branch to run this generator. Current branch: ${currentBranch}` };
     // }
 
     // Verificar cambios pendientes
     if (hasUncommittedChanges(options)) {
-      return { valid: false, message: 'You have uncommitted changes. Please commit or stash them before running this generator.' };
+      return {
+        valid: false,
+        message: `You have uncommitted changes on "${currentBranch}". Please commit or stash them before running this generator.`,
+        originalBranch: currentBranch };
     }
 
-    return { valid: true };
+    return { valid: true, originalBranch: currentBranch };
   } catch (error) {
     return {
       valid: false,
-      message: `Error validating Git state: ${error instanceof Error ? error.message : String(error)}`
+      message: `Error validating Git state: ${error instanceof Error ? error.message : String(error)}`,
+      originalBranch: originalBranch,
     };
   }
 }
