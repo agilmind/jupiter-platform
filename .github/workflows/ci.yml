@@ -27,6 +27,37 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
+      # Fix SWC/Jest compatibility issues
+      - name: Fix SWC/Jest compatibility issues
+        run: |
+          # Create a Jest transformer that uses Babel instead of SWC for CI
+          cat > jest-transformer.js << 'EOL'
+          const babelJest = require('babel-jest').default;
+
+          module.exports = babelJest.createTransformer({
+            presets: [
+              ['@babel/preset-env', { targets: { node: 'current' } }],
+              '@babel/preset-typescript',
+            ],
+          });
+          EOL
+
+          # Install necessary Babel dependencies
+          npm install --save-dev babel-jest @babel/core @babel/preset-env @babel/preset-typescript
+
+          # Update Jest configs to use Babel transformer in CI
+          for config in $(find . -name "jest.config.ts"); do
+            echo "Fixing $config"
+            # Create a CI-specific Jest config that uses Babel instead of SWC
+            cat > $(dirname $config)/jest.ci-config.js << 'EOL'
+            module.exports = {
+              transform: {
+                '^.+\\.[tj]sx?$': '<rootDir>/../../jest-transformer.js'
+              },
+            };
+            EOL
+          done
+
       # ELIMINACIÓN COMPLETA de los plugins locales para CI
       - name: Remove local plugins for CI
         run: |
@@ -35,27 +66,21 @@ jobs:
 
       - uses: nrwl/nx-set-shas@v4
 
-      - run: npx nx affected -t lint test build --verbose
-
-      # Add this before running nx affected
-      - name: Fix Jest configurations
+      # Run with NX_JEST_EXTRA_CONFIG for all Jest operations
+      - name: Run affected tasks with Babel transformer for Jest
         run: |
-          for config in $(find . -name "jest.config.ts"); do
-            echo "Checking $config"
-            # Make sure it exports a proper configuration object
-            sed -i 's/export default/export default /' $config
-          done
+          NX_JEST_EXTRA_CONFIG=jest.ci-config.js npx nx affected -t lint test build --verbose
 
       # Compilar y probar los plugins por separado
       - name: Build and test create-worker plugin
         run: |
           cd tools/create-worker
           npx tsc -p tsconfig.json
-          npx jest
+          NX_JEST_EXTRA_CONFIG=jest.ci-config.js npx jest
 
       - name: Build and test haijin plugin
         if: ${{ always() }}  # Ejecutar incluso si create-worker falla
         run: |
           cd tools/haijin
           npx tsc -p tsconfig.json
-          npx jest
+          NX_JEST_EXTRA_CONFIG=jest.ci-config.js npx jest
