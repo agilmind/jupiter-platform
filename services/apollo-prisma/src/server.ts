@@ -5,47 +5,14 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const typeDefs = `#graphql
-  type Person {
-    id: Int!
-    name: String!
-  }
-
   type Query {
     hello: String
-    getPerson(id: Int!): Person
-    getAllPersons: [Person!]!
-  }
-
-  type Mutation {
-    updatePersonName(id: Int!, name: String!): Person
-    createPerson(name: String!): Person
   }
 `;
 
 const resolvers = {
   Query: {
     hello: () => 'Hello World from apollo-prisma Apollo Server!',
-    getPerson: async (_, { id }, { prisma }) => {
-      return prisma.person.findUnique({
-        where: { id },
-      });
-    },
-    getAllPersons: async (_, __, { prisma }) => {
-      return prisma.person.findMany();
-    },
-  },
-  Mutation: {
-    updatePersonName: async (_, { id, name }, { prisma }) => {
-      return prisma.person.update({
-        where: { id },
-        data: { name },
-      });
-    },
-    createPerson: async (_, { name }, { prisma }) => {
-      return prisma.person.create({
-        data: { name },
-      });
-    },
   },
 };
 
