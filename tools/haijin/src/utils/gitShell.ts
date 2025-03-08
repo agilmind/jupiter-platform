@@ -1,8 +1,7 @@
 import * as sh from "shelljs";
-import path from "path";
+import * as path from "path";
 import {SimpleGit, simpleGit} from "simple-git";
 import { logger } from '@nx/devkit';
-// import * as fs from "fs-extra";
 
 export class Git {
     dirApp: string;
@@ -143,11 +142,11 @@ export class Git {
       }
     }
 
-    async prepareForGeneration() {
+    async prepareForGeneration(projectDir: string) {
         const files = await this.hasPendingCommits(this.developerBranch);
         if (files.length === 0) {
             await this.git.checkout(this.genBranch);
-            await this.git.rm(["-r", "./*"]);
+            await this.git.rm(["-r", `${projectDir}/*`]);
         } else {
             const filesStr = files.map(x=>x.path).join("\n");
             throw Error(`${this.developerBranch} has pending commits\n${filesStr}`)

@@ -2,7 +2,7 @@ import { formatFiles, generateFiles, installPackagesTask, logger, OverwriteStrat
 import { execSync } from 'child_process';
 import { Git } from './gitShell';
 import * as fs from 'fs';
-import { cleanDirectoryExcept } from './forced-overwrite';
+// import { cleanDirectoryExcept } from './forced-overwrite';
 
 export interface AddProjectOptions {
   name: string;
