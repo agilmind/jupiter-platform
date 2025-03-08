@@ -2,6 +2,7 @@ import { formatFiles, generateFiles, installPackagesTask, logger, OverwriteStrat
 import { execSync } from 'child_process';
 import { Git } from './gitShell';
 import * as fs from 'fs';
+import { cleanDirectoryExcept } from './forced-overwrite';
 // import { cleanDirectoryExcept } from './forced-overwrite';
 
 export interface AddProjectOptions {
@@ -96,10 +97,10 @@ export async function generateProject(
       }
     }
 
-    // if (projectExists) {
-    //   logger.info('Cleaning destination directory before generation...');
-    //   cleanDirectoryExcept(tree, projectDir, []);
-    // }
+    if (projectExists) {
+      logger.info('Cleaning destination directory before generation...');
+      cleanDirectoryExcept(tree, projectDir, []);
+    }
 
     // 5. Generar archivos específicos
     logger.info('Generating template files...');
