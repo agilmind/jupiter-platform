@@ -77,7 +77,7 @@ export async function generateProject(
 
       // Limpiar el directorio pero preservar project.json y tsconfig.json
       logger.info(`Cleaning project directory...`);
-      prepareForGerneration();
+      prepareForGerneration(projectDir);
     }
 
     // 4. Instalar dependencias

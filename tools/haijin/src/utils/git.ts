@@ -87,10 +87,10 @@ export function createAndCheckoutBranch(branchName: string, options: GitOptions 
   }
 }
 
-export function prepareForGerneration(options: GitOptions = {}) {
+export function prepareForGerneration(projectDir, options: GitOptions = {}) {
   const currentBranch = getCurrentBranch(options);
   if (currentBranch === 'base') {
-    execGitCommand(`rm -r ./*`, options);
+    execGitCommand(`rm -r ${projectDir}/*`, options);
     logger.info(`${currentBranch} prepared`);
   } else {
     throw new Error('Not in base branch to clean up')
