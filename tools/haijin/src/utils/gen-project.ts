@@ -1,9 +1,8 @@
-import { formatFiles, generateFiles, installPackagesTask, logger, OverwriteStrategy, Tree } from '@nx/devkit';
+import { Tree, formatFiles, logger, installPackagesTask, generateFiles, OverwriteStrategy } from '@nx/devkit';
 import { execSync } from 'child_process';
 import { Git } from './gitShell';
 import * as fs from 'fs';
-import { cleanDirectoryExcept } from './forced-overwrite';
-// import { cleanDirectoryExcept } from './forced-overwrite';
+import * as path from 'path';
 
 export interface AddProjectOptions {
   name: string;
@@ -16,39 +15,20 @@ export interface AddProjectOptions {
   };
   templatePath: string;
   projectUpdates?: (projectDir: string, projectName: string) => void;
-  update?: boolean;  // Indica si estamos explícitamente en modo actualización
-  cwd?: string; // Añadimos esta opción para poder especificar el directorio de trabajo
+  update?: boolean;
+  cwd?: string;
 }
-
 
 export async function generateProject(
   tree: Tree,
   options: AddProjectOptions
 ) {
-  // Inicializamos una instancia de Git con el directorio de trabajo
-  const git = new Git(options.cwd || process.cwd());
-
-  // 1. Validar estado de Git usando la clase Git
-  // Este es el primer paso de la migración
-  const gitStatus = await git.validateHaijinGitStateWithGit();
-  if (!gitStatus.valid) {
-    logger.error(gitStatus.message);
-    return;
-  }
-
   // Determinar directorio y nombre de proyecto
   const directoryPrefix = options.projectType === 'app' ? 'apps' : 'services';
   const projectPrefix = options.projectType === 'app' ? 'app' : 'services';
 
   const projectDir = `${directoryPrefix}/${options.name}`;
   const projectName = `${projectPrefix}-${options.name}`;
-
-  // El resto del código se mantiene igual por ahora
-  // ...resto del código sin cambios...
-
-  // 2. Cambiar a branch base usando la clase Git
-  await git.createAndCheckoutBranchWithGit('base');
-  // El log ya está incluido en la función adaptadora
 
   // Verificar si el proyecto ya existe
   const projectExists = fs.existsSync(projectDir);
@@ -73,18 +53,7 @@ export async function generateProject(
   }
 
   try {
-    if (!projectExists) {
-      logger.info(`Creating new project at ${projectDir}...`);
-    } else {
-      logger.info(`Project already exists, skipping creation step`);
-
-      // Limpiar el directorio pero preservar project.json y tsconfig.json
-      logger.info(`Cleaning project directory...`);
-      // await git.prepareForGenerationWithGit(projectDir);
-      await git.prepareForGeneration(projectDir);
-    }
-
-    // 4. Instalar dependencias
+    // Instalar dependencias (esto se puede hacer antes de generar archivos)
     if (options.dependencies) {
       logger.info('Installing dependencies...');
 
@@ -97,12 +66,7 @@ export async function generateProject(
       }
     }
 
-    if (projectExists) {
-      logger.info('Cleaning destination directory before generation...');
-      cleanDirectoryExcept(tree, projectDir, []);
-    }
-
-    // 5. Generar archivos específicos
+    // Generar archivos - esto modifica el árbol virtual
     logger.info('Generating template files...');
     generateFiles(
       tree,
@@ -116,54 +80,75 @@ export async function generateProject(
       {overwriteStrategy: OverwriteStrategy.Overwrite}
     );
 
-    // 6. Aplicar actualizaciones específicas
+    // Aplicar actualizaciones específicas si es necesario
     if (options.projectUpdates) {
       options.projectUpdates(projectDir, projectName);
     }
 
-    // 7. Formatear y escribir cambios
+    // Formatear y escribir cambios
     await formatFiles(tree);
 
-    // 8. Función de task
-    return async () => {
-      // Git: add y commit usando la clase Git
-      logger.info('Adding all generated files to Git...');
+    // *** IMPORTANTE: TODAS LAS OPERACIONES DE GIT VAN EN LA FUNCIÓN DE RETORNO ***
+    // Esta función se ejecutará DESPUÉS de que Nx escriba físicamente los archivos
+    return () => {
+      // Inicializar Git DESPUÉS de que se hayan escrito los archivos
+      const git = new Git(options.cwd || process.cwd());
 
-      if (await git.hasUncommittedChangesWithGit) {
-        const action = projectExists ? 'Update' : 'Add';
-        await git.commitWithGit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
-        logger.info(`Changes committed to base branch`);
-      }
+      logger.info('Executing post-generation Git operations...');
 
-      // Merge a develop usando la clase Git
-      await git.createAndCheckoutBranchWithGit('develop');
+      // Obtener el estado actual de Git
+      const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
 
-      // Usamos la función de merge del adaptador
-      await git.mergeWithGit('base', ['-X', 'theirs']);
+      // 1. Cambiamos a branch base
+      try {
+        execSync('git checkout base || git checkout -b base', { stdio: 'inherit' });
+        logger.info('Switched to base branch');
 
-      if (await git.hasUncommittedChangesWithGit()) {
-        const action = projectExists ? 'Update' : 'Complete';
-        await git.commitWithGit(`${action} ${options.type} ${options.projectType} setup: ${options.name}`);
-      }
+        // 2. Add y commit
+        execSync('git add --all', { stdio: 'inherit' });
 
-      const action = projectExists ? 'updated' : 'created';
-      logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${action} successfully!`);
+        const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' });
+        if (gitStatus.trim().length > 0) {
+          const action = projectExists ? 'Update' : 'Add';
+          execSync(`git commit -m "${action} ${options.type} ${options.projectType}: ${options.name}"`, { stdio: 'inherit' });
+          logger.info(`Changes committed to base branch`);
+        }
 
-      // Instalar dependencias
-      installPackagesTask(tree);
+        // 3. Merge a develop
+        execSync('git checkout develop || git checkout -b develop', { stdio: 'inherit' });
+        logger.info('Switched to develop branch');
 
-      if (gitStatus.originalBranch) {
-        await git.setCurrentBranchWithGit(gitStatus.originalBranch);
+        execSync('git merge base -X theirs', { stdio: 'inherit' });
+        logger.info('Successfully merged from base to develop');
+
+        const gitStatus2 = execSync('git status --porcelain', { encoding: 'utf8' });
+        if (gitStatus2.trim().length > 0) {
+          const action = projectExists ? 'Update' : 'Complete';
+          execSync(`git commit -m "${action} ${options.type} ${options.projectType} setup: ${options.name}"`, { stdio: 'inherit' });
+        }
+
+        // 4. Volver al branch original
+        if (currentBranch && currentBranch !== 'develop') {
+          execSync(`git checkout ${currentBranch}`, { stdio: 'inherit' });
+          logger.info(`Returned to original branch: ${currentBranch}`);
+        }
+
+        const action = projectExists ? 'updated' : 'created';
+        logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${action} successfully!`);
+
+        // Instalar dependencias
+        installPackagesTask(tree);
+      } catch (error) {
+        logger.error(`Git operations failed: ${error instanceof Error ? error.message : String(error)}`);
+        // Intenta volver al branch original
+        try {
+          if (currentBranch) {
+            execSync(`git checkout ${currentBranch}`, { stdio: 'ignore' });
+          }
+        } catch {}
       }
     };
   } catch (error) {
-    try {
-      await git.createAndCheckoutBranchWithGit('develop');
-      // No necesitamos 'git add' aquí, pues commitWithGit ya hace el add
-    } catch {
-      // Ignorar errores de Git
-    }
-
     logger.error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
