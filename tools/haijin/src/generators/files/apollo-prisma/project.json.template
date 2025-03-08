@@ -1,7 +1,7 @@
 {
-  "name": "apollo-prisma",
+  "name": "<%= name %>",
   "$schema": "../../../../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "services/apollo-prisma/src",
+  "sourceRoot": "services/<%= name %>/src",
   "projectType": "application",
   "targets": {
     "build": {
@@ -10,12 +10,12 @@
       "defaultConfiguration": "production",
       "options": {
         "platform": "node",
-        "outputPath": "dist/services/apollo-prisma",
+        "outputPath": "dist/services/<%= name %>",
         "format": ["cjs"],
         "bundle": false,
-        "main": "services/apollo-prisma/src/main.ts",
-        "tsConfig": "services/apollo-prisma/tsconfig.app.json",
-        "assets": ["services/apollo-prisma/src/assets"],
+        "main": "services/<%= name %>/src/main.ts",
+        "tsConfig": "services/<%= name %>/tsconfig.app.json",
+        "assets": ["services/<%= name %>/src/assets"],
         "generatePackageJson": true,
         "esbuildOptions": {
           "sourcemap": true,
@@ -41,15 +41,15 @@
       "defaultConfiguration": "development",
       "dependsOn": ["build"],
       "options": {
-        "buildTarget": "apollo-prisma:build",
+        "buildTarget": "<%= name %>:build",
         "runBuildTargetDependencies": false
       },
       "configurations": {
         "development": {
-          "buildTarget": "apollo-prisma:build:development"
+          "buildTarget": "<%= name %>:build:development"
         },
         "production": {
-          "buildTarget": "apollo-prisma:build:production"
+          "buildTarget": "<%= name %>:build:production"
         }
       }
     }
