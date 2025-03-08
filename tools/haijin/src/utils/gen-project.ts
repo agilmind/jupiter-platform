@@ -1,4 +1,4 @@
-import { Tree, formatFiles, logger, installPackagesTask, generateFiles, OverwriteStrategy } from '@nx/devkit';
+import { Tree, formatFiles, logger, installPackagesTask, generateFiles } from '@nx/devkit';
 import { execSync } from 'child_process';
 import { Git } from './gitShell';
 import * as fs from 'fs';
@@ -77,7 +77,7 @@ export async function generateProject(
         template: '',
         dot: '.'
       },
-      {overwriteStrategy: OverwriteStrategy.Overwrite}
+      { overwrite: true }
     );
 
     // Aplicar actualizaciones específicas si es necesario
@@ -98,15 +98,34 @@ export async function generateProject(
 
       // Obtener el estado actual de Git
       const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+      let stashCreated = false;
 
-      // 1. Cambiamos a branch base
       try {
-        execSync('git checkout base || git checkout -b base', { stdio: 'inherit' });
+        // 0. Verificar si hay cambios y hacer stash si es necesario
+        const hasChanges = execSync('git status --porcelain', { encoding: 'utf8' }).trim().length > 0;
+        if (hasChanges) {
+          logger.info('Stashing current changes...');
+          // Primero añadimos los archivos sin seguimiento para poder hacer stash
+          execSync('git add --all', { stdio: 'inherit' });
+          execSync('git stash push -m "Temporary stash before haijin generator"', { stdio: 'inherit' });
+          stashCreated = true;
+        }
+
+        // 1. Verificar si existe la rama base, si no, crearla
+        const branchExists = execSync('git branch --list base', { encoding: 'utf8' }).trim().length > 0;
+
+        if (branchExists) {
+          execSync('git checkout base', { stdio: 'inherit' });
+        } else {
+          execSync('git checkout -b base', { stdio: 'inherit' });
+        }
         logger.info('Switched to base branch');
 
-        // 2. Add y commit
-        execSync('git add --all', { stdio: 'inherit' });
+        // 2. Añadir archivos generados explícitamente
+        logger.info(`Adding generated files in ${projectDir}...`);
+        execSync(`git add ${projectDir}`, { stdio: 'inherit' });
 
+        // 3. Verificar si hay cambios para commit
         const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' });
         if (gitStatus.trim().length > 0) {
           const action = projectExists ? 'Update' : 'Add';
@@ -114,23 +133,37 @@ export async function generateProject(
           logger.info(`Changes committed to base branch`);
         }
 
-        // 3. Merge a develop
-        execSync('git checkout develop || git checkout -b develop', { stdio: 'inherit' });
+        // 4. Verificar si existe la rama develop, si no, crearla
+        const developExists = execSync('git branch --list develop', { encoding: 'utf8' }).trim().length > 0;
+
+        if (developExists) {
+          execSync('git checkout develop', { stdio: 'inherit' });
+        } else {
+          execSync('git checkout -b develop', { stdio: 'inherit' });
+        }
         logger.info('Switched to develop branch');
 
+        // 5. Merge desde base con estrategia "theirs"
         execSync('git merge base -X theirs', { stdio: 'inherit' });
         logger.info('Successfully merged from base to develop');
 
+        // 6. Commit si hay cambios pendientes
         const gitStatus2 = execSync('git status --porcelain', { encoding: 'utf8' });
         if (gitStatus2.trim().length > 0) {
           const action = projectExists ? 'Update' : 'Complete';
           execSync(`git commit -m "${action} ${options.type} ${options.projectType} setup: ${options.name}"`, { stdio: 'inherit' });
         }
 
-        // 4. Volver al branch original
+        // 7. Volver al branch original
         if (currentBranch && currentBranch !== 'develop') {
           execSync(`git checkout ${currentBranch}`, { stdio: 'inherit' });
           logger.info(`Returned to original branch: ${currentBranch}`);
+
+          // 8. Recuperar cambios del stash si se creó uno
+          if (stashCreated) {
+            logger.info('Applying stashed changes...');
+            execSync('git stash pop', { stdio: 'inherit' });
+          }
         }
 
         const action = projectExists ? 'updated' : 'created';
@@ -140,12 +173,18 @@ export async function generateProject(
         installPackagesTask(tree);
       } catch (error) {
         logger.error(`Git operations failed: ${error instanceof Error ? error.message : String(error)}`);
-        // Intenta volver al branch original
+        // Intenta volver al branch original y recuperar el stash
         try {
           if (currentBranch) {
             execSync(`git checkout ${currentBranch}`, { stdio: 'ignore' });
+            if (stashCreated) {
+              logger.info('Applying stashed changes after error...');
+              execSync('git stash pop', { stdio: 'ignore' });
+            }
           }
-        } catch {}
+        } catch (e) {
+          logger.error(`Failed to restore original state: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
     };
   } catch (error) {
