@@ -138,7 +138,7 @@ export async function generateProject(
     await formatFiles(tree);
 
     // 8. Función de task
-    return () => {
+    return async () => {
       // Git: add y commit usando la clase Git
       logger.info('Adding all generated files to Git...');
 
