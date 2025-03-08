@@ -1,8 +1,8 @@
-import { logger, Tree, installPackagesTask } from '@nx/devkit';
+import { formatFiles, logger, Tree, installPackagesTask } from '@nx/devkit';
 import { execSync } from 'child_process';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { Git } from './gitShell';
+import { NxProjectGit } from './gitExtender';
 
 // Función para generar archivos de manera sincrónica (en lugar de usar generateFiles de nx)
 function generateFilesSync(sourcePath: string, targetPath: string, options: any) {
@@ -69,8 +69,8 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
   const projectName = `${projectPrefix}-${options.name}`;
   const projectRoot = path.join(process.cwd(), projectDir);
 
-  // Inicializar Git con el directorio del workspace
-  const git = new Git(process.cwd());
+  // Inicializar GitExtender con el directorio del workspace y el directorio del proyecto
+  const projectGit = new NxProjectGit(process.cwd(), projectDir);
 
   try {
     // Verificar si el proyecto ya existe
@@ -112,19 +112,12 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
       }
     }
 
-    // 1. Si es la primera vez, inicializar Git
-    if (!projectExists) {
-      // Crear el directorio del proyecto
-      fs.ensureDirSync(projectRoot);
+    // 1. Asegurarse de que las ramas base y develop existen
+    await projectGit.ensureBranches();
 
-      // Inicializar Git en el directorio principal
-      logger.info('Initializing Git workflow...');
-      await git.init(options.name);
-    }
-
-    // 2. Preparar para generación (checkout a base y limpiar)
+    // 2. Preparar para generación (checkout a base y limpiar SOLO el directorio del proyecto)
     try {
-      await git.prepareForGeneration(projectDir);
+      await projectGit.prepareForGeneration();
       logger.info('Prepared for generation in base branch');
 
       // 3. Generar archivos de manera sincrónica (en lugar de usar generateFiles de nx)
@@ -144,19 +137,19 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
         options.projectUpdates(projectDir, projectName);
       }
 
-      // 5. Git: add y commit
+      // 5. Git: add y commit SOLO los archivos del proyecto
       const action = projectExists ? 'Update' : 'Add';
-      await git.addAndCommit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
+      await projectGit.addAndCommit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
       logger.info(`Changes committed to base branch`);
 
       // 6. Pasar los cambios a develop
       if (projectExists) {
         // Si ya existía, usar patch para aplicar los cambios
-        await git.patchToDevelop();
+        await projectGit.patchToDevelop();
         logger.info('Applied patch to develop branch');
       } else {
         // Si es nuevo, usar rebase para sincronizar
-        await git.rebaseToDevelop();
+        await projectGit.rebaseToDevelop();
         logger.info('Rebased changes to develop branch');
       }
 
@@ -169,7 +162,7 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
       };
     } catch (error) {
       // Si algo sale mal, revertir los cambios
-      await git.revertPrepareForGeneration();
+      await projectGit.revertPrepareForGeneration();
       logger.error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }

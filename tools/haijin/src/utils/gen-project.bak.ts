@@ -1,6 +1,6 @@
 import { formatFiles, generateFiles, installPackagesTask, logger, OverwriteStrategy, Tree } from '@nx/devkit';
 import { execSync } from 'child_process';
-import { Git } from './gitShell';
+import { Git } from './gitShell.bak';
 import * as fs from 'fs';
 import { cleanDirectoryExcept } from './forced-overwrite';
 // import { cleanDirectoryExcept } from './forced-overwrite';
