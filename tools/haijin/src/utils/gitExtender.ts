@@ -158,83 +158,73 @@ export class NxProjectGit {
    */
   async patchToDevelop() {
     try {
-      // Verificar si hay cambios sin confirmar
-      const status = await this.rootGit.git.status();
-      let stashCreated = false;
+      // Crear el parche desde branch base
+      await this.rootGit.git.checkout('base');
+      logger.info('Switched to base branch to create patch');
 
-      // Si hay cambios sin confirmar, hacer stash
-      if (status.files.length > 0) {
-        logger.info('Stashing uncommitted changes before patch...');
-        await this.rootGit.git.add('.');
-        await this.rootGit.git.stash(['push', '-m', 'Temporary stash before patch']);
-        stashCreated = true;
+      // Crear y aplicar el parche
+      let patchFilePath;
+      try {
+        // Intentar con format-patch primero
+        const fileName = await this.rootGit.git.raw('format-patch', '-1', 'HEAD');
+        patchFilePath = path.join(process.cwd(), fileName.trim());
+        logger.info(`Created patch file: ${patchFilePath}`);
+      } catch (formatError) {
+        logger.warn(`Failed to create patch with format-patch: ${formatError.message}`);
+
+        // Enfoque alternativo: usar diff
+        const diffOutput = await this.rootGit.git.diff(['HEAD~1', 'HEAD']);
+        patchFilePath = path.join(process.cwd(), `${path.basename(this.projectDir)}.patch`);
+        fs.writeFileSync(patchFilePath, diffOutput);
+        logger.info(`Created patch file using diff: ${patchFilePath}`);
       }
 
+      // Cambiar a develop
+      await this.rootGit.git.checkout('develop');
+      logger.info('Switched to develop branch');
+
       try {
-        // Crear el parche desde branch base
-        await this.rootGit.git.checkout('base');
-        logger.info('Switched to base branch to create patch');
+        // Aplicar el parche con opciones extendidas
+        await this.rootGit.git.applyPatch([patchFilePath], [
+          '--ignore-space-change',
+          '--ignore-whitespace',
+          '--reject',  // Permite aplicar parcialmente el parche, rechazando partes problemáticas
+          '--whitespace=fix'  // Arregla problemas de espacios en blanco
+        ]);
+        logger.info('Patch applied successfully to develop branch');
 
-        // Listamos todos los commits para debug
-        const commitHistory = await this.rootGit.git.log({ maxCount: 5 });
-        logger.info(`Latest commits on base: ${commitHistory.all.map(c => c.hash.substring(0, 7) + ': ' + c.message).join(' | ')}`);
+        // Verificar si hay archivos .rej (rechazados por conflictos)
+        const rejFiles = await this.findRejFiles();
+        if (rejFiles.length > 0) {
+          // Hay archivos rechazados, hay conflictos
+          logger.warn(`
+==========================================================================
+CONFLICTO EN APLICACIÓN DE PARCHE DETECTADO
 
-        // Crear y aplicar el parche
-        let patchFilePath;
-        try {
-          // Intentar con format-patch primero
-          const fileName = await this.rootGit.git.raw('format-patch', '-1', 'HEAD');
-          patchFilePath = path.join(process.cwd(), fileName.trim());
-          logger.info(`Created patch file: ${patchFilePath}`);
-        } catch (formatError) {
-          logger.warn(`Failed to create patch with format-patch: ${formatError.message}`);
+Se detectaron conflictos al aplicar el parche a la rama develop.
+Los siguientes archivos tuvieron conflictos:
+${rejFiles.map(f => `- ${f}`).join('\n')}
 
-          // Enfoque alternativo: usar diff
-          const diffOutput = await this.rootGit.git.diff(['HEAD~1', 'HEAD']);
-          patchFilePath = path.join(process.cwd(), `${path.basename(this.projectDir)}.patch`);
-          fs.writeFileSync(patchFilePath, diffOutput);
-          logger.info(`Created patch file using diff: ${patchFilePath}`);
+Para cada archivo con conflicto:
+1. Edita el archivo original para incorporar los cambios rechazados
+   - Cada archivo rechazado está en formato .rej con el mismo nombre base
+   - Compara el archivo .rej con el original y combínalos manualmente
+
+2. Una vez resueltos todos los conflictos, añade los cambios:
+   $ git add [archivos_modificados]
+
+3. Haz commit de los cambios:
+   $ git commit -m "Resueltos conflictos de parche"
+
+El parche original queda guardado en: ${patchFilePath}
+==========================================================================`);
+
+          // Retornamos false para indicar que hay conflictos
+          return false;
         }
 
-        // Cambiar a develop y aplicar el parche
-        await this.rootGit.git.checkout('develop');
-        logger.info('Switched to develop branch');
-
-        try {
-          // Aplicar el parche con opciones extendidas
-          await this.rootGit.git.applyPatch([patchFilePath], [
-            '--ignore-space-change',
-            '--ignore-whitespace',
-            '--verbose',
-            '--reject',  // Permite aplicar parcialmente el parche, rechazando partes problemáticas
-            '--whitespace=fix'  // Arregla problemas de espacios en blanco
-          ]);
-          logger.info('Patch applied successfully to develop branch');
-        } catch (applyError) {
-          logger.warn(`Partial patch application error: ${applyError.message}`);
-
-          // Intentar añadir todos los cambios que se aplicaron correctamente
-          logger.info('Attempting to add all successfully applied changes...');
-        }
-
-        // Añadir y commitear todos los cambios, incluyendo los archivos de configuración
+        // Añadir y commitear todos los cambios
         await this.rootGit.git.add([this.projectDir]);
-
-        // Verificar y añadir explícitamente archivos críticos
-        const criticalFiles = [
-          path.join(this.projectDir, 'project.json'),
-          path.join(this.projectDir, 'tsconfig.json'),
-          path.join(this.projectDir, 'tsconfig.app.json')
-        ];
-
-        for (const file of criticalFiles) {
-          if (fs.existsSync(file)) {
-            await this.rootGit.git.add([file]);
-            logger.info(`Explicitly added after patch: ${file}`);
-          }
-        }
-
-        // Commit los cambios
         await this.rootGit.git.commit(`Apply patch from base to develop: ${path.basename(this.projectDir)}`);
         logger.info('Committed patched changes to develop branch');
 
@@ -244,29 +234,58 @@ export class NxProjectGit {
           logger.info('Deleted patch file after applying');
         }
 
-        // Si se creó un stash, intentar aplicarlo
-        if (stashCreated) {
-          logger.info('Applying stashed changes...');
-          await this.rootGit.git.stash(['pop']);
-          logger.info('Stashed changes applied successfully');
-        }
-      } catch (patchError) {
-        // Si hay un error al aplicar el parche pero creamos un stash, asegurarnos de restaurarlo
-        if (stashCreated) {
-          try {
-            logger.info('Applying stashed changes after patch error...');
-            await this.rootGit.git.stash(['pop']);
-            logger.info('Stashed changes applied successfully');
-          } catch (stashError) {
-            logger.error(`Failed to apply stash: ${stashError instanceof Error ? stashError.message : String(stashError)}`);
-          }
-        }
-        throw patchError;
+        return true; // Patch aplicado con éxito
+      } catch (applyError) {
+        logger.error(`Error applying patch: ${applyError.message}`);
+
+        // Guardar una copia del parche para referencia
+        const backupPatchPath = path.join(process.cwd(), `${path.basename(this.projectDir)}-manual-patch.patch`);
+        fs.copyFileSync(patchFilePath, backupPatchPath);
+
+        logger.warn(`
+==========================================================================
+ERROR AL APLICAR PARCHE
+
+No se pudo aplicar el parche automáticamente.
+Se ha guardado una copia del parche en: ${backupPatchPath}
+
+Para aplicar manualmente los cambios:
+1. Examina el archivo de parche
+2. Aplica los cambios manualmente a los archivos en la rama develop
+3. Haz commit de los cambios: git add . && git commit -m "Aplicar cambios manualmente"
+==========================================================================`);
+
+        return false; // Patch falló
       }
     } catch (error) {
-      logger.error(`Patch failed: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(`Patch process failed: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
+  }
+
+  /**
+   * Encuentra archivos .rej (rechazados durante la aplicación de un parche)
+   */
+  private async findRejFiles(): Promise<string[]> {
+    const rejFiles: string[] = [];
+
+    const findRejInDir = (dir: string) => {
+      if (!fs.existsSync(dir)) return;
+
+      const items = fs.readdirSync(dir);
+      for (const item of items) {
+        const itemPath = path.join(dir, item);
+
+        if (fs.lstatSync(itemPath).isDirectory()) {
+          findRejInDir(itemPath);
+        } else if (item.endsWith('.rej')) {
+          rejFiles.push(itemPath);
+        }
+      }
+    };
+
+    findRejInDir(this.absoluteProjectPath);
+    return rejFiles;
   }
 
   /**
