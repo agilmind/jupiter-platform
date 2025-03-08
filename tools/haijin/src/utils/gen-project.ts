@@ -160,7 +160,7 @@ export async function generateProject(
     try {
       createAndCheckoutBranch('develop');
       execSync('git add --all', { stdio: 'ignore' });
-    } catch (gitError) {
+    } catch {
       // Ignorar errores de Git
     }
 

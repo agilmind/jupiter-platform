@@ -9,8 +9,7 @@ async function projectGenerator(
   tree: Tree,
   options: ProjectGeneratorSchema
 ) {
-  let configs: Record<ProjectTypes, (options: ProjectGeneratorSchema) => AddProjectOptions>;
-  configs = {
+  const configs: Record<ProjectTypes, (options: ProjectGeneratorSchema) => AddProjectOptions> = {
     'apollo-prisma': configureApolloPrisma,
     'react': configureReact,
     'react-native': configureReactNative
