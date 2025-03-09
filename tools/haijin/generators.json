@@ -3,7 +3,7 @@
     "project": {
       "factory": "./src/generators/project/project",
       "schema": "./src/generators/project/schema.json",
-      "description": "Add a Service or an Application to your Haijin workspace",
+      "description": "Add a Service or an Application to your Haijin workspace"
     }
   }
 }

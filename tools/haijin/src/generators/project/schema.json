@@ -1,14 +1,15 @@
 {
   "$schema": "https://json-schema.org/schema",
-  "$id": "AddProject",
-  "title": "Add Service or Application",
-  "description": "Add a Service or an Application to your Haijin workspace",
+  "$id": "GenerateHaikuProject",
+  "title": "Generate Service or Application",
+  "description": "Generate a Service or an Application to your Haijin workspace",
   "type": "object",
   "properties": {
     "name": {
       "type": "string",
       "description": "Name of the Haiku project",
-      "x-prompt": "¿Qué nombre de proyecto Haiku desea utilizar?"
+      "x-prompt": "¿Qué nombre de proyecto Haiku desea utilizar?",
+      "default": "jupiter"
     }
   },
   "required": ["name"],

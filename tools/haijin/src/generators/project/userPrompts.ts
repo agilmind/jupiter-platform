@@ -40,8 +40,6 @@ export async function userPrompt(options: ProjectGeneratorSchema, tree: Tree) {
     } else {
       console.error('No se pudo determinar el tipo de servicio');
     }
-
-    console.log('Opciones finales:', options);
   } catch (error) {
     throw new Error(`Error al procesar la configuración: ${error.message}`);
   }
