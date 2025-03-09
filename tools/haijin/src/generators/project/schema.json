@@ -7,16 +7,10 @@
   "properties": {
     "name": {
       "type": "string",
-      "description": "Name of the Project",
-      "default": "apollo-prisma",
-      "x-prompt": "What name would you like to give to your Project?"
-    },
-    "type": {
-      "type": "string",
-      "description": "Type of the Project",
-      "default": "apollo-prisma",
-      "x-prompt": "What type is your Project?"
+      "description": "Name of the Haiku project",
+      "x-prompt": "¿Qué nombre de proyecto Haiku desea utilizar?"
     }
   },
-  "required": ["name", "type"]
+  "required": ["name"],
+  "additionalProperties": true
 }

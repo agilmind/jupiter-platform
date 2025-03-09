@@ -3,23 +3,10 @@ import { execSync } from 'child_process';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { NxProjectGit } from './git-handler';
+import { ProjectGeneratorSchema } from '../generators/project/schema';
 
-export interface AddProjectOptions {
-  name: string;
-  type: string;
-  projectType: 'app' | 'service';
-  options?: string;
-  dependencies?: {
-    prod?: string[];
-    dev?: string[];
-  };
-  templatePath: string;
-  projectUpdates?: (projectDir: string, projectName: string) => void;
-  update?: boolean;
-  cwd?: string;
-}
 
-function writeFiles(options: AddProjectOptions) {
+function writeFiles(options: ProjectGeneratorSchema) {
   // FASE 1: Procesar las plantillas mientras estamos en main y guardar el contenido en memoria
   logger.info('Processing template files while in main branch...');
 
@@ -86,13 +73,13 @@ function writeFiles(options: AddProjectOptions) {
   };
 
   // Procesar todos los templates y guardar contenido
-  processTemplateDir(options.templatePath);
+  processTemplateDir(options.currentServiceType);
   logger.info(`Processed ${processedFiles.length} template files, ready for Git operations`);
   return processedFiles;
 }
 
-export async function generateProject(tree: Tree, options: AddProjectOptions) {
-  const directoryPrefix = options.projectType === 'app' ? 'apps' : 'services';
+export async function generateProject(tree: Tree, options: ProjectGeneratorSchema) {
+  const directoryPrefix = options.currentServiceType === 'apollo-prisma' ? 'services' : 'apps';
 
   const projectDir = `${directoryPrefix}/${options.name}`;
   const projectRoot = path.join(process.cwd(), projectDir);
@@ -101,7 +88,7 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
     // Verificar si el proyecto ya existe
     const projectExists = fs.existsSync(projectRoot);
 
-    if (projectExists && !options.update) {
+    if (projectExists) {
       // Preguntar si quiere actualizar el proyecto existente
       const readline = require('readline').createInterface({
         input: process.stdin,
@@ -119,9 +106,9 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
         return;
       }
 
-      logger.info(`Updating ${options.type} ${options.projectType}: ${options.name}`);
+      logger.info(`Updating ${options.currentService} ${options.currentServiceType}: ${options.name}`);
     } else if (!projectExists) {
-      logger.info(`Creating ${options.type} ${options.projectType}: ${options.name}`);
+      logger.info(`Creating ${options.currentService} ${options.currentServiceType}: ${options.name}`);
     }
 
     // Instalar dependencias si se especificaron
@@ -192,7 +179,7 @@ export async function generateProject(tree: Tree, options: AddProjectOptions) {
 
         // 6. Git add y commit
         const action = projectExists ? 'Update' : 'Add';
-        await projectGit.addAndCommit(`${action} ${options.type} ${options.projectType}: ${options.name}`);
+        await projectGit.addAndCommit(`${action} ${options.currentService} ${options.currentServiceType}: ${options.name}`);
         logger.info(`Changes committed to base branch`);
 
         // 7. Pasar cambios a develop
@@ -260,7 +247,7 @@ Los archivos ya fueron actualizados correctamente en la rama base.
         }
 
         const resultAction = projectExists ? 'updated' : 'created';
-        logger.info(`✅ ${options.type} ${options.projectType} ${options.name} ${resultAction} successfully!`);
+        logger.info(`✅ ${options.currentService} ${options.currentServiceType} ${options.name} ${resultAction} successfully!`);
 
         // Instalar dependencias
         installPackagesTask(tree);
@@ -283,7 +270,7 @@ Los archivos ya fueron actualizados correctamente en la rama base.
           }
         }
 
-        throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.type} ${options.projectType}: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.currentService} ${options.currentServiceType}: ${error instanceof Error ? error.message : String(error)}`);
       }
     };
   } catch (error) {
