@@ -2,77 +2,87 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main, develop]
   pull_request:
-
-permissions:
-  actions: read
-  contents: read
+    branches: [main, develop]
 
 jobs:
   main:
+    name: Nx Cloud - Main Job
     runs-on: ubuntu-latest
-    env:
-      NX_SKIP_NX_CACHE: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      # Configuración de Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: '16'
           cache: 'npm'
 
-      - run: npm ci --legacy-peer-deps
+      # Instalación de dependencias con caché
+      - name: Cache node modules
+        id: cache-nodemodules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-      # Create Jest preset file to ensure ts-jest is used
-      - name: Setup Jest with ts-jest
+      - name: Install dependencies
+        if: steps.cache-nodemodules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      # Verificación del formato de código (visible y temprana)
+      - name: Check format
+        id: format
         run: |
-          echo 'module.exports = {
-            testMatch: ["**/+(*.)+(spec|test).+(ts|js)?(x)"],
-            transform: {
-              "^.+\\.(ts|js|html)$": "ts-jest"
-            },
-            resolver: "@nx/jest/plugins/resolver",
-            moduleFileExtensions: ["ts", "js", "html"],
-            coverageReporters: ["html"]
-          };' > jest.preset.js
-
-      # ELIMINACIÓN COMPLETA de los plugins locales para CI
-      - name: Remove local plugins for CI
-        run: |
-          node -e "const fs = require('fs'); const config = JSON.parse(fs.readFileSync('nx.json', 'utf8')); config.plugins = config.plugins.filter(p => !p.plugin || (p.plugin !== './dist/tools/create-worker' && p.plugin !== './dist/tools/haijin')); fs.writeFileSync('nx.json', JSON.stringify(config, null, 2));"
-          cat nx.json
-
-      - uses: nrwl/nx-set-shas@v4
-
-      # Run all projects except haijin
-      - name: Run lint and build (excluding haijin)
-        run: |
-          npx nx affected -t lint build --exclude=haijin --verbose
-
-      # Run tests for all projects except haijin
-      - name: Run tests (excluding haijin)
-        run: |
-          npx nx affected -t test --exclude=haijin --verbose
-
-      # Compile and test create-worker plugin separately
-      - name: Build and test create-worker plugin
-        run: |
-          cd tools/create-worker
-          npx tsc -p tsconfig.json
-          npx jest
-
-      # Try to build haijin but allow it to fail
-      - name: Attempt to build haijin plugin (may fail)
+          echo "::group::🔍 Verificando formato del código"
+          npx nx format:check
+          echo "::endgroup::"
         continue-on-error: true
+
+      # Análisis estático con información detallada
+      - name: Lint
+        id: lint
         run: |
-          cd tools/haijin
-          npx tsc -p tsconfig.json || echo "Failed to build haijin, but continuing"
+          echo "::group::🔍 Ejecutando análisis de código"
+          npm run ci:lint
+          echo "::endgroup::"
 
-      # Add a note about haijin
-      - name: Note about haijin
-        run: echo "::warning::The haijin project has been excluded from automatic verification due to build issues. Please verify it locally."
+      # Tests
+      - name: Test
+        id: test
+        run: |
+          echo "::group::🧪 Ejecutando tests"
+          npm run ci:test
+          echo "::endgroup::"
 
+      # Build
+      - name: Build
+        id: build
+        run: |
+          echo "::group::🔨 Compilando aplicaciones"
+          npm run ci:build
+          echo "::endgroup::"
+
+      # Resumen final
+      - name: CI Summary
+        if: always()
+        run: |
+          echo "### Resumen de CI 📊" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Verificación | Estado |" >> $GITHUB_STEP_SUMMARY
+          echo "| ------------ | ------ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Formato | ${{ steps.format.outcome == 'success' && '✅ Pasó' || '⚠️ No cumple con estándares' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ steps.lint.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | ${{ steps.test.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ steps.build.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
+
+      # Solo falla el CI si los pasos críticos fallan (formato no es crítico)
+      - name: Check Status
+        if: steps.lint.outcome != 'success' || steps.test.outcome != 'success' || steps.build.outcome != 'success'
+        run: exit 1

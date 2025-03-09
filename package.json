@@ -18,13 +18,22 @@
     "test:scraper-anses": "nx test scraper-anses",
     "lint": "nx run-many --target=lint --all",
     "graph": "nx graph",
+
     "affected": "nx affected",
     "affected:build": "nx affected --target=build",
-    "lint:fix": "nx run-many --target=lint --all --fix",
     "affected:lint": "nx affected --target=lint",
     "affected:lint:fix": "nx affected --target=lint --fix",
     "affected:test": "nx affected --target=test",
-    "pre-push": "npm run affected:lint:fix && npm run affected:test"
+    "lint:fix": "nx run-many --target=lint --all --fix",
+
+    "ci:lint": "echo '🔍 Ejecutando lint en proyectos afectados...' && nx affected --target=lint --configuration=ci",
+    "ci:test": "echo '🧪 Ejecutando tests en proyectos afectados...' && nx affected --target=test --configuration=ci",
+    "ci:build": "echo '🔨 Compilando proyectos afectados...' && nx affected --target=build --configuration=production",
+
+    "ci:check": "npm run ci:lint && npm run ci:test && npm run ci:build",
+    "pre-push": "nx-cloud record -- node ./tools/scripts/pre-push-checks.js",
+
+    "verify": "npm run affected:lint:fix && npm run affected:test && npm run affected:build"
   },
   "private": true,
   "devDependencies": {
