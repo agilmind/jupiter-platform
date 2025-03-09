@@ -2,6 +2,10 @@
   "name": "jupiter-platform",
   "version": "0.0.0",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.18.0",
+    "npm": ">=8.19.4"
+  },
   "scripts": {
     "build": "nx run-many --target=build --all",
     "build:framework": "nx build worker-framework",

@@ -15,22 +15,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Configuración de Node.js
+      # Actualizamos a Node.js 18.18.0 que es el mínimo requerido por Prisma
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: '18.18.0'
           cache: 'npm'
 
-      # Instalación de dependencias con caché y --legacy-peer-deps
+      # Instalación de dependencias con caché
       - name: Cache node modules
         id: cache-nodemodules
         uses: actions/cache@v3
         with:
           path: node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-node18-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-node-
+            ${{ runner.os }}-node18-
 
       - name: Install dependencies
         if: steps.cache-nodemodules.outputs.cache-hit != 'true'
@@ -72,8 +72,3 @@ jobs:
           echo "| Lint | ${{ steps.lint.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Test | ${{ steps.test.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ${{ steps.build.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
-
-      # Solo falla el CI si realmente queremos que falle (en este caso hemos puesto continue-on-error)
-      - name: Check Status
-        if: false # Temporalmente deshabilitar fallas en CI
-        run: exit 1
