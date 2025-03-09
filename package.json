@@ -31,7 +31,7 @@
     "ci:build": "echo '🔨 Compilando proyectos afectados...' && nx affected --target=build --configuration=production",
 
     "ci:check": "npm run ci:lint && npm run ci:test && npm run ci:build",
-    "pre-push": "nx-cloud record -- node ./tools/scripts/pre-push-checks.js",
+    "pre-push": "node ./tools/scripts/pre-push-checks.js",
 
     "verify": "npm run affected:lint:fix && npm run affected:test && npm run affected:build"
   },
