@@ -17,7 +17,6 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
     const directoryPrefix = options.runOptions.currentServiceType === 'apollo-prisma' ? 'services' : 'apps';
     const targetDir = path.join(
       directoryPrefix,
-      options.runOptions.name,
       options.runOptions.currentService
     );
 
