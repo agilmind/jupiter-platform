@@ -15,11 +15,11 @@
       "type": "boolean",
       "default": false
     },
-    "haikuOptions": {
+    "runOptions": {
       "type": "RunGeneratorSchema",
       "description": "Run generator configuration"
     }
   },
-  "required": ["name", "haikuOptions"],
+  "required": ["name"],
   "additionalProperties": true
 }

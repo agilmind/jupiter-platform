@@ -4,6 +4,9 @@ import * as enquirer from 'enquirer';
 import { TranscribeGeneratorSchema } from './schema';
 
 export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
+  if (!options.runOptions) {
+      throw new Error(`Este generador se ejecuta únicamente invocado por el generador haijin:run`);
+  }
   try {
     logger.info(`Iniciando generador Tree para el proyecto: ${options.name}`);
 
