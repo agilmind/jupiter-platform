@@ -13,7 +13,6 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
     // Obtener la ruta a las plantillas
     const templatePath = path.join(__dirname, 'files', options.runOptions.currentServiceType);
 
-    // Determinar el directorio de destino usando la misma lógica que en run.ts
     const directoryPrefix = options.runOptions.currentServiceType === 'apollo-prisma' ? 'services' : 'apps';
     const targetDir = path.join(
       directoryPrefix,
