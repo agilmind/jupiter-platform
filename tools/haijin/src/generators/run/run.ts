@@ -405,35 +405,110 @@ async function postGenerationOperations(gitContext: GitContext, services: Servic
     await git.checkout('develop');
     logger.info('Switched to develop branch');
 
-    // Preguntar estrategia de merge
+    // Preguntar estrategia de merge con opciones más claras
     const readline = require('readline').createInterface({
       input: process.stdin,
       output: process.stdout
     });
 
-    const mergeStrategy = await new Promise<string>(resolve => {
+    const mergeChoice = await new Promise<string>(resolve => {
       readline.question(`
-Seleccione estrategia de merge:
-1. Automática (intentar merge normal)
-2. Preferir cambios de develop (-X ours)
-3. Preferir cambios generados (-X theirs)
-Opción (1-3): `, answer => {
-        if (answer === '2') resolve('-X ours');
-        else if (answer === '3') resolve('-X theirs');
-        else resolve('');
-      });
+==========================================================================
+ESTRATEGIA DE MERGE
+
+Seleccione cómo manejar los cambios:
+1. Intentar merge normal (puede generar conflictos)
+2. Mantener TODOS los cambios de develop (ignorar generados)
+3. Usar TODOS los cambios generados (reemplazar develop)
+4. Merge selectivo (seleccionar servicio por servicio)
+==========================================================================
+Opción (1-4): `, resolve);
     });
 
-    readline.close();
+    // Si eligió merge selectivo
+    if (mergeChoice === '4') {
+      // Para cada servicio, preguntar individualmente
+      for (const service of services) {
+        const serviceChoice = await new Promise<string>(resolve => {
+          readline.question(`
+Para ${service.dir}:
+1. Mantener cambios de develop
+2. Usar cambios generados
+Opción (1-2): `, resolve);
+        });
 
+        if (serviceChoice === '1') {
+          // Mantener versión de develop (no hacer nada con este servicio)
+          logger.info(`Manteniendo cambios existentes para ${service.dir}`);
+        } else {
+          // Copiar archivos específicos de temp-branch a develop
+          try {
+            await git.checkout([`${tempBranch}`, '--', service.dir]);
+            await git.add(service.dir);
+            logger.info(`Aplicados cambios generados para ${service.dir}`);
+          } catch (error) {
+            logger.error(`Error al aplicar cambios para ${service.dir}: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+      }
+
+      // Hacer commit de los cambios selectivos
+      const selectiveStatus = await git.status();
+      if (selectiveStatus.files.length > 0) {
+        await git.commit(`Merge selectivo de servicios generados`);
+        logger.info('Cambios aplicados selectivamente y commitidos');
+      } else {
+        logger.info('No se realizaron cambios selectivos');
+      }
+
+      // Eliminar branch temporal y volver al original
+      await git.branch(['-D', tempBranch]);
+      await returnToOriginalBranch(gitContext);
+      return;
+    }
+
+    // Para las otras opciones
     try {
-      // Intentar merge con la estrategia seleccionada
-      const mergeArgs = [tempBranch, '--no-ff'];
-      if (mergeStrategy) mergeArgs.push(mergeStrategy);
-      mergeArgs.push('-m', `Merge ${tempBranch}: ${commitMessage}`);
+      if (mergeChoice === '2') {
+        // Opción 2: Mantener cambios de develop ignorando generados
+        // Simplemente eliminamos el branch temporal y terminamos
+        await git.branch(['-D', tempBranch]);
+        logger.info('Se mantuvieron los cambios existentes en develop sin aplicar cambios generados');
+        await returnToOriginalBranch(gitContext);
+        return;
+      } else if (mergeChoice === '3') {
+        // Opción 3: Forzar uso de cambios generados
+        // Para cada servicio, copiar archivos desde el branch temporal
+        for (const service of services) {
+          try {
+            // Checkout selectivo desde el branch temporal
+            await git.checkout([tempBranch, '--', service.dir]);
+            await git.add(service.dir);
+            logger.info(`Forzados cambios generados para ${service.dir}`);
+          } catch (error) {
+            logger.error(`Error al forzar cambios para ${service.dir}: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
 
-      await git.merge(mergeArgs);
-      logger.info('Changes merged successfully to develop');
+        // Hacer commit de los cambios forzados
+        const forcedStatus = await git.status();
+        if (forcedStatus.files.length > 0) {
+          await git.commit(`Aplicados cambios generados forzosamente`);
+          logger.info('Cambios generados aplicados y commitidos');
+        } else {
+          logger.info('No se realizaron cambios forzados');
+        }
+
+        // Eliminar branch temporal y volver al original
+        await git.branch(['-D', tempBranch]);
+        await returnToOriginalBranch(gitContext);
+        return;
+      } else {
+        // Opción 1: Merge normal
+        // Intentar merge estándar
+        await git.merge([tempBranch, '--no-ff', '-m', `Merge ${tempBranch}: ${commitMessage}`]);
+        logger.info('Changes merged successfully to develop');
+      }
     } catch (error) {
       // Verificar si rerere resolvió los conflictos
       const mergeStatus = await git.status();
