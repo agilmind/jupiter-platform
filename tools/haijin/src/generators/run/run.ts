@@ -19,30 +19,30 @@ export default async function (
   const projectRoot = path.join(process.cwd(), projectDir);
 
   try {
+    // 1. Generar el Tree en memoria usando transcribe
+    logger.info('Generating project structure in memory...');
     const transcribeOptions: TranscribeGeneratorSchema = {
       name: options.name,
       runOptions: options
     };
 
     await transcribe(tree, transcribeOptions);
+    const changesCount = tree.listChanges().length;
+    logger.info(`Generated ${changesCount} files in memory`);
 
-    // Capturar todos los cambios del Tree para escribirlos después
-    const treeChanges = tree.listChanges().map(change => ({
-      path: change.path,
-      content: tree.read(change.path),
-      type: change.type
-    }));
-
+    // 2. Preparar las operaciones Git
     const projectGit = new NxProjectGit(process.cwd(), projectDir);
     const originalBranch = await projectGit.getCurrentBranch();
     logger.info(`Starting Git operations (current branch: ${originalBranch})`);
 
-    let projectExists;
+    let projectExists = false;
+
+    // 3. Cambiar al branch base (donde escribiremos los archivos) y prepararlo
     try {
-      // 1. Asegurarse de que las ramas base y develop existen
+      // Asegurarse de que las ramas base y develop existen
       await projectGit.ensureBranches();
 
-      // 2. Cambiar a la rama base
+      // Cambiar a la rama base
       await projectGit.rootGit.git.checkout('base');
       logger.info('Switched to base branch');
 
@@ -63,7 +63,9 @@ export default async function (
         readline.close();
 
         if (answer.toLowerCase() !== 'y') {
-          logger.info('Update cancelled. Exiting...');
+          // Volver al branch original si se cancela
+          await projectGit.rootGit.git.checkout(originalBranch);
+          logger.info('Update cancelled. Returning to original branch.');
           return;
         }
 
@@ -72,7 +74,7 @@ export default async function (
         logger.info(`Creating ${options.currentService}`);
       }
 
-      // 3. Limpiar directorio en base si existe
+      // Limpiar directorio en base si existe
       try {
         await projectGit.rootGit.git.rm(['-r', `${projectDir}/*`]);
         logger.info('Cleaned existing files in base branch');
@@ -84,44 +86,29 @@ export default async function (
         }
       }
 
-      // 4. Escribir los archivos del Tree al disco
-      logger.info('Writing files to disk in base branch...');
+      // 4. IMPORTANTE: Aquí terminamos nuestra preparación
+      // NX escribirá automáticamente los archivos en el branch 'base' cuando finalice el generador
+      logger.info(`Tree ready. NX will write ${changesCount} files to the base branch upon completion.`);
 
-      for (const change of treeChanges) {
-        const filePath = change.path;
-        const fileDir = path.dirname(filePath);
+      // 5. Devolver la función de callback que se ejecutará DESPUÉS de que NX escriba al disco
+      return async () => {
+        try {
+          logger.info('Post-generation operations starting...');
 
-        // Asegurarse de que el directorio existe
-        fs.ensureDirSync(fileDir);
+          // 5.1 Git add y commit en branch base
+          const action = projectExists ? 'Update' : 'Add';
+          await projectGit.addAndCommit(`${action} ${options.currentService} ${options.currentServiceType}: ${options.name}`);
+          logger.info(`Changes committed to base branch`);
 
-        // Escribir el archivo
-        if (Buffer.isBuffer(change.content)) {
-          fs.writeFileSync(filePath, change.content);
-        } else if (typeof change.content === 'string') {
-          fs.writeFileSync(filePath, change.content, 'utf-8');
-        } else if (change.content !== null && change.content !== undefined) {
-          fs.writeFileSync(filePath, String(change.content), 'utf-8');
-        }
+          // 5.2 Pasar cambios a develop
+          let conflictsDetected = false;
 
-        logger.debug(`Written: ${filePath}`);
-      }
-
-      logger.info(`Successfully wrote ${treeChanges.length} files to disk`);
-
-      // 5. Git add y commit
-      const action = projectExists ? 'Update' : 'Add';
-      await projectGit.addAndCommit(`${action} ${options.currentService} ${options.currentServiceType}: ${options.name}`);
-      logger.info(`Changes committed to base branch`);
-
-      // 6. Pasar cambios a develop
-      let conflictsDetected = false;
-
-      if (projectExists) {
-        // Si ya existía, usar patch para aplicar los cambios
-        const patchSuccess = await projectGit.patchToDevelop();
-        if (!patchSuccess) {
-          conflictsDetected = true;
-          logger.warn(`
+          if (projectExists) {
+            // Si ya existía, usar patch para aplicar los cambios
+            const patchSuccess = await projectGit.patchToDevelop();
+            if (!patchSuccess) {
+              conflictsDetected = true;
+              logger.warn(`
 ==========================================================================
 ⚠️ ATENCIÓN: CONFLICTO EN LA APLICACIÓN DEL PARCHE
 
@@ -131,16 +118,16 @@ Por favor, sigue las instrucciones anteriores para resolver los conflictos.
 Una vez resueltos los conflictos, el proyecto estará actualizado en develop.
 Los archivos ya fueron actualizados correctamente en la rama base.
 ==========================================================================`);
-        } else {
-          logger.info('Applied patch to develop branch');
-        }
-      } else {
-        // Si es nuevo, usar rebase para sincronizar
-        const rebaseSuccess = await projectGit.rebaseToDevelop();
+            } else {
+              logger.info('Applied patch to develop branch');
+            }
+          } else {
+            // Si es nuevo, usar rebase para sincronizar
+            const rebaseSuccess = await projectGit.rebaseToDevelop();
 
-        if (!rebaseSuccess) {
-          conflictsDetected = true;
-          logger.warn(`
+            if (!rebaseSuccess) {
+              conflictsDetected = true;
+              logger.warn(`
 ==========================================================================
 ⚠️ ATENCIÓN: CONFLICTO DE REBASE DETECTADO
 
@@ -152,46 +139,53 @@ estará actualizado en la rama develop.
 
 Los archivos ya fueron actualizados correctamente en la rama base.
 ==========================================================================`);
-        } else {
-          logger.info('Rebased changes to develop branch');
+            } else {
+              logger.info('Rebased changes to develop branch');
+            }
+          }
+
+          // 5.3 Volver al branch original solo si no hay conflictos
+          if (!conflictsDetected) {
+            if (originalBranch && originalBranch !== 'base' && originalBranch !== 'develop') {
+              await projectGit.rootGit.git.checkout(originalBranch);
+              logger.info(`Returned to original branch: ${originalBranch}`);
+            }
+          } else {
+            // Si hay conflictos, ya estamos en develop donde se necesita resolver
+            logger.info('Please resolve conflicts in develop branch');
+          }
+
+          const resultAction = projectExists ? 'updated' : 'created';
+          logger.info(`✅ ${options.currentService} ${options.currentServiceType} ${options.name} ${resultAction} successfully!`);
+        } catch (callbackError) {
+          logger.error(`Post-generation operations failed: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`);
+
+          // Intentar volver al branch original en caso de error grave
+          if (originalBranch && originalBranch !== 'base') {
+            try {
+              await projectGit.rootGit.git.checkout(originalBranch);
+              logger.info(`Returned to original branch: ${originalBranch}`);
+            } catch (checkoutError) {
+              logger.error(`Failed to return to original branch: ${checkoutError.message}`);
+            }
+          }
         }
-      }
+      };
+    } catch (gitError) {
+      // Si falla algo durante las operaciones Git iniciales
+      logger.error(`Git operations failed: ${gitError instanceof Error ? gitError.message : String(gitError)}`);
 
-      // Si hay conflictos, no continuar con el flujo normal
-      if (conflictsDetected) {
-        // No volver a la rama original - dejar al usuario en el estado actual
-        // para que pueda resolver los conflictos
-        return;
-      }
-
-      // 7. Volver a la rama original
-      if (originalBranch && originalBranch !== 'base' && originalBranch !== 'develop') {
-        await projectGit.rootGit.git.checkout(originalBranch);
-        logger.info(`Returned to original branch: ${originalBranch}`);
-      }
-
-      const resultAction = projectExists ? 'updated' : 'created';
-      logger.info(`✅ ${options.currentService} ${options.currentServiceType} ${options.name} ${resultAction} successfully!`);
-    } catch (error) {
-      logger.error(`Git operations failed: ${error instanceof Error ? error.message : String(error)}`);
-
-      // Intentar volver a la rama original
+      // Intentar volver al branch original
       if (originalBranch) {
         try {
           await projectGit.rootGit.git.checkout(originalBranch);
           logger.info(`Returned to original branch: ${originalBranch}`);
-
-          // Eliminar archivos del proyecto en la rama original
-          if (fs.existsSync(projectRoot)) {
-            logger.info(`Removing generated files from ${originalBranch} branch...`);
-            fs.removeSync(projectRoot);
-          }
         } catch (checkoutError) {
           logger.error(`Failed to return to original branch: ${checkoutError.message}`);
         }
       }
 
-      throw new Error(`Failed to ${projectExists ? 'update' : 'create'} ${options.currentService} ${options.currentServiceType}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to prepare Git environment: ${gitError instanceof Error ? gitError.message : String(gitError)}`);
     }
   } catch (error) {
     logger.error(`Project generation failed: ${error instanceof Error ? error.message : String(error)}`);
