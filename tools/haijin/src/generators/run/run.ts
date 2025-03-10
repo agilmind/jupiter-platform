@@ -95,20 +95,47 @@ export default async function (
         try {
           logger.info('Post-generation operations starting...');
 
-          // 5.1 Git add y commit en branch base
+          // 5.1 Git add y commit en branch base - SOLO los archivos del proyecto
           const action = projectExists ? 'Update' : 'Add';
-          await projectGit.addAndCommit(`${action} ${options.currentService} ${options.currentServiceType}: ${options.name}`);
-          logger.info(`Changes committed to base branch`);
+
+          // Estamos en base, verificamos para estar seguros
+          const currentBranch = await projectGit.getCurrentBranch();
+          if (currentBranch !== 'base') {
+            await projectGit.rootGit.git.checkout('base');
+          }
+
+          // Añadir específicamente los archivos del proyecto
+          await projectGit.rootGit.git.add([projectDir]);
+
+          // Verificar si hay cambios para commit
+          const status = await projectGit.rootGit.git.status();
+          const filesToCommit = status.files.filter(f => f.path.startsWith(projectDir));
+
+          if (filesToCommit.length > 0) {
+            const commitMsg = `${action} ${options.currentService} ${options.currentServiceType}: ${options.name}`;
+            await projectGit.rootGit.git.commit(commitMsg);
+            logger.info(`Changes committed to base branch`);
+          } else {
+            logger.info('No changes to commit');
+          }
 
           // 5.2 Pasar cambios a develop
           let conflictsDetected = false;
+          let patchFile = null;
 
           if (projectExists) {
             // Si ya existía, usar patch para aplicar los cambios
-            const patchSuccess = await projectGit.patchToDevelop();
-            if (!patchSuccess) {
-              conflictsDetected = true;
-              logger.warn(`
+            try {
+              const patchSuccess = await projectGit.patchToDevelop();
+              // Si hay un archivo de patch generado, lo guardamos para limpiarlo después
+              const possiblePatchFile = path.join(process.cwd(), `${path.basename(projectDir)}-manual-patch.patch`);
+              if (fs.existsSync(possiblePatchFile)) {
+                patchFile = possiblePatchFile;
+              }
+
+              if (!patchSuccess) {
+                conflictsDetected = true;
+                logger.warn(`
 ==========================================================================
 ⚠️ ATENCIÓN: CONFLICTO EN LA APLICACIÓN DEL PARCHE
 
@@ -118,16 +145,31 @@ Por favor, sigue las instrucciones anteriores para resolver los conflictos.
 Una vez resueltos los conflictos, el proyecto estará actualizado en develop.
 Los archivos ya fueron actualizados correctamente en la rama base.
 ==========================================================================`);
-            } else {
-              logger.info('Applied patch to develop branch');
+              } else {
+                logger.info('Applied patch to develop branch');
+                // Si todo fue exitoso y encontramos el archivo de patch, lo eliminamos
+                if (patchFile && fs.existsSync(patchFile)) {
+                  fs.unlinkSync(patchFile);
+                  logger.info(`Removed patch file: ${patchFile}`);
+                }
+              }
+            } catch (patchError) {
+              logger.error(`Error applying patch: ${patchError.message}`);
+              conflictsDetected = true;
             }
           } else {
             // Si es nuevo, usar rebase para sincronizar
-            const rebaseSuccess = await projectGit.rebaseToDevelop();
+            try {
+              const rebaseSuccess = await projectGit.rebaseToDevelop();
+              // Si hay un archivo de patch generado, lo guardamos para limpiarlo después
+              const possiblePatchFile = path.join(process.cwd(), `${path.basename(projectDir)}-conflict-resolution.patch`);
+              if (fs.existsSync(possiblePatchFile)) {
+                patchFile = possiblePatchFile;
+              }
 
-            if (!rebaseSuccess) {
-              conflictsDetected = true;
-              logger.warn(`
+              if (!rebaseSuccess) {
+                conflictsDetected = true;
+                logger.warn(`
 ==========================================================================
 ⚠️ ATENCIÓN: CONFLICTO DE REBASE DETECTADO
 
@@ -139,20 +181,35 @@ estará actualizado en la rama develop.
 
 Los archivos ya fueron actualizados correctamente en la rama base.
 ==========================================================================`);
-            } else {
-              logger.info('Rebased changes to develop branch');
+              } else {
+                logger.info('Rebased changes to develop branch');
+                // Si todo fue exitoso y encontramos el archivo de patch, lo eliminamos
+                if (patchFile && fs.existsSync(patchFile)) {
+                  fs.unlinkSync(patchFile);
+                  logger.info(`Removed patch file: ${patchFile}`);
+                }
+              }
+            } catch (rebaseError) {
+              logger.error(`Error during rebase: ${rebaseError.message}`);
+              conflictsDetected = true;
             }
           }
 
-          // 5.3 Volver al branch original solo si no hay conflictos
-          if (!conflictsDetected) {
-            if (originalBranch && originalBranch !== 'base' && originalBranch !== 'develop') {
-              await projectGit.rootGit.git.checkout(originalBranch);
-              logger.info(`Returned to original branch: ${originalBranch}`);
+          // 5.3 Si hay conflictos, no continuar con el flujo normal y quedarse en develop
+          if (conflictsDetected) {
+            // Asegurarse de que estamos en develop para resolver conflictos
+            const currentBranch = await projectGit.getCurrentBranch();
+            if (currentBranch !== 'develop') {
+              await projectGit.rootGit.git.checkout('develop');
             }
-          } else {
-            // Si hay conflictos, ya estamos en develop donde se necesita resolver
             logger.info('Please resolve conflicts in develop branch');
+            return;
+          }
+
+          // 5.4 Si no hay conflictos, volver al branch original
+          if (originalBranch && originalBranch !== 'base' && originalBranch !== 'develop') {
+            await projectGit.rootGit.git.checkout(originalBranch);
+            logger.info(`Returned to original branch: ${originalBranch}`);
           }
 
           const resultAction = projectExists ? 'updated' : 'created';
@@ -160,13 +217,19 @@ Los archivos ya fueron actualizados correctamente en la rama base.
         } catch (callbackError) {
           logger.error(`Post-generation operations failed: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`);
 
-          // Intentar volver al branch original en caso de error grave
-          if (originalBranch && originalBranch !== 'base') {
-            try {
-              await projectGit.rootGit.git.checkout(originalBranch);
-              logger.info(`Returned to original branch: ${originalBranch}`);
-            } catch (checkoutError) {
-              logger.error(`Failed to return to original branch: ${checkoutError.message}`);
+          // En caso de error, intentamos quedarnos en develop si es posible
+          try {
+            await projectGit.rootGit.git.checkout('develop');
+            logger.info('Switched to develop branch to handle error');
+          } catch (checkoutError) {
+            // Si no podemos cambiarnos a develop, intentamos volver al branch original
+            if (originalBranch) {
+              try {
+                await projectGit.rootGit.git.checkout(originalBranch);
+                logger.info(`Returned to original branch: ${originalBranch}`);
+              } catch (finalError) {
+                logger.error(`Failed to return to any branch: ${finalError.message}`);
+              }
             }
           }
         }
