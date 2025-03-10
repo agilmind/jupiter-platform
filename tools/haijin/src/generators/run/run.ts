@@ -102,8 +102,8 @@ async function initGitContext(): Promise<GitContext> {
   const rootPath = process.cwd();
   const git = simpleGit(rootPath);
   const originalBranch = await git.revparse(['--abbrev-ref', 'HEAD']);
-  const timestamp = Date.now().toString(36);
-  const tempBranch = `temp-gen-${timestamp}`;
+  // Usar un nombre de branch temporal fijo para ayudar a rerere
+  const tempBranch = `temp-haijin-gen-branch`;
 
   logger.info(`Starting Git operations (current branch: ${originalBranch})`);
 
@@ -249,12 +249,29 @@ async function createAndCheckoutTempBranch(gitContext: GitContext): Promise<void
   const { git, tempBranch, originalBranch } = gitContext;
 
   try {
+    // Verificar si el branch temporal ya existe
+    const branches = await git.branch();
+    if (branches.all.includes(tempBranch)) {
+      // Si existe, lo eliminamos primero
+      try {
+        // Si estamos actualmente en ese branch, cambiamos a otro primero
+        const currentBranch = await git.revparse(['--abbrev-ref', 'HEAD']);
+        if (currentBranch === tempBranch) {
+          await git.checkout(originalBranch);
+        }
+        // Ahora podemos eliminar el branch temporal
+        await git.branch(['-D', tempBranch]);
+        logger.info(`Deleted existing temporary branch: ${tempBranch}`);
+      } catch (error) {
+        logger.warn(`Failed to delete existing temporary branch: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
     // Crear y cambiar a branch temporal
     await git.checkout(['-b', tempBranch]);
     logger.info(`Created and switched to temporary branch: ${tempBranch}`);
 
     // Asegurar que develop existe
-    const branches = await git.branch();
     if (!branches.all.includes('develop')) {
       // Si estamos en main o master, usamos eso como base para develop
       const baseBranch = branches.all.includes('main') ? 'main' :
