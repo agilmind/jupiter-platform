@@ -92,6 +92,8 @@ export default async function (
 
       // 5. Devolver la función de callback que se ejecutará DESPUÉS de que NX escriba al disco
       return async () => {
+        let mergeSuccess = false;
+
         try {
           logger.info('Post-generation operations starting...');
 
@@ -120,16 +122,21 @@ export default async function (
           }
 
           // 5.2 Pasar cambios a develop usando merge
-          const mergeSuccess = await projectGit.patchToDevelop(); // Este método ahora usa merge internamente
+          mergeSuccess = await projectGit.patchToDevelop(); // Este método ahora usa merge internamente
 
           // 5.3 Decisión sobre qué branch dejamos activo al finalizar
           if (!mergeSuccess) {
-            // Si hay conflictos, ya estamos en develop y mostramos mensaje
+            // Verificar explícitamente que estamos en develop
+            const currentBranch = await projectGit.getCurrentBranch();
+            if (currentBranch !== 'develop') {
+              await projectGit.rootGit.git.checkout('develop');
+            }
+
             logger.info('You are now in develop branch. Please resolve merge conflicts before continuing.');
-            return;
+            return; // Terminar aquí para evitar cualquier intento de volver al branch original
           }
 
-          // 5.4 Si todo fue bien, volver al branch original solo si no es base
+          // 5.4 Si todo fue bien (sin conflictos), volver al branch original solo si no es base
           if (originalBranch && originalBranch !== 'base') {
             await projectGit.rootGit.git.checkout(originalBranch);
             logger.info(`Returned to original branch: ${originalBranch}`);
@@ -140,12 +147,24 @@ export default async function (
         } catch (callbackError) {
           logger.error(`Post-generation operations failed: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`);
 
-          // En caso de error, intentamos quedarnos en develop si es posible
+          // En caso de error, asegurarse de estar en develop
           try {
-            await projectGit.rootGit.git.checkout('develop');
-            logger.info('Switched to develop branch to handle error');
+            // Si hubo un intento de merge con conflictos, debemos permanecer en develop
+            if (!mergeSuccess) {
+              const currentBranch = await projectGit.getCurrentBranch();
+              if (currentBranch !== 'develop') {
+                await projectGit.rootGit.git.checkout('develop');
+                logger.info('Switched to develop branch to handle conflicts');
+              }
+            }
+            // En otros casos de error, también preferimos develop para facilitar depuración
+            else {
+              await projectGit.rootGit.git.checkout('develop');
+              logger.info('Switched to develop branch to handle error');
+            }
           } catch (checkoutError) {
-            // Si no podemos cambiarnos a develop, intentamos volver al branch original
+            logger.error(`Failed to switch to develop branch: ${checkoutError.message}`);
+            // Solo como último recurso, intentar volver al branch original
             if (originalBranch) {
               try {
                 await projectGit.rootGit.git.checkout(originalBranch);
