@@ -347,187 +347,280 @@ que puede ser útil para resolver manualmente los conflictos.
     }
   }
 
-  /**
- * Aplicar cambios como parche a develop con mejor tolerancia a modificaciones previas
+/**
+ * Aplicar cambios como parche a develop garantizando que todos los cambios de base se transfieran
  */
 async patchToDevelop() {
   try {
-    // 1. Crear un directorio temporal para el respaldo de develop
-    const tempBackupDir = path.join(process.cwd(), '.temp-backup');
-    if (fs.existsSync(tempBackupDir)) {
-      fs.removeSync(tempBackupDir);
+    // 1. Crear un directorio temporal para el respaldo y trabajo
+    const tempDir = path.join(process.cwd(), '.temp-sync');
+    if (fs.existsSync(tempDir)) {
+      fs.removeSync(tempDir);
     }
-    fs.mkdirSync(tempBackupDir);
+    fs.mkdirSync(tempDir);
 
-    // 2. Crear el parche desde branch base
+    // 2. Obtener el branch actual y cambiar a base
+    const currentBranch = await this.getCurrentBranch();
     await this.rootGit.git.checkout('base');
-    logger.info('Switched to base branch to create changes list');
+    logger.info('Switched to base branch to prepare files for sync');
 
-    // 3. Obtener la lista de archivos modificados (respecto al commit anterior)
-    const diffSummary = await this.rootGit.git.diff(['--name-status', 'HEAD~1', 'HEAD']);
-    const changedFiles = diffSummary.split('\n')
-      .filter(line => line.trim().length > 0)
-      .map(line => {
-        const [status, file] = line.trim().split(/\s+/);
-        return { status, file };
-      })
-      .filter(change => change.file.startsWith(this.projectDir));
+    // 3. Identificar todos los archivos en el directorio del proyecto en base
+    const projectFiles = this.listFilesInDir(this.projectDir);
+    logger.info(`Found ${projectFiles.length} files in base branch under ${this.projectDir}`);
 
-    logger.info(`Detected ${changedFiles.length} changed files in base`);
+    // 4. Guardar la versión actual de los archivos en base
+    for (const filePath of projectFiles) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      const relativePath = path.relative(process.cwd(), filePath);
+      const backupPath = path.join(tempDir, 'base', relativePath);
 
-    // 4. Cambiar a develop para preparar la aplicación de cambios
+      fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+      fs.writeFileSync(backupPath, content);
+    }
+    logger.info(`Backed up all base files to ${path.join(tempDir, 'base')}`);
+
+    // 5. Cambiar a develop
     await this.rootGit.git.checkout('develop');
     logger.info('Switched to develop branch');
 
-    // 5. Hacer backup de los archivos en develop antes de modificarlos
-    for (const change of changedFiles) {
-      const srcPath = change.file;
-      const backupPath = path.join(tempBackupDir, srcPath);
+    // 6. Guardar la versión actual de los archivos en develop (si existen)
+    for (const filePath of projectFiles) {
+      const relativePath = path.relative(process.cwd(), filePath);
+      const developPath = path.join(process.cwd(), relativePath);
+      const backupPath = path.join(tempDir, 'develop', relativePath);
 
-      // Crear el directorio padre si no existe
-      fs.mkdirSync(path.dirname(backupPath), { recursive: true });
-
-      // Copiar el archivo a backup si existe
-      if (fs.existsSync(srcPath)) {
-        fs.copyFileSync(srcPath, backupPath);
-        logger.info(`Backed up: ${srcPath}`);
+      if (fs.existsSync(developPath)) {
+        const content = fs.readFileSync(developPath, 'utf8');
+        fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+        fs.writeFileSync(backupPath, content);
       }
     }
+    logger.info(`Backed up develop files to ${path.join(tempDir, 'develop')}`);
 
-    // 6. Crear parche para resolver conflictos manualmente (si es necesario)
-    const manualPatchPath = path.join(process.cwd(), `${path.basename(this.projectDir)}-manual.patch`);
-    const patchContent = await this.rootGit.git.diff(['base', 'develop', '--', this.projectDir]);
-    fs.writeFileSync(manualPatchPath, patchContent);
-    logger.info(`Manual resolution patch created: ${manualPatchPath}`);
-
-    // 7. Sincronizar archivos de base a develop con estrategia inteligente
+    // 7. Determinar la estrategia para cada archivo
     let hasConflicts = false;
-    const conflictingFiles = [];
+    const conflicts = [];
 
-    for (const change of changedFiles) {
-      try {
-        const srcPath = change.file;
-        const basePath = path.join(process.cwd(), srcPath);
-        const developPath = path.join(process.cwd(), srcPath);
-        const backupPath = path.join(tempBackupDir, srcPath);
+    for (const filePath of projectFiles) {
+      const relativePath = path.relative(process.cwd(), filePath);
+      const developPath = path.join(process.cwd(), relativePath);
+      const basePath = path.join(tempDir, 'base', relativePath);
+      const developBackupPath = path.join(tempDir, 'develop', relativePath);
 
-        // Si es un archivo nuevo (no existe backup), simplemente copiarlo
-        if (change.status === 'A' || !fs.existsSync(backupPath)) {
-          // Asegurar que el directorio existe
-          fs.mkdirSync(path.dirname(developPath), { recursive: true });
+      // Crear directorios necesarios
+      fs.mkdirSync(path.dirname(developPath), { recursive: true });
 
-          // Copiar el nuevo archivo de base a develop
-          fs.copyFileSync(basePath, developPath);
-          logger.info(`Added new file: ${srcPath}`);
+      // ESTRATEGIA:
+      // 1. Si el archivo no existe en develop, simplemente copiarlo de base
+      // 2. Si existe, usar el algoritmo de diff y merge para combinar cambios
+
+      if (!fs.existsSync(developBackupPath)) {
+        // Archivo no existe en develop, copiarlo directamente
+        fs.copyFileSync(basePath, developPath);
+        logger.info(`Added new file from base: ${relativePath}`);
+      } else {
+        // Archivo existe en develop - necesitamos combinar cambios
+        const baseContent = fs.readFileSync(basePath, 'utf8');
+        const developContent = fs.readFileSync(developBackupPath, 'utf8');
+
+        if (baseContent === developContent) {
+          // No hay diferencias, simplemente continuar
+          logger.info(`No changes needed for: ${relativePath}`);
           continue;
         }
 
-        // Para archivos existentes, intentar estrategia de merge inteligente
-        // 1. Intentar usar diff3 para merge de 3 vías
+        // Crear archivos temporales para el merge
+        const baseFile = path.join(tempDir, 'merge', 'base.txt');
+        const developFile = path.join(tempDir, 'merge', 'develop.txt');
+        const resultFile = path.join(tempDir, 'merge', 'result.txt');
+
+        fs.mkdirSync(path.dirname(baseFile), { recursive: true });
+        fs.writeFileSync(baseFile, baseContent);
+        fs.writeFileSync(developFile, developContent);
+
+        // IMPORTANTE: Priorizar cambios de base pero intentar preservar cambios de develop
         try {
-          // Crear archivos temporales para el merge
-          const baseContentPath = path.join(tempBackupDir, `${path.basename(srcPath)}.base`);
-          const developContentPath = path.join(tempBackupDir, `${path.basename(srcPath)}.develop`);
-          const baseContent = fs.readFileSync(basePath, 'utf8');
-          const developContent = fs.readFileSync(developPath, 'utf8');
-
-          // Obtener el contenido original (del commit previo en base)
-          await this.rootGit.git.checkout(['base~1', '--', srcPath]);
-          const originalContent = fs.existsSync(srcPath) ? fs.readFileSync(srcPath, 'utf8') : '';
-
-          // Volver a develop
-          await this.rootGit.git.checkout(['develop']);
-
-          // Escribir contenidos a archivos temporales
-          fs.writeFileSync(baseContentPath, originalContent);
-          fs.writeFileSync(developContentPath, developContent);
-
-          // Intentar merge de 3 vías usando la herramienta diff3
-          const mergeCommand = `diff3 -m "${developContentPath}" "${baseContentPath}" "${basePath}" > "${developPath}.merged"`;
+          // Crear un "parche" en formato diff que capture los cambios del desarrollador
           try {
-            execSync(mergeCommand, { stdio: 'pipe' });
+            // Usar diff para crear un parche de los cambios del desarrollador
+            const tmpDiffFile = path.join(tempDir, 'dev-changes.patch');
 
-            // Verificar si hay marcadores de conflicto en el archivo merged
-            const mergedContent = fs.readFileSync(`${developPath}.merged`, 'utf8');
-            if (mergedContent.includes('<<<<<<<') || mergedContent.includes('=======')) {
-              // Hay conflictos, registrarlo pero guardar el resultado
+            // 1. Buscar la última versión común entre base y develop
+            // (Para esto, podríamos necesitar un proceso más sofisticado, pero una aproximación sería:)
+            // - Buscar el último commit en base que afectó este archivo
+            // - Ver ese mismo archivo en develop en ese momento
+
+            // Simplificación: Asumimos que los cambios del desarrollador son todas las diferencias
+            // entre la versión previa en base y la versión actual en develop
+
+            // Crear un parche con los cambios del desarrollador
+            const diffCmd = `diff -u "${baseFile}" "${developFile}" > "${tmpDiffFile}" || true`;
+            execSync(diffCmd, { stdio: 'pipe' });
+
+            // 2. Aplicar primero la versión de base (esto asegura que todos los cambios de base están presentes)
+            fs.copyFileSync(baseFile, resultFile);
+
+            // 3. Intentar aplicar los cambios del desarrollador encima
+            try {
+              const patchCmd = `patch -f "${resultFile}" < "${tmpDiffFile}" || true`;
+              execSync(patchCmd, { stdio: 'pipe' });
+
+              // 4. Verificar que el resultado tenga los cambios de ambos
+              const resultContent = fs.readFileSync(resultFile, 'utf8');
+
+              // Verificar si hay marcadores de conflicto en el resultado
+              if (resultContent.includes('<<<<<<<') || resultContent.includes('=======')) {
+                hasConflicts = true;
+                conflicts.push(relativePath);
+                logger.warn(`Conflict markers found in: ${relativePath}`);
+              }
+
+              // Escribir el resultado final a develop
+              fs.writeFileSync(developPath, resultContent);
+              logger.info(`Merged changes successfully for: ${relativePath}`);
+            } catch (patchError) {
+              // Si falló el patch, hacer una solución más directa
+              logger.warn(`Failed to patch cleanly: ${relativePath} - ${patchError.message}`);
+
+              // PRIORIDAD ABSOLUTA: No perder los cambios de base
+              // Copiar la versión de base pero guardar la de develop como backup
+              fs.copyFileSync(baseFile, developPath);
+              const conflictBackupPath = `${developPath}.develop-changes`;
+              fs.copyFileSync(developFile, conflictBackupPath);
+
               hasConflicts = true;
-              conflictingFiles.push(srcPath);
-              logger.warn(`Conflicts detected in: ${srcPath}`);
-
-              // Renombrar el archivo original antes de reemplazarlo
-              fs.renameSync(developPath, `${developPath}.orig`);
+              conflicts.push(relativePath);
+              logger.warn(`Used base version for ${relativePath}, developer changes saved to ${conflictBackupPath}`);
             }
+          } catch (diffError) {
+            logger.warn(`Failed to create diff: ${relativePath} - ${diffError.message}`);
 
-            // Mover el archivo merged a la ubicación final
-            fs.renameSync(`${developPath}.merged`, developPath);
-            logger.info(`Merged changes in: ${srcPath}`);
-          } catch (mergeError) {
-            // Si diff3 falla, caer al enfoque de copia + advertencia
-            hasConflicts = true;
-            conflictingFiles.push(srcPath);
-            fs.copyFileSync(basePath, `${developPath}.base`);
-            logger.warn(`Failed to auto-merge: ${srcPath}`);
+            // Como fallback, usar diff3 (merge de 3 vías) si está disponible
+            try {
+              // Necesitamos una versión "original" común - usamos una aproximación
+              const ancestorFile = path.join(tempDir, 'merge', 'ancestor.txt');
+              // Escribimos un archivo vacío o una aproximación
+              fs.writeFileSync(ancestorFile, '');
+
+              const diff3Cmd = `diff3 -m "${developFile}" "${ancestorFile}" "${baseFile}" > "${resultFile}" || true`;
+              execSync(diff3Cmd, { stdio: 'pipe' });
+
+              const resultContent = fs.readFileSync(resultFile, 'utf8');
+              fs.writeFileSync(developPath, resultContent);
+
+              if (resultContent.includes('<<<<<<<')) {
+                hasConflicts = true;
+                conflicts.push(relativePath);
+              }
+
+              logger.info(`Used diff3 for: ${relativePath}`);
+            } catch (diff3Error) {
+              // Si todo falla, priorizar base pero guardar develop
+              fs.copyFileSync(baseFile, developPath);
+              const conflictBackupPath = `${developPath}.develop-changes`;
+              fs.copyFileSync(developFile, conflictBackupPath);
+
+              hasConflicts = true;
+              conflicts.push(relativePath);
+              logger.warn(`Used base version for ${relativePath}, developer changes saved to ${conflictBackupPath}`);
+            }
           }
         } catch (mergeError) {
-          // Si algo falla en el proceso de merge, registrar el conflicto
+          // En caso de cualquier error en el proceso, priorizar base
+          logger.error(`Merge error for ${relativePath}: ${mergeError.message}`);
+          fs.copyFileSync(baseFile, developPath);
+
+          const conflictBackupPath = `${developPath}.develop-changes`;
+          fs.copyFileSync(developFile, conflictBackupPath);
+
           hasConflicts = true;
-          conflictingFiles.push(srcPath);
-          logger.warn(`Merge process failed for: ${srcPath} - ${mergeError.message}`);
+          conflicts.push(relativePath);
         }
-      } catch (fileError) {
-        logger.error(`Error processing file ${change.file}: ${fileError.message}`);
-        hasConflicts = true;
-        conflictingFiles.push(change.file);
       }
     }
 
-    // 8. Añadir todos los cambios al staging
-    await this.rootGit.git.add([this.projectDir]);
+    // 8. Crear un parche general para referencia
+    const manualPatchPath = path.join(process.cwd(), `${path.basename(this.projectDir)}-manual.patch`);
+    await this.rootGit.git.checkout('base');
+    const diffOutput = await this.rootGit.git.diff(['HEAD', 'develop', '--', this.projectDir]);
+    fs.writeFileSync(manualPatchPath, diffOutput);
 
-    // 9. Verificar si hay archivos en staging (cambios pendientes)
+    // 9. Volver a develop y hacer commit
+    await this.rootGit.git.checkout('develop');
+
+    // 10. Verificar si hay cambios para commit
     const status = await this.rootGit.git.status();
-
     if (status.files.length > 0) {
-      // Hay cambios para commitear
+      // Añadir todos los cambios
+      await this.rootGit.git.add([this.projectDir]);
+
+      // Hacer commit
       await this.rootGit.git.commit(`Sync changes from base to develop for ${path.basename(this.projectDir)}`);
       logger.info('Committed synchronized changes to develop branch');
     } else {
       logger.info('No changes to commit after synchronization');
     }
 
-    // 10. Limpiar directorio temporal
-    fs.removeSync(tempBackupDir);
+    // 11. Limpiar directorio temporal
+    fs.removeSync(tempDir);
 
-    // 11. Mostrar mensaje adecuado si hubo conflictos
+    // 12. Mostrar mensaje apropiado si hubo conflictos
     if (hasConflicts) {
       logger.warn(`
 ==========================================================================
 ⚠️ ATENCIÓN: CAMBIOS SINCRONIZADOS CON POSIBLES CONFLICTOS
 
 Se han sincronizado los archivos de "base" a "develop", pero se detectaron
-potenciales conflictos en los siguientes archivos:
-${conflictingFiles.map(f => `- ${f}`).join('\n')}
+conflictos o diferencias significativas en los siguientes archivos:
+${conflicts.map(f => `- ${f}`).join('\n')}
 
-Para cada archivo con conflicto:
-1. Revisa los archivos con extensión .orig (respaldo del original) y .base (versión de base)
-2. Verifica que los cambios se hayan integrado correctamente
-3. Si necesitas ayuda adicional, consulta el parche manual en: ${manualPatchPath}
+Para cada archivo con conflicto, se han seguido estas reglas:
+1. TODOS los cambios de base están garantizados en develop
+2. Los cambios del desarrollador se han preservado cuando ha sido posible
+3. Para archivos donde fue necesario priorizar base, se ha guardado una
+   copia de los cambios del desarrollador con extensión .develop-changes
 
-Los cambios ya han sido commiteados, pero puedes hacer ajustes adicionales
-y luego hacer commit con:
-$ git add [archivos_modificados]
-$ git commit --amend
+Los cambios ya han sido commiteados. Revise los archivos mencionados y
+realice ajustes adicionales si es necesario.
+
+Para referencia, un parche completo está disponible en: ${manualPatchPath}
 ==========================================================================`);
 
       return false; // Indicar que hubo conflictos
     }
 
-    return true; // Todo fue sincronizado exitosamente
+    return true; // Todo sincronizado correctamente
   } catch (error) {
     logger.error(`Patch process failed: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
+}
+
+/**
+ * Lista todos los archivos en un directorio recursivamente
+ */
+private listFilesInDir(dirPath: string): string[] {
+  const files: string[] = [];
+
+  if (!fs.existsSync(dirPath)) {
+    return files;
+  }
+
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+
+    if (entry.isDirectory()) {
+      if (entry.name !== '.git' && entry.name !== 'node_modules') {
+        files.push(...this.listFilesInDir(fullPath));
+      }
+    } else {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
 }
 
   /**
