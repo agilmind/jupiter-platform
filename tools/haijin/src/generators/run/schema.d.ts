@@ -1,7 +1,10 @@
 export interface RunGeneratorSchema {
   name: string;
-  currentService: string;
-  currentServiceType: string;
+  // Para compatibilidad con el código existente (servicio único)
+  currentService?: string;
+  currentServiceType?: string;
+
+  selectedServices?: string[]; // Nombres de los servicios seleccionados
 
   // Propiedades del hkconfig.json
   systemOwner?: string;

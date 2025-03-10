@@ -7,115 +7,183 @@ import { NxProjectGit } from '../utils/git-handler';
 import * as fs from 'fs-extra';
 import transcribe from '../transcribe/transcribe';
 
-
 export default async function (
   tree: Tree,
   options: RunGeneratorSchema
 ) {
+  // 1. Solicitar al usuario que seleccione servicios
   await userPrompt(options, tree);
-  const directoryPrefix = options.currentServiceType === 'apollo-prisma' ? 'services' : 'apps';
+  const selectedServices = options.selectedServices || [];
 
-  const projectDir = `${directoryPrefix}/${options.currentService}`;
-  const projectRoot = path.join(process.cwd(), projectDir);
+  if (selectedServices.length === 0) {
+    throw new Error('Debe seleccionar al menos un servicio para generar');
+  }
 
   try {
-    // 1. Generar el Tree en memoria usando transcribe
-    logger.info('Generating project structure in memory...');
-    const transcribeOptions: TranscribeGeneratorSchema = {
-      name: options.name,
-      runOptions: options
-    };
+    // 2. Obtener información sobre el branch original
+    const rootPath = process.cwd();
+    // Usamos el primer servicio para inicializar el objeto Git (solo importa para la estructura de directorios)
+    const firstService = selectedServices[0];
+    const firstServiceType = options.services?.[firstService] || '';
+    const directoryPrefix = firstServiceType === 'apollo-prisma' ? 'services' : 'apps';
+    const projectDir = `${directoryPrefix}/${firstService}`;
 
-    await transcribe(tree, transcribeOptions);
-    const changesCount = tree.listChanges().length;
-    logger.info(`Generated ${changesCount} files in memory`);
-
-    // 2. Preparar las operaciones Git
-    const projectGit = new NxProjectGit(process.cwd(), projectDir);
+    const projectGit = new NxProjectGit(rootPath, projectDir);
     const originalBranch = await projectGit.getCurrentBranch();
     logger.info(`Starting Git operations (current branch: ${originalBranch})`);
 
-    let projectExists = false;
-
-    // 3. Cambiar al branch base (donde escribiremos los archivos) y prepararlo
+    // 3. Preparar los branches
     try {
-      // Asegurarse de que las ramas base y develop existen
       await projectGit.ensureBranches();
 
-      // Cambiar a la rama base
+      // 4. Cambiar a branch base para generación
       await projectGit.git.checkout('base');
       logger.info('Switched to base branch');
 
-      // Verificar si el proyecto ya existe
-      projectExists = fs.existsSync(projectRoot);
+      // 5. Verificar y procesar cada servicio seleccionado
+      const servicesToProcess = [];
 
-      if (projectExists) {
-        // Preguntar si quiere actualizar el proyecto existente
-        const readline = require('readline').createInterface({
-          input: process.stdin,
-          output: process.stdout
-        });
-
-        const answer = await new Promise<string>(resolve => {
-          readline.question(`Project ${options.name} already exists. Do you want to update it? (y/N): `, resolve);
-        });
-
-        readline.close();
-
-        if (answer.toLowerCase() !== 'y') {
-          // Volver al branch original si se cancela
-          await projectGit.git.checkout(originalBranch);
-          logger.info('Update cancelled. Returning to original branch.');
-          return;
+      for (const serviceName of selectedServices) {
+        const serviceType = options.services?.[serviceName];
+        if (!serviceType) {
+          logger.warn(`No se pudo determinar el tipo para el servicio ${serviceName}, se omitirá`);
+          continue;
         }
 
-        logger.info(`Updating ${options.currentService}`);
-      } else {
-        logger.info(`Creating ${options.currentService}`);
+        const servicePrefix = serviceType === 'apollo-prisma' ? 'services' : 'apps';
+        const serviceDir = `${servicePrefix}/${serviceName}`;
+        const servicePath = path.join(rootPath, serviceDir);
+
+        // Verificar si el servicio ya existe
+        const serviceExists = fs.existsSync(servicePath);
+
+        if (serviceExists) {
+          // Preguntar si quiere actualizar este servicio existente
+          const readline = require('readline').createInterface({
+            input: process.stdin,
+            output: process.stdout
+          });
+
+          const answer = await new Promise<string>(resolve => {
+            readline.question(`El servicio ${serviceName} ya existe. ¿Desea actualizarlo? (y/N): `, resolve);
+          });
+
+          readline.close();
+
+          if (answer.toLowerCase() !== 'y') {
+            logger.info(`Omitiendo actualización de ${serviceName}`);
+            continue;
+          }
+
+          logger.info(`Actualizando servicio: ${serviceName}`);
+        } else {
+          logger.info(`Creando nuevo servicio: ${serviceName}`);
+        }
+
+        // Limpiar directorio para este servicio
+        const serviceGit = new NxProjectGit(rootPath, serviceDir);
+        await serviceGit.cleanProjectDirectory();
+
+        // Agregar a la lista de servicios a procesar
+        servicesToProcess.push({
+          name: serviceName,
+          type: serviceType,
+          dir: serviceDir,
+          exists: serviceExists
+        });
       }
 
-      await projectGit.cleanProjectDirectory();
+      if (servicesToProcess.length === 0) {
+        logger.info('No hay servicios para procesar. Finalizando.');
 
-      // 4. IMPORTANTE: Aquí terminamos nuestra preparación
-      // NX escribirá automáticamente los archivos en el branch 'base' cuando finalice el generador
-      logger.info(`Tree ready. NX will write ${changesCount} files to the base branch upon completion.`);
+        // Volver al branch original
+        await projectGit.git.checkout(originalBranch);
+        return;
+      }
 
-      // 5. Devolver la función de callback que se ejecutará DESPUÉS de que NX escriba al disco
+      // 6. Procesar todos los servicios seleccionados
+      logger.info(`Generando ${servicesToProcess.length} servicios en el branch base...`);
+
+      // 7. NX escribirá automáticamente los archivos en el branch 'base' cuando finalice el generador
+      logger.info(`Tree ready. NX will write files to the base branch upon completion.`);
+
+      // 8. Devolver la función de callback que se ejecutará DESPUÉS de que NX escriba al disco
       return async () => {
-        let mergeSuccess = false;
-
         try {
           logger.info('Post-generation operations starting...');
 
-          // 5.1 Git add y commit en branch base - SOLO los archivos del proyecto
-          const action = projectExists ? 'Update' : 'Add';
+          // 9. Generar y transcribir cada servicio seleccionado
+          for (const service of servicesToProcess) {
+            // Crear un objeto options específico para este servicio
+            const serviceOptions = {
+              ...options,
+              currentService: service.name,
+              currentServiceType: service.type
+            };
 
-          // Estamos en base, verificamos para estar seguros
+            // Configurar transcribe para este servicio
+            const transcribeOptions: TranscribeGeneratorSchema = {
+              name: options.name,
+              runOptions: serviceOptions
+            };
+
+            // Ejecutar transcribe para este servicio
+            logger.info(`Processing templates for service: ${service.name}`);
+            await transcribe(tree, transcribeOptions);
+          }
+
+          // 10. Git add y commit en branch base - TODOS los directorios afectados
+          const serviceDescriptions = servicesToProcess.map(s =>
+            `${s.name} (${s.type})${s.exists ? ' (actualizado)' : ' (nuevo)'}`
+          ).join(', ');
+
+          const commitMessage = `Batch operation: Generated services - ${serviceDescriptions}`;
+
+          // Verificar que estamos en base
           const currentBranch = await projectGit.getCurrentBranch();
           if (currentBranch !== 'base') {
             await projectGit.git.checkout('base');
           }
 
-          // Añadir específicamente los archivos del proyecto
-          await projectGit.git.add([projectDir]);
+          // Añadir todos los directorios afectados
+          for (const service of servicesToProcess) {
+            await projectGit.git.add([service.dir]);
+            logger.info(`Added ${service.dir} to commit`);
+          }
 
           // Verificar si hay cambios para commit
           const status = await projectGit.git.status();
-          const filesToCommit = status.files.filter(f => f.path.startsWith(projectDir));
 
-          if (filesToCommit.length > 0) {
-            const commitMsg = `${action} ${options.currentService} ${options.currentServiceType}: ${options.name}`;
-            await projectGit.git.commit(commitMsg);
+          if (status.files.length > 0) {
+            await projectGit.git.commit(commitMessage);
             logger.info(`Changes committed to base branch`);
           } else {
             logger.info('No changes to commit');
           }
 
-          // 5.2 Pasar cambios a develop usando merge
-          mergeSuccess = await projectGit.patchToDevelop(); // Este método ahora usa merge internamente
+          // 11. Merge a develop - uno por cada servicio para mantener el control de directorios
+          logger.info('Applying changes to develop branch...');
+          let conflictsDetected = false;
 
-          // 5.3 Decisión sobre qué branch dejamos activo al finalizar
-          if (!mergeSuccess) {
+          // Cambiar a develop primero
+          await projectGit.git.checkout('develop');
+
+          // Para cada servicio, sincronizar su directorio específico
+          for (const service of servicesToProcess) {
+            const serviceGit = new NxProjectGit(rootPath, service.dir);
+            logger.info(`Syncing ${service.dir} to develop...`);
+
+            const syncSuccess = await serviceGit.syncProjectDirectory();
+
+            if (!syncSuccess) {
+              conflictsDetected = true;
+              logger.warn(`Conflictos detectados al sincronizar ${service.dir}`);
+              break; // Si hay conflictos, detenemos el proceso
+            }
+          }
+
+          // 12. Si hay conflictos, quedarse en develop para resolverlos
+          if (conflictsDetected) {
             // Verificar explícitamente que estamos en develop
             const currentBranch = await projectGit.getCurrentBranch();
             if (currentBranch !== 'develop') {
@@ -126,35 +194,22 @@ export default async function (
             return; // Terminar aquí para evitar cualquier intento de volver al branch original
           }
 
-          // 5.4 Si todo fue bien (sin conflictos), volver al branch original solo si no es base
-          if (originalBranch && originalBranch !== 'base') {
+          // 13. Si todo fue bien (sin conflictos), volver al branch original
+          if (originalBranch && originalBranch !== 'base' && originalBranch !== 'develop') {
             await projectGit.git.checkout(originalBranch);
             logger.info(`Returned to original branch: ${originalBranch}`);
           }
 
-          const resultAction = projectExists ? 'updated' : 'created';
-          logger.info(`✅ ${options.currentService} ${options.currentServiceType} ${options.name} ${resultAction} successfully!`);
+          logger.info(`✅ ${servicesToProcess.length} servicios generados exitosamente!`);
         } catch (callbackError) {
           logger.error(`Post-generation operations failed: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`);
 
-          // En caso de error, asegurarse de estar en develop
+          // En caso de error, intentamos quedarnos en develop
           try {
-            // Si hubo un intento de merge con conflictos, debemos permanecer en develop
-            if (!mergeSuccess) {
-              const currentBranch = await projectGit.getCurrentBranch();
-              if (currentBranch !== 'develop') {
-                await projectGit.git.checkout('develop');
-                logger.info('Switched to develop branch to handle conflicts');
-              }
-            }
-            // En otros casos de error, también preferimos develop para facilitar depuración
-            else {
-              await projectGit.git.checkout('develop');
-              logger.info('Switched to develop branch to handle error');
-            }
+            await projectGit.git.checkout('develop');
+            logger.info('Switched to develop branch to handle error');
           } catch (checkoutError) {
-            logger.error(`Failed to switch to develop branch: ${checkoutError.message}`);
-            // Solo como último recurso, intentar volver al branch original
+            // Si no podemos cambiarnos a develop, intentamos volver al branch original
             if (originalBranch) {
               try {
                 await projectGit.git.checkout(originalBranch);

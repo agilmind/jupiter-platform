@@ -1,5 +1,5 @@
 import { RunGeneratorSchema } from './schema';
-import { readJson, Tree } from '@nx/devkit';
+import { readJson, Tree, logger } from '@nx/devkit';
 import * as enquirer from 'enquirer';
 
 export async function userPrompt(options: RunGeneratorSchema, tree: Tree) {
@@ -14,8 +14,8 @@ export async function userPrompt(options: RunGeneratorSchema, tree: Tree) {
   }
 
   try {
+    // Leer la configuración y asignarla a options
     const config = readJson(tree, configPath);
-
     Object.assign(options, config);
 
     const serviceKeys = Object.keys(options.services || {});
@@ -24,21 +24,38 @@ export async function userPrompt(options: RunGeneratorSchema, tree: Tree) {
       throw new Error('No hay servicios definidos en la configuración');
     }
 
-    const response = await enquirer.prompt<{ currentService: string }>({
-      type: 'select',
-      name: 'currentService',
-      message: '¿Qué servicio desea agregar?',
-      choices: serviceKeys,
-      initial: serviceKeys.indexOf(options.defaultService || serviceKeys[0])
+    // Preparar opciones para checkbox, marcando el servicio por defecto
+    const defaultService = options.defaultService || serviceKeys[0];
+    const choices = serviceKeys.map(service => ({
+      name: service,
+      message: service,
+      value: service,
+      selected: service === defaultService
+    }));
+
+    // Usar el prompt de tipo checkbox para selección múltiple
+    const response = await enquirer.prompt<{ selectedServices: string[] }>({
+      type: 'multiselect',
+      name: 'selectedServices',
+      message: '¿Qué servicios desea agregar? (espacio para seleccionar, enter para confirmar)',
+      choices: choices,
+      hint: 'Utilice las flechas para moverse, espacio para seleccionar y enter para confirmar'
     });
 
-    options.currentService = response.currentService;
+    // Guardar los servicios seleccionados
+    options.selectedServices = response.selectedServices;
 
-    if (options.currentService && options.services) {
-      options.currentServiceType = options.services[options.currentService];
-      console.log(`Servicio seleccionado: ${options.currentService}, Tipo: ${options.currentServiceType}`);
-    } else {
-      console.error('No se pudo determinar el tipo de servicio');
+    if (!options.selectedServices || options.selectedServices.length === 0) {
+      throw new Error('Debe seleccionar al menos un servicio');
+    }
+
+    logger.info(`Servicios seleccionados: ${options.selectedServices.join(', ')}`);
+
+    // Por compatibilidad, si solo se seleccionó uno, también lo asignamos al formato antiguo
+    if (options.selectedServices.length === 1) {
+      options.currentService = options.selectedServices[0];
+      options.currentServiceType = options.services?.[options.currentService];
+      logger.info(`Servicio único seleccionado: ${options.currentService}, Tipo: ${options.currentServiceType}`);
     }
   } catch (error) {
     throw new Error(`Error al procesar la configuración: ${error.message}`);
