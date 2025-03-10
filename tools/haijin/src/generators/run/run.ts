@@ -3,7 +3,6 @@ import { TranscribeGeneratorSchema } from '../transcribe/schema';
 import { RunGeneratorSchema } from './schema';
 import { userPrompt } from './userPrompts';
 import * as path from 'path';
-import { execSync } from 'child_process';
 import { NxProjectGit } from '../utils/git-handler';
 import * as fs from 'fs-extra';
 import transcribe from '../transcribe/transcribe';
@@ -20,20 +19,12 @@ export default async function (
   const projectRoot = path.join(process.cwd(), projectDir);
 
   try {
-    // Guardar la rama original
-    const originalBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
-    logger.info(`Starting Git operations (current branch: ${originalBranch})`);
-
-    // Ejecutar transcribe con dryRun=true para generar los archivos en el Tree sin escribir al disco
     const transcribeOptions: TranscribeGeneratorSchema = {
       name: options.name,
-      dryRun: true,
       runOptions: options
     };
 
-    logger.info('Processing templates and updating Tree...');
     await transcribe(tree, transcribeOptions);
-    logger.info('Templates processed successfully');
 
     // Capturar todos los cambios del Tree para escribirlos después
     const treeChanges = tree.listChanges().map(change => ({
@@ -42,12 +33,11 @@ export default async function (
       type: change.type
     }));
 
-    logger.info(`Captured ${treeChanges.length} files to write after branch switch`);
-
-    // Inicializar GitExtender con el directorio del workspace y el directorio del proyecto
     const projectGit = new NxProjectGit(process.cwd(), projectDir);
-    let projectExists;
+    const originalBranch = await projectGit.getCurrentBranch();
+    logger.info(`Starting Git operations (current branch: ${originalBranch})`);
 
+    let projectExists;
     try {
       // 1. Asegurarse de que las ramas base y develop existen
       await projectGit.ensureBranches();

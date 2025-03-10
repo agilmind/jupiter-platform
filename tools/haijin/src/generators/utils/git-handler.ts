@@ -2,6 +2,7 @@ import * as path from 'path';
 import { SimpleGit, simpleGit } from "simple-git";
 import { logger } from '@nx/devkit';
 import * as fs from 'fs-extra';
+import { execSync } from 'child_process';
 
 /**
  * Clase base que maneja operaciones Git para generadores de proyectos.
@@ -25,32 +26,32 @@ export class Git {
         this.git = simpleGit(this.dirApp);
     }
 
-    async init(projectName: string) {
-      await this.git.init();
-      await this.git.checkout(["-b", this.mainBranch]);
-      await fs.writeFile(
-        path.join(this.dirApp, `${this.mainBranch}.json`),
-        `{"projectName": "${projectName}"}`
-      );
-      await this.git.add("./*");
-      await this.git.commit("initial");
-
-      await this.git.checkout(["-b", this.developerBranch]);
-      await fs.writeFile(
-        path.join(this.dirApp, `${this.developerBranch}.json`),
-        `{"projectName": "${projectName}"}`
-      );
-      await this.git.add("./*");
-      await this.git.commit("initial");
-
-      await this.git.checkout(["-b", this.genBranch]);
-      await fs.writeFile(
-        path.join(this.dirApp, `${this.genBranch}.json`),
-        `{"projectName": "${projectName}"}`
-      );
-      await this.git.add("./*");
-      await this.git.commit("initial");
-    }
+    // async init(projectName: string) {
+    //   await this.git.init();
+    //   await this.git.checkout(["-b", this.mainBranch]);
+    //   await fs.writeFile(
+    //     path.join(this.dirApp, `${this.mainBranch}.json`),
+    //     `{"projectName": "${projectName}"}`
+    //   );
+    //   await this.git.add("./*");
+    //   await this.git.commit("initial");
+    //
+    //   await this.git.checkout(["-b", this.developerBranch]);
+    //   await fs.writeFile(
+    //     path.join(this.dirApp, `${this.developerBranch}.json`),
+    //     `{"projectName": "${projectName}"}`
+    //   );
+    //   await this.git.add("./*");
+    //   await this.git.commit("initial");
+    //
+    //   await this.git.checkout(["-b", this.genBranch]);
+    //   await fs.writeFile(
+    //     path.join(this.dirApp, `${this.genBranch}.json`),
+    //     `{"projectName": "${projectName}"}`
+    //   );
+    //   await this.git.add("./*");
+    //   await this.git.commit("initial");
+    // }
 
     async prepareForGeneration() {
         const files = await this.hasPendingCommits(this.developerBranch);
@@ -120,13 +121,20 @@ export class NxProjectGit {
   }
 
   /**
+   * devuelve el nombre del branch actual
+   */
+  async getCurrentBranch() {
+    return await this.rootGit.git.revparse(['--abbrev-ref', 'HEAD']);
+  }
+
+  /**
    * Asegura que existan las ramas base y develop
    */
   async ensureBranches() {
     const branches = await this.rootGit.git.branch();
 
     // Guardar el branch actual
-    const currentBranch = await this.rootGit.git.revparse(['--abbrev-ref', 'HEAD']);
+    const currentBranch = await this.getCurrentBranch();
 
     // Verificar y crear branch base si no existe
     if (!branches.all.includes('base')) {
