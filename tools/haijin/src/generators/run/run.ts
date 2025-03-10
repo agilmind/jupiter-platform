@@ -16,7 +16,7 @@ export default async function (
   await userPrompt(options, tree);
   const directoryPrefix = options.currentServiceType === 'apollo-prisma' ? 'services' : 'apps';
 
-  const projectDir = `${directoryPrefix}/${options.name}`;
+  const projectDir = `${directoryPrefix}/${options.currentService}`;
   const projectRoot = path.join(process.cwd(), projectDir);
 
   try {
