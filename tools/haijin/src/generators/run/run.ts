@@ -330,20 +330,39 @@ async function confirmServiceUpdates(services: ServiceInfo[]): Promise<ServiceIn
 }
 
 /**
- * Limpia un directorio de servicio
+ * Limpia un directorio de servicio en base usando git rm
  */
 async function cleanServiceDirectory(serviceDir: string): Promise<void> {
   const servicePath = path.join(process.cwd(), serviceDir);
+  const git = simpleGit(process.cwd());
 
   try {
     if (fs.existsSync(servicePath)) {
-      // Eliminar contenido anterior
-      fs.removeSync(servicePath);
-      logger.info(`Cleaned existing directory: ${serviceDir}`);
-    }
+      // Usar git rm para eliminar correctamente los archivos del índice Git
+      try {
+        // Intentar eliminar con git rm
+        await git.rm(['-r', `${serviceDir}/*`]);
+        logger.info(`Removed existing files from ${serviceDir} with git rm`);
+      } catch (rmError) {
+        // Si no hay archivos para eliminar, git rm falla pero no es un error real
+        if (rmError.message && rmError.message.includes('did not match any files')) {
+          logger.info(`No existing files found in ${serviceDir} to remove`);
+        } else {
+          // Si hay otro error, lanzarlo
+          throw rmError;
+        }
+      }
 
-    // Crear directorio vacío
-    fs.mkdirSync(servicePath, { recursive: true });
+      // Asegurar que el directorio existe para la nueva generación
+      if (!fs.existsSync(servicePath)) {
+        fs.mkdirSync(servicePath, { recursive: true });
+        logger.info(`Created empty directory: ${serviceDir}`);
+      }
+    } else {
+      // Crear directorio si no existe
+      fs.mkdirSync(servicePath, { recursive: true });
+      logger.info(`Created new directory: ${serviceDir}`);
+    }
   } catch (error) {
     logger.error(`Failed to clean directory ${serviceDir}: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
