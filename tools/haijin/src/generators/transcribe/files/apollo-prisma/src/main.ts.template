@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 
 // Comentario desde MAIN 33
 
-const prisma = new PrismaClient();
+const prisma2 = new PrismaClient();
 
 const typeDefs = `#graphql
   type Person {
