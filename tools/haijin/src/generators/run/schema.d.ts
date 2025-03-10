@@ -1,4 +1,4 @@
-export interface ProjectGeneratorSchema {
+export interface RunGeneratorSchema {
   name: string;
   currentService: string;
   currentServiceType: string;
@@ -18,8 +18,4 @@ export interface ProjectGeneratorSchema {
   services?: Record<string, string>;
   defaultService?: string;
   seeds?: any[];
-  dependencies?: {
-    prod?: string[];
-    dev?: string[];
-  };
 }

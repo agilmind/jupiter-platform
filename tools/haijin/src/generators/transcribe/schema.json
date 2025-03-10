@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "TranscribeHaikuProject",
+  "title": "Transcribe Service or Application",
+  "description": "Transcribe a Service or an Application to your Haijin workspace",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the Service or Application",
+      "x-prompt": "¿Qué servicio o aplicación desea transcribir?",
+      "default": "jupiter"
+    },
+    "dryRun": {
+      "type": "boolean",
+      "default": false
+    },
+    "haikuOptions": {
+      "type": "RunGeneratorSchema",
+      "description": "Run generator configuration"
+    }
+  },
+  "required": ["name", "haikuOptions"],
+  "additionalProperties": true
+}

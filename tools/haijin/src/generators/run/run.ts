@@ -1,16 +1,19 @@
-import { logger, Tree, installPackagesTask } from '@nx/devkit';
-import { execSync } from 'child_process';
-import * as fs from 'fs-extra';
+import { logger, Tree } from '@nx/devkit';
+import { TranscribeGeneratorSchema } from '../transcribe/schema';
+import { RunGeneratorSchema } from './schema';
+import { userPrompt } from './userPrompts';
 import * as path from 'path';
-import { NxProjectGit } from './git-handler';
-import { ProjectGeneratorSchema } from '../generators/project/schema';
+import { execSync } from 'child_process';
+import { NxProjectGit } from '../utils/git-handler';
+import * as fs from 'fs-extra';
+import transcribe from '../transcribe/transcribe';
 
 
-export async function generateProject(
+export default async function (
   tree: Tree,
-  options: ProjectGeneratorSchema,
-  writeFiles: (options: ProjectGeneratorSchema)=>any[])
-{
+  options: RunGeneratorSchema
+) {
+  await userPrompt(options, tree);
   const directoryPrefix = options.currentServiceType === 'apollo-prisma' ? 'services' : 'apps';
 
   const projectDir = `${directoryPrefix}/${options.name}`;
@@ -43,22 +46,14 @@ export async function generateProject(
       logger.info(`Creating ${options.currentService}`);
     }
 
-    // Instalar dependencias si se especificaron
-    if (options.dependencies) {
-      logger.info('Installing dependencies...');
+    const transcribeOptions: TranscribeGeneratorSchema = {
+      name: options.name,
+      dryRun: true,
+      runOptions: options
+    };
 
-      if (options.dependencies.prod && options.dependencies.prod.length > 0) {
-        execSync(`npm install ${options.dependencies.prod.join(' ')} --save --legacy-peer-deps`, { stdio: 'inherit' });
-      }
+    await transcribe(tree, transcribeOptions);
 
-      if (options.dependencies.dev && options.dependencies.dev.length > 0) {
-        execSync(`npm install ${options.dependencies.dev.join(' ')} --save-dev --legacy-peer-deps`, { stdio: 'inherit' });
-      }
-    }
-    const processedFiles = writeFiles(options);
-
-    // FASE 2: Ejecutar operaciones Git y escribir archivos procesados
-    // Esta función se ejecutará DESPUÉS de que Nx complete sus operaciones
     return async () => {
       // Guardar la rama original
       const originalBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
@@ -95,19 +90,7 @@ export async function generateProject(
 
         // 5. Escribir archivos procesados en la rama base
         logger.info(`Writing processed files to base branch...`);
-
-        for (const file of processedFiles) {
-          const fullPath = path.join(process.cwd(), projectDir, file.relativePath);
-
-          // Asegurar que el directorio exista
-          fs.ensureDirSync(path.dirname(fullPath));
-
-          // Escribir el contenido procesado
-          fs.writeFileSync(fullPath, file.content);
-          logger.debug(`Wrote file: ${fullPath}`);
-        }
-
-        logger.info(`Successfully wrote ${processedFiles.length} files to base branch`);
+        await transcribe(tree, {...transcribeOptions, dryRun: false});
 
         // 6. Git add y commit
         const action = projectExists ? 'Update' : 'Add';
@@ -169,20 +152,10 @@ Los archivos ya fueron actualizados correctamente en la rama base.
         if (originalBranch && originalBranch !== 'base' && originalBranch !== 'develop') {
           await projectGit.rootGit.git.checkout(originalBranch);
           logger.info(`Returned to original branch: ${originalBranch}`);
-
-          // Eliminar archivos del proyecto en la rama original si existen
-          if (fs.existsSync(projectRoot)) {
-            logger.info(`Removing generated files from ${originalBranch} branch...`);
-            fs.removeSync(projectRoot);
-            logger.info(`Files removed from ${originalBranch} branch`);
-          }
         }
 
         const resultAction = projectExists ? 'updated' : 'created';
         logger.info(`✅ ${options.currentService} ${options.currentServiceType} ${options.name} ${resultAction} successfully!`);
-
-        // Instalar dependencias
-        installPackagesTask(tree);
       } catch (error) {
         logger.error(`Git operations failed: ${error instanceof Error ? error.message : String(error)}`);
 

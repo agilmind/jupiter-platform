@@ -1,9 +1,14 @@
 {
   "generators": {
-    "project": {
-      "factory": "./src/generators/project/project",
-      "schema": "./src/generators/project/schema.json",
-      "description": "Add a Service or an Application to your Haijin workspace"
+    "run": {
+      "factory": "./src/generators/run/run",
+      "schema": "./src/generators/run/schema.json",
+      "description": "Generate a Service or an Application to your Haijin workspace"
+    },
+    "print": {
+      "factory": "./src/generators/transcribe/transcribe",
+      "schema": "./src/generators/transcribe/schema.json",
+      "description": "Print to virtual tree"
     }
   }
 }

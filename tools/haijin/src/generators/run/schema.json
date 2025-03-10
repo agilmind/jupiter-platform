@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/schema",
-  "$id": "GenerateHaikuProject",
+  "$id": "RunHaikuProject",
   "title": "Generate Service or Application",
   "description": "Generate a Service or an Application to your Haijin workspace",
   "type": "object",
