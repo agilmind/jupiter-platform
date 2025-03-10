@@ -46,6 +46,7 @@ export default async function (
 
     // Inicializar GitExtender con el directorio del workspace y el directorio del proyecto
     const projectGit = new NxProjectGit(process.cwd(), projectDir);
+    let projectExists;
 
     try {
       // 1. Asegurarse de que las ramas base y develop existen
@@ -56,7 +57,7 @@ export default async function (
       logger.info('Switched to base branch');
 
       // Verificar si el proyecto ya existe
-      const projectExists = fs.existsSync(projectRoot);
+      projectExists = fs.existsSync(projectRoot);
 
       if (projectExists) {
         // Preguntar si quiere actualizar el proyecto existente
