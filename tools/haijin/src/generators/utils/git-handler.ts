@@ -9,7 +9,7 @@ import * as fs from 'fs-extra';
  * y luego se sincronizan con 'develop'.
  */
 export class NxProjectGit {
-  private readonly git: SimpleGit;
+  public readonly git: SimpleGit;
   private readonly projectDir: string;
   private readonly absoluteProjectPath: string;
 
