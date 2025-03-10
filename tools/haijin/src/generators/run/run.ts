@@ -423,7 +423,8 @@ Para resolver:
 2. Resuelva los conflictos en su editor
 3. Añada los archivos resueltos: git add .
 4. Complete el merge con: git commit -m "Resolved conflicts"
-5. Vuelva al branch original: git checkout ${originalBranch}
+5. Elimine el branch temporal: git branch -D ${tempBranch}
+6. Vuelva al branch original: git checkout ${originalBranch}
 
 Nota: Al resolver estos conflictos, Git rerere recordará sus decisiones
 para aplicarlas automáticamente si se encuentran conflictos similares
