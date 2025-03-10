@@ -119,95 +119,18 @@ export default async function (
             logger.info('No changes to commit');
           }
 
-          // 5.2 Pasar cambios a develop
-          let conflictsDetected = false;
-          let patchFile = null;
+          // 5.2 Pasar cambios a develop usando merge
+          const mergeSuccess = await projectGit.patchToDevelop(); // Este método ahora usa merge internamente
 
-          if (projectExists) {
-            // Si ya existía, usar patch para aplicar los cambios
-            try {
-              const patchSuccess = await projectGit.patchToDevelop();
-              // Si hay un archivo de patch generado, lo guardamos para limpiarlo después
-              const possiblePatchFile = path.join(process.cwd(), `${path.basename(projectDir)}-manual-patch.patch`);
-              if (fs.existsSync(possiblePatchFile)) {
-                patchFile = possiblePatchFile;
-              }
-
-              if (!patchSuccess) {
-                conflictsDetected = true;
-                logger.warn(`
-==========================================================================
-⚠️ ATENCIÓN: CONFLICTO EN LA APLICACIÓN DEL PARCHE
-
-Se encontraron conflictos al intentar aplicar el parche a la rama develop.
-Por favor, sigue las instrucciones anteriores para resolver los conflictos.
-
-Una vez resueltos los conflictos, el proyecto estará actualizado en develop.
-Los archivos ya fueron actualizados correctamente en la rama base.
-==========================================================================`);
-              } else {
-                logger.info('Applied patch to develop branch');
-                // Si todo fue exitoso y encontramos el archivo de patch, lo eliminamos
-                if (patchFile && fs.existsSync(patchFile)) {
-                  fs.unlinkSync(patchFile);
-                  logger.info(`Removed patch file: ${patchFile}`);
-                }
-              }
-            } catch (patchError) {
-              logger.error(`Error applying patch: ${patchError.message}`);
-              conflictsDetected = true;
-            }
-          } else {
-            // Si es nuevo, usar rebase para sincronizar
-            try {
-              const rebaseSuccess = await projectGit.rebaseToDevelop();
-              // Si hay un archivo de patch generado, lo guardamos para limpiarlo después
-              const possiblePatchFile = path.join(process.cwd(), `${path.basename(projectDir)}-conflict-resolution.patch`);
-              if (fs.existsSync(possiblePatchFile)) {
-                patchFile = possiblePatchFile;
-              }
-
-              if (!rebaseSuccess) {
-                conflictsDetected = true;
-                logger.warn(`
-==========================================================================
-⚠️ ATENCIÓN: CONFLICTO DE REBASE DETECTADO
-
-Se encontraron conflictos al intentar aplicar los cambios a la rama develop.
-Por favor, sigue las instrucciones anteriores para resolver los conflictos.
-
-Una vez resueltos todos los conflictos y completado el rebase, el proyecto
-estará actualizado en la rama develop.
-
-Los archivos ya fueron actualizados correctamente en la rama base.
-==========================================================================`);
-              } else {
-                logger.info('Rebased changes to develop branch');
-                // Si todo fue exitoso y encontramos el archivo de patch, lo eliminamos
-                if (patchFile && fs.existsSync(patchFile)) {
-                  fs.unlinkSync(patchFile);
-                  logger.info(`Removed patch file: ${patchFile}`);
-                }
-              }
-            } catch (rebaseError) {
-              logger.error(`Error during rebase: ${rebaseError.message}`);
-              conflictsDetected = true;
-            }
-          }
-
-          // 5.3 Si hay conflictos, no continuar con el flujo normal y quedarse en develop
-          if (conflictsDetected) {
-            // Asegurarse de que estamos en develop para resolver conflictos
-            const currentBranch = await projectGit.getCurrentBranch();
-            if (currentBranch !== 'develop') {
-              await projectGit.rootGit.git.checkout('develop');
-            }
-            logger.info('Please resolve conflicts in develop branch');
+          // 5.3 Decisión sobre qué branch dejamos activo al finalizar
+          if (!mergeSuccess) {
+            // Si hay conflictos, ya estamos en develop y mostramos mensaje
+            logger.info('You are now in develop branch. Please resolve merge conflicts before continuing.');
             return;
           }
 
-          // 5.4 Si no hay conflictos, volver al branch original
-          if (originalBranch && originalBranch !== 'base' && originalBranch !== 'develop') {
+          // 5.4 Si todo fue bien, volver al branch original solo si no es base
+          if (originalBranch && originalBranch !== 'base') {
             await projectGit.rootGit.git.checkout(originalBranch);
             logger.info(`Returned to original branch: ${originalBranch}`);
           }
