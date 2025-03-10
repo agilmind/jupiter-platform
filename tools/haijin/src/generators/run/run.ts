@@ -21,7 +21,6 @@ interface GitContext {
   git: SimpleGit;
   rootPath: string;
   originalBranch: string;
-  tempBranch: string;
 }
 
 /**
@@ -40,16 +39,15 @@ export default async function (tree: Tree, options: RunGeneratorSchema) {
     // 2. Inicializar contexto Git
     const gitContext = await initGitContext();
 
-    // 3. Verificar estado de develop (seguridad)
-    if (!await verifyDevelopSafety(gitContext)) {
-      return; // Se cancela la operación si develop tiene cambios sin commitear
+    // 3. Verificar que rerere esté habilitado
+    if (!await verifyRerereEnabled(gitContext)) {
+      logger.error('El generador requiere Git rerere habilitado para continuar');
+      return;
     }
 
-    // 4. Verificar rerere está habilitado
-    const rerereEnabled = await verifyRerereEnabled(gitContext);
-    if (!rerereEnabled) {
-      logger.error('El generador requiere Git rerere habilitado para continuar');
-      return; // Detener ejecución si rerere no está habilitado
+    // 4. Verificar estado de develop (seguridad)
+    if (!await verifyDevelopSafety(gitContext)) {
+      return; // Se cancela la operación si develop tiene cambios sin commitear
     }
 
     // 5. Verificar servicios y plantillas
@@ -61,10 +59,13 @@ export default async function (tree: Tree, options: RunGeneratorSchema) {
       return;
     }
 
-    // 6. Crear y cambiar a branch temporal
-    await createAndCheckoutTempBranch(gitContext);
+    // 6. Verificar que existan los branches base y develop
+    await ensureBranches(gitContext);
 
-    // 7. Verificar cada servicio y preguntar por actualización
+    // 7. Cambiar a base para la generación
+    await switchToBaseBranch(gitContext);
+
+    // 8. Verificar cada servicio y preguntar por actualización
     const servicesToGenerate = await confirmServiceUpdates(servicesToProcess);
 
     if (servicesToGenerate.length === 0) {
@@ -73,7 +74,7 @@ export default async function (tree: Tree, options: RunGeneratorSchema) {
       return;
     }
 
-    // 8. Generar Tree para los servicios seleccionados
+    // 9. Generar Tree para los servicios seleccionados
     const successfulServices = await generateTreeForServices(tree, servicesToGenerate, options);
 
     if (successfulServices.length === 0) {
@@ -82,10 +83,10 @@ export default async function (tree: Tree, options: RunGeneratorSchema) {
       return;
     }
 
-    // 9. NX escribirá los archivos al disco al finalizar
+    // 10. NX escribirá los archivos al disco al finalizar
     logger.info(`Tree ready. NX will write ${successfulServices.length} services to disk upon completion.`);
 
-    // 10. Devolver callback para operaciones post-escritura
+    // 11. Devolver callback para operaciones post-escritura
     return async () => {
       await postGenerationOperations(gitContext, successfulServices);
     };
@@ -102,12 +103,45 @@ async function initGitContext(): Promise<GitContext> {
   const rootPath = process.cwd();
   const git = simpleGit(rootPath);
   const originalBranch = await git.revparse(['--abbrev-ref', 'HEAD']);
-  // Usar un nombre de branch temporal fijo para ayudar a rerere
-  const tempBranch = `temp-haijin-gen-branch`;
 
   logger.info(`Starting Git operations (current branch: ${originalBranch})`);
 
-  return { git, rootPath, originalBranch, tempBranch };
+  return { git, rootPath, originalBranch };
+}
+
+/**
+ * Verifica que rerere esté habilitado
+ */
+async function verifyRerereEnabled(gitContext: GitContext): Promise<boolean> {
+  const { git } = gitContext;
+
+  try {
+    const rerereEnabled = await git.raw(['config', '--get', 'rerere.enabled']).catch(() => '');
+
+    if (!rerereEnabled.trim() || rerereEnabled.trim() !== 'true') {
+      logger.error(`
+==========================================================================
+ERROR: Git rerere no está habilitado.
+
+Git rerere es REQUERIDO para el funcionamiento correcto del generador.
+Permite recordar resoluciones de conflictos previas para aplicarlas
+automáticamente cuando se encuentren conflictos similares.
+
+Para habilitarlo, ejecute:
+  git config --global rerere.enabled true
+
+Luego vuelva a ejecutar el generador.
+==========================================================================
+      `);
+      return false;
+    } else {
+      logger.info('Git rerere está habilitado ✅ - Las resoluciones de conflictos serán recordadas');
+      return true;
+    }
+  } catch (error) {
+    logger.error(`No se pudo verificar el estado de Git rerere: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
 }
 
 /**
@@ -156,38 +190,49 @@ Operación cancelada para proteger sus cambios.
 }
 
 /**
- * Verifica que rerere esté habilitado
- * @returns true si rerere está habilitado, false si no
+ * Asegura que los branches base y develop existan
  */
-async function verifyRerereEnabled(gitContext: GitContext): Promise<boolean> {
+async function ensureBranches(gitContext: GitContext): Promise<void> {
+  const { git, originalBranch } = gitContext;
+
+  try {
+    const branches = await git.branch();
+
+    // Verificar/crear branch base
+    if (!branches.all.includes('base')) {
+      await git.checkout(['-b', 'base']);
+      logger.info('Created base branch');
+      await git.checkout(originalBranch);
+    }
+
+    // Verificar/crear branch develop
+    if (!branches.all.includes('develop')) {
+      // Determinar branch base para develop
+      const baseBranch = branches.all.includes('main') ? 'main' :
+                         branches.all.includes('master') ? 'master' : originalBranch;
+
+      await git.checkout(['-b', 'develop', baseBranch]);
+      logger.info(`Created develop branch from ${baseBranch}`);
+      await git.checkout(originalBranch);
+    }
+  } catch (error) {
+    logger.error(`Failed to ensure branches: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
+  }
+}
+
+/**
+ * Cambia al branch base para generación
+ */
+async function switchToBaseBranch(gitContext: GitContext): Promise<void> {
   const { git } = gitContext;
 
   try {
-    const rerereEnabled = await git.raw(['config', '--get', 'rerere.enabled']).catch(() => '');
-
-    if (!rerereEnabled.trim() || rerereEnabled.trim() !== 'true') {
-      logger.error(`
-==========================================================================
-ERROR: Git rerere no está habilitado.
-
-Git rerere es REQUERIDO para el funcionamiento correcto del generador.
-Permite recordar resoluciones de conflictos previas para aplicarlas
-automáticamente cuando se encuentren conflictos similares.
-
-Para habilitarlo, ejecute:
-  git config --global rerere.enabled true
-
-Luego vuelva a ejecutar el generador.
-==========================================================================
-      `);
-      return false;
-    } else {
-      logger.info('Git rerere está habilitado ✅ - Las resoluciones de conflictos serán recordadas');
-      return true;
-    }
+    await git.checkout('base');
+    logger.info('Switched to base branch');
   } catch (error) {
-    logger.error(`No se pudo verificar el estado de Git rerere: ${error instanceof Error ? error.message : String(error)}`);
-    return false;
+    logger.error(`Failed to switch to base branch: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
   }
 }
 
@@ -243,54 +288,6 @@ function verifyServicesAndTemplates(selectedServices: string[], options: RunGene
 }
 
 /**
- * Crea y cambia a branch temporal
- */
-async function createAndCheckoutTempBranch(gitContext: GitContext): Promise<void> {
-  const { git, tempBranch, originalBranch } = gitContext;
-
-  try {
-    // Verificar si el branch temporal ya existe
-    const branches = await git.branch();
-    if (branches.all.includes(tempBranch)) {
-      // Si existe, lo eliminamos primero
-      try {
-        // Si estamos actualmente en ese branch, cambiamos a otro primero
-        const currentBranch = await git.revparse(['--abbrev-ref', 'HEAD']);
-        if (currentBranch === tempBranch) {
-          await git.checkout(originalBranch);
-        }
-        // Ahora podemos eliminar el branch temporal
-        await git.branch(['-D', tempBranch]);
-        logger.info(`Deleted existing temporary branch: ${tempBranch}`);
-      } catch (error) {
-        logger.warn(`Failed to delete existing temporary branch: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-
-    // Crear y cambiar a branch temporal
-    await git.checkout(['-b', tempBranch]);
-    logger.info(`Created and switched to temporary branch: ${tempBranch}`);
-
-    // Asegurar que develop existe
-    if (!branches.all.includes('develop')) {
-      // Si estamos en main o master, usamos eso como base para develop
-      const baseBranch = branches.all.includes('main') ? 'main' :
-                        branches.all.includes('master') ? 'master' : originalBranch;
-
-      // Crear develop desde el branch base
-      await git.checkout(['-b', 'develop', baseBranch]);
-      logger.info(`Created develop branch from ${baseBranch}`);
-
-      // Volver al branch temporal
-      await git.checkout(tempBranch);
-    }
-  } catch (error) {
-    logger.error(`Failed to create temporary branch: ${error instanceof Error ? error.message : String(error)}`);
-    throw error;
-  }
-}
-
-/**
  * Confirma actualizaciones de servicios existentes
  */
 async function confirmServiceUpdates(services: ServiceInfo[]): Promise<ServiceInfo[]> {
@@ -321,12 +318,36 @@ async function confirmServiceUpdates(services: ServiceInfo[]): Promise<ServiceIn
       }
 
       logger.info(`Actualizando servicio: ${service.name}`);
+
+      // Limpiar directorio existente en base
+      await cleanServiceDirectory(service.dir);
     } else {
       logger.info(`Creando nuevo servicio: ${service.name}`);
     }
   }
 
   return result.filter(s => !s.skip);
+}
+
+/**
+ * Limpia un directorio de servicio
+ */
+async function cleanServiceDirectory(serviceDir: string): Promise<void> {
+  const servicePath = path.join(process.cwd(), serviceDir);
+
+  try {
+    if (fs.existsSync(servicePath)) {
+      // Eliminar contenido anterior
+      fs.removeSync(servicePath);
+      logger.info(`Cleaned existing directory: ${serviceDir}`);
+    }
+
+    // Crear directorio vacío
+    fs.mkdirSync(servicePath, { recursive: true });
+  } catch (error) {
+    logger.error(`Failed to clean directory ${serviceDir}: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
+  }
 }
 
 /**
@@ -369,7 +390,7 @@ async function generateTreeForServices(
  * Operaciones después de la generación
  */
 async function postGenerationOperations(gitContext: GitContext, services: ServiceInfo[]): Promise<void> {
-  const { git, tempBranch, originalBranch } = gitContext;
+  const { git, originalBranch } = gitContext;
 
   try {
     logger.info('Post-generation operations starting...');
@@ -382,10 +403,10 @@ async function postGenerationOperations(gitContext: GitContext, services: Servic
     // Mensaje de commit
     const commitMessage = `Generated services: ${serviceDescriptions}`;
 
-    // Añadir todos los cambios
+    // Añadir todos los cambios en base
     for (const service of services) {
       await git.add([service.dir]);
-      logger.info(`Added ${service.dir} to commit`);
+      logger.info(`Added ${service.dir} to commit in base branch`);
     }
 
     // Verificar si hay cambios para commitear
@@ -397,120 +418,21 @@ async function postGenerationOperations(gitContext: GitContext, services: Servic
       return;
     }
 
-    // Commit en branch temporal
+    // Commit en branch base
     await git.commit(commitMessage);
-    logger.info(`Changes committed to temporary branch: ${tempBranch}`);
+    logger.info(`Changes committed to base branch`);
 
-    // Cambiar a develop para merge
+    // Cambiar a develop para aplicar cambios
     await git.checkout('develop');
-    logger.info('Switched to develop branch');
+    logger.info('Applying changes to develop branch...');
 
-    // Preguntar estrategia de merge con opciones más claras
-    const readline = require('readline').createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-
-    const mergeChoice = await new Promise<string>(resolve => {
-      readline.question(`
-==========================================================================
-ESTRATEGIA DE MERGE
-
-Seleccione cómo manejar los cambios:
-1. Intentar merge normal (puede generar conflictos)
-2. Mantener TODOS los cambios de develop (ignorar generados)
-3. Usar TODOS los cambios generados (reemplazar develop)
-4. Merge selectivo (seleccionar servicio por servicio)
-==========================================================================
-Opción (1-4): `, resolve);
-    });
-
-    // Si eligió merge selectivo
-    if (mergeChoice === '4') {
-      // Para cada servicio, preguntar individualmente
-      for (const service of services) {
-        const serviceChoice = await new Promise<string>(resolve => {
-          readline.question(`
-Para ${service.dir}:
-1. Mantener cambios de develop
-2. Usar cambios generados
-Opción (1-2): `, resolve);
-        });
-
-        if (serviceChoice === '1') {
-          // Mantener versión de develop (no hacer nada con este servicio)
-          logger.info(`Manteniendo cambios existentes para ${service.dir}`);
-        } else {
-          // Copiar archivos específicos de temp-branch a develop
-          try {
-            await git.checkout([`${tempBranch}`, '--', service.dir]);
-            await git.add(service.dir);
-            logger.info(`Aplicados cambios generados para ${service.dir}`);
-          } catch (error) {
-            logger.error(`Error al aplicar cambios para ${service.dir}: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        }
-      }
-
-      // Hacer commit de los cambios selectivos
-      const selectiveStatus = await git.status();
-      if (selectiveStatus.files.length > 0) {
-        await git.commit(`Merge selectivo de servicios generados`);
-        logger.info('Cambios aplicados selectivamente y commitidos');
-      } else {
-        logger.info('No se realizaron cambios selectivos');
-      }
-
-      // Eliminar branch temporal y volver al original
-      await git.branch(['-D', tempBranch]);
-      await returnToOriginalBranch(gitContext);
-      return;
-    }
-
-    // Para las otras opciones
+    // Realizar merge a develop con rerere habilitado
     try {
-      if (mergeChoice === '2') {
-        // Opción 2: Mantener cambios de develop ignorando generados
-        // Simplemente eliminamos el branch temporal y terminamos
-        await git.branch(['-D', tempBranch]);
-        logger.info('Se mantuvieron los cambios existentes en develop sin aplicar cambios generados');
-        await returnToOriginalBranch(gitContext);
-        return;
-      } else if (mergeChoice === '3') {
-        // Opción 3: Forzar uso de cambios generados
-        // Para cada servicio, copiar archivos desde el branch temporal
-        for (const service of services) {
-          try {
-            // Checkout selectivo desde el branch temporal
-            await git.checkout([tempBranch, '--', service.dir]);
-            await git.add(service.dir);
-            logger.info(`Forzados cambios generados para ${service.dir}`);
-          } catch (error) {
-            logger.error(`Error al forzar cambios para ${service.dir}: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        }
-
-        // Hacer commit de los cambios forzados
-        const forcedStatus = await git.status();
-        if (forcedStatus.files.length > 0) {
-          await git.commit(`Aplicados cambios generados forzosamente`);
-          logger.info('Cambios generados aplicados y commitidos');
-        } else {
-          logger.info('No se realizaron cambios forzados');
-        }
-
-        // Eliminar branch temporal y volver al original
-        await git.branch(['-D', tempBranch]);
-        await returnToOriginalBranch(gitContext);
-        return;
-      } else {
-        // Opción 1: Merge normal
-        // Intentar merge estándar
-        await git.merge([tempBranch, '--no-ff', '-m', `Merge ${tempBranch}: ${commitMessage}`]);
-        logger.info('Changes merged successfully to develop');
-      }
+      // Intentar merge
+      await git.merge(['base', '--no-ff', '-m', `Merge from base: ${commitMessage}`]);
+      logger.info('Changes merged successfully to develop');
     } catch (error) {
-      // Verificar si rerere resolvió los conflictos
+      // Verificar si rerere resolvió algunos conflictos
       const mergeStatus = await git.status();
       const hasUnresolvedConflicts = mergeStatus.conflicted.length > 0;
 
@@ -522,35 +444,27 @@ Opción (1-2): `, resolve);
         await git.add('.');
         await git.commit('Auto-merge with rerere-resolved conflicts');
         logger.info('Automatic merge completed successfully');
-
-        // Volver al branch original
-        await returnToOriginalBranch(gitContext);
       } else {
         // Hay conflictos no resueltos automáticamente
         logger.warn(`
 ==========================================================================
 CONFLICTOS DETECTADOS
 
-Se han detectado conflictos al fusionar los cambios en develop.
+Se han detectado conflictos al fusionar los cambios de base a develop.
 Se requiere resolución manual para los siguientes servicios:
 ${mergeStatus.conflicted.join('\n')}
 
-Para resolver y ASEGURAR que Git rerere aprenda:
+Para resolver y ASEGURAR que Git rerere aprenda correctamente:
 1. Revise los archivos conflictivos con: git status
 2. Resuelva los conflictos en su editor
-3. Añada los archivos resueltos: git add .
+3. Añada los archivos resueltos con: git add [archivos]
 4. Ejecute: git rerere
-5. Verifique que rerere aprendió: git rerere diff
+5. Verifique que rerere aprendió con: git rerere diff
 6. Complete el merge con: git commit -m "Resolved conflicts"
-7. Elimine el branch temporal: git branch -D ${tempBranch}
-8. Vuelva al branch original: git checkout ${originalBranch}
+7. Vuelva al branch original con: git checkout ${originalBranch}
 
-IMPORTANTE: Los pasos 4 y 5 son cruciales para que Git rerere aprenda
-la resolución y no vuelva a preguntar por el mismo conflicto.
-
-Nota: Si continúa viendo los mismos conflictos repetidamente, puede ser
-que el contenido exacto de los archivos esté cambiando ligeramente en cada
-generación, lo que hace que Git los considere como conflictos diferentes.
+IMPORTANTE: Git rerere recordará estas resoluciones para aplicarlas
+automáticamente la próxima vez que encuentre conflictos similares.
 ==========================================================================
         `);
 
@@ -559,16 +473,10 @@ generación, lo que hace que Git los considere como conflictos diferentes.
       }
     }
 
-    // Si llegamos aquí, el merge fue exitoso
-    // Eliminar branch temporal
-    await git.branch(['-D', tempBranch]);
-    logger.info(`Temporary branch ${tempBranch} deleted`);
-
-    // Volver al branch original después del merge exitoso
+    // Volver al branch original después de un merge exitoso
     await returnToOriginalBranch(gitContext);
 
     logger.info(`✅ ${services.length} servicios generados exitosamente!`);
-
   } catch (error) {
     logger.error(`Post-generation operations failed: ${error instanceof Error ? error.message : String(error)}`);
 
@@ -581,27 +489,15 @@ generación, lo que hace que Git los considere como conflictos diferentes.
  * Volver al branch original
  */
 async function returnToOriginalBranch(gitContext: GitContext): Promise<void> {
-  const { git, originalBranch, tempBranch } = gitContext;
+  const { git, originalBranch } = gitContext;
 
   try {
     const currentBranch = await git.revparse(['--abbrev-ref', 'HEAD']);
 
-    // Si estamos en el branch temporal, intentamos eliminarlo
-    if (currentBranch === tempBranch) {
+    if (currentBranch !== originalBranch) {
       await git.checkout(originalBranch);
-
-      try {
-        await git.branch(['-D', tempBranch]);
-        logger.info(`Temporary branch ${tempBranch} deleted`);
-      } catch (deleteError) {
-        logger.warn(`Could not delete temporary branch: ${deleteError.message}`);
-      }
-    } else if (currentBranch !== originalBranch) {
-      // Si estamos en cualquier otro branch que no sea el original, volvemos al original
-      await git.checkout(originalBranch);
+      logger.info(`Returned to original branch: ${originalBranch}`);
     }
-
-    logger.info(`Returned to original branch: ${originalBranch}`);
   } catch (error) {
     logger.error(`Failed to return to original branch: ${error instanceof Error ? error.message : String(error)}`);
   }
