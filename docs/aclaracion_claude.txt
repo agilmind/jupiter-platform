@@ -1,0 +1,106 @@
+Tengo un generador nx que genera y actualiza varios servicios y apps. En run.ts se ve claro el workflow y creo que en ese archivo no hay ningún problema. Primero se escriben en tree todos los archivos necesarios de todos los proyectos a actualizar, luego se cambia al branch base para escribirlos y se llevan esos cambios al branch develop. El branch base está unicamente para que se escriban los archivos del generador. En el branch develop, el developer hace cambios y cuando se vuelve a generar algo, las novedades escritas en base son trasladadas a develop. Si no hay conflictos, el generador deja actualizado y comiteado el branch develop vuelve al branch original (dese donde se lanzó el generador, frecuentemente main pero podría ser lanzado desde el mismo develop). Si hubiere conflictos el generador deja el branch develop y permite que el programador manualmente resuelva los conflictos.
+
+Tengo un problema gravísimo. Hice un cambio en el branch develop el servicio jupiter-server y otro cambio en jupiter-webapp, hice el commit correspondiente. Estos cambios no deberían generar ningún conflicto. Desde main lancé haijin:run para regenerar ambos proyectos. En jupiter-server me respetó el cambio pero no así en jupiter-webapp. Dio un mensaje y volvió al branch main sin respetarme el cambio y sin siquiera pedirme que lo resuelva si es que hubo conflicto. Aquí el resultado de la ejecución:
+
+ nx g haijin:run
+
+ NX  Generating haijin:run
+
+✔ ¿Qué nombre de proyecto Haiku desea utilizar? · jupiter
+
+✔ ¿Qué servicios desea agregar? (Use las flechas para moverse, espacio para seleccionar y enter para confirmar) · jupiter-server, jupiter-webapp
+
+Servicios seleccionados: jupiter-server, jupiter-webapp
+
+Starting Git operations (current branch: main)
+
+Plantillas verificadas para jupiter-server: 5 archivos disponibles
+
+Plantillas verificadas para jupiter-webapp: 1 archivos disponibles
+
+Generando 2 servicios en el Tree...
+
+Processing templates for service: jupiter-server
+
+Iniciando transcribe
+
+Procesando plantillas desde: /Users/fido/Documents/Developments/jupiter-platform/tools/haijin/src/generators/transcribe/files/apollo-prisma
+
+Destino: services/jupiter-server
+
+Processing templates for service: jupiter-webapp
+
+Iniciando transcribe
+
+Procesando plantillas desde: /Users/fido/Documents/Developments/jupiter-platform/tools/haijin/src/generators/transcribe/files/react
+
+Destino: apps/jupiter-webapp
+
+Switched to base branch
+
+El servicio jupiter-server ya existe. ¿Desea actualizarlo? (y/N): y
+
+Actualizando servicio: jupiter-server
+
+Cleaned existing files in project directory
+
+El servicio jupiter-webapp ya existe. ¿Desea actualizarlo? (y/N): y
+
+Actualizando servicio: jupiter-webapp
+
+Cleaned existing files in project directory
+
+Tree ready. NX will write 2 services to disk upon completion.
+
+CREATE services/jupiter-server/prisma/schema.prisma
+
+CREATE services/jupiter-server/project.json
+
+CREATE services/jupiter-server/src/dot-env-sample
+
+CREATE services/jupiter-server/src/main.ts
+
+CREATE services/jupiter-server/tsconfig.app.json
+
+CREATE services/jupiter-server/tsconfig.json
+
+CREATE apps/jupiter-webapp/hello-world.ts
+
+Post-generation operations starting...
+
+Added services/jupiter-server to commit
+
+Added apps/jupiter-webapp to commit
+
+No changes to commit
+
+Applying changes to develop branch...
+
+Syncing services/jupiter-server to develop...
+
+Creating patch for services/jupiter-server changes only
+
+No changes detected in services/jupiter-server
+
+No changes to apply for services/jupiter-server
+
+Syncing apps/jupiter-webapp to develop...
+
+Creating patch for apps/jupiter-webapp changes only
+
+Patch file created at: /var/folders/71/8324ldvj7n7byh_7ctc93l0w0000gn/T/project-jupiter-webapp-m83ju7ihhya.patch
+
+Applying patch to develop for apps/jupiter-webapp
+
+Standard patch failed: error: invalid path '/Users/fido/Documents/Developments/jupiter-platform/apps/jupiter-webapp/hello-world.ts'
+
+Attempting direct copy of apps/jupiter-webapp as fallback
+
+Backed up apps/jupiter-webapp to /var/folders/71/8324ldvj7n7byh_7ctc93l0w0000gn/T/backup-1741640589495
+
+Successfully copied files from base
+
+Returned to original branch: main
+
+✅ 2 servicios generados exitosamente!
+

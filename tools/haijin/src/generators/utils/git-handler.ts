@@ -405,12 +405,7 @@ Operación cancelada para proteger sus cambios.
 
         return true;
       } catch (applyError) {
-        // 4. Si hay conflictos, proporcionamos orientación pero no abortamos
-        if (applyError.message.includes('CONFLICT') ||
-            applyError.message.includes('conflict') ||
-            applyError.message.includes('patch does not apply')) {
-
-          logger.warn(`
+        logger.warn(`
 ==========================================================================
 CONFLICTO DETECTADO
 
@@ -431,16 +426,9 @@ Para resolver este conflicto:
 
 Archivo de parche guardado en: ${patchFile}
 ==========================================================================
-          `);
+        `);
 
-          return false;
-        } else {
-          // Otro tipo de error - intentamos un enfoque alternativo
-          logger.warn(`Standard patch failed: ${applyError.message}`);
-
-          // 5. Enfoque alternativo: intentar copiar directamente
-          return await this.attemptDirectCopy();
-        }
+        return false;
       }
     } catch (error) {
       logger.error(`Failed to apply patch: ${error instanceof Error ? error.message : String(error)}`);
