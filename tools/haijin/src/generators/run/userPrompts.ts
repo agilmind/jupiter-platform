@@ -37,9 +37,8 @@ export async function userPrompt(options: RunGeneratorSchema, tree: Tree) {
     const response = await enquirer.prompt<{ selectedServices: string[] }>({
       type: 'multiselect',
       name: 'selectedServices',
-      message: '¿Qué servicios desea agregar? (espacio para seleccionar, enter para confirmar)',
-      choices: choices,
-      hint: 'Utilice las flechas para moverse, espacio para seleccionar y enter para confirmar'
+      message: '¿Qué servicios desea agregar? (Use las flechas para moverse, espacio para seleccionar y enter para confirmar)',
+      choices: choices
     });
 
     // Guardar los servicios seleccionados

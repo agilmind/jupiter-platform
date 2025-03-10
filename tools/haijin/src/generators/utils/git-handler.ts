@@ -153,7 +153,7 @@ export class NxProjectGit {
    * utilizando características nativas de Git para restringir el merge a un directorio
    * @returns true si la sincronización fue exitosa, false si hubo conflictos
    */
-  private async syncProjectDirectory(): Promise<boolean> {
+  public async syncProjectDirectory(): Promise<boolean> {
     try {
       // 1. Cambiar a develop para aplicar los cambios
       await this.git.checkout(this.developBranch);
