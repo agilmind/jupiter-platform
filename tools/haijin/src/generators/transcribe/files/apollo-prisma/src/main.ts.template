@@ -2,6 +2,8 @@ import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { PrismaClient } from '@prisma/client';
 
+// Agregado en MAIN
+
 const prisma = new PrismaClient();
 
 const typeDefs = `#graphql
