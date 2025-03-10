@@ -2,7 +2,7 @@ import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { PrismaClient } from '@prisma/client';
 
-// Comment from MAIN
+// Comment from MAIN 22
 
 const prisma = new PrismaClient();
 
