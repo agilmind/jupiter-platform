@@ -418,17 +418,22 @@ Se han detectado conflictos al fusionar los cambios en develop.
 Se requiere resolución manual para los siguientes servicios:
 ${mergeStatus.conflicted.join('\n')}
 
-Para resolver:
+Para resolver y ASEGURAR que Git rerere aprenda:
 1. Revise los archivos conflictivos con: git status
 2. Resuelva los conflictos en su editor
 3. Añada los archivos resueltos: git add .
-4. Complete el merge con: git commit -m "Resolved conflicts"
-5. Elimine el branch temporal: git branch -D ${tempBranch}
-6. Vuelva al branch original: git checkout ${originalBranch}
+4. Ejecute: git rerere
+5. Verifique que rerere aprendió: git rerere diff
+6. Complete el merge con: git commit -m "Resolved conflicts"
+7. Elimine el branch temporal: git branch -D ${tempBranch}
+8. Vuelva al branch original: git checkout ${originalBranch}
 
-Nota: Al resolver estos conflictos, Git rerere recordará sus decisiones
-para aplicarlas automáticamente si se encuentran conflictos similares
-en el futuro.
+IMPORTANTE: Los pasos 4 y 5 son cruciales para que Git rerere aprenda
+la resolución y no vuelva a preguntar por el mismo conflicto.
+
+Nota: Si continúa viendo los mismos conflictos repetidamente, puede ser
+que el contenido exacto de los archivos esté cambiando ligeramente en cada
+generación, lo que hace que Git los considere como conflictos diferentes.
 ==========================================================================
         `);
 
