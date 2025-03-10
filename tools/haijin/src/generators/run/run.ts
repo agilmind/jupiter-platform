@@ -22,7 +22,7 @@ export default async function (
   try {
     // 2. Obtener información sobre el branch original
     const rootPath = process.cwd();
-    // Usamos el primer servicio para inicializar el objeto Git (solo importa para la estructura de directorios)
+    // Usamos el primer servicio para inicializar el objeto Git
     const firstService = selectedServices[0];
     const firstServiceType = options.services?.[firstService] || '';
     const directoryPrefix = firstServiceType === 'apollo-prisma' ? 'services' : 'apps';
@@ -101,36 +101,37 @@ export default async function (
         return;
       }
 
-      // 6. Procesar todos los servicios seleccionados
+      // 6. Crear una lista para recopilar todos los servicios generados
+      // Importante: Debemos procesar todos los servicios AQUÍ, antes de que NX escriba al disco
       logger.info(`Generando ${servicesToProcess.length} servicios en el branch base...`);
 
-      // 7. NX escribirá automáticamente los archivos en el branch 'base' cuando finalice el generador
-      logger.info(`Tree ready. NX will write files to the base branch upon completion.`);
+      // 7. IMPORTANTE: Generar cada servicio en el Tree ANTES de devolver el callback
+      for (const service of servicesToProcess) {
+        // Crear un objeto options específico para este servicio
+        const serviceOptions = {
+          ...options,
+          currentService: service.name,
+          currentServiceType: service.type
+        };
 
-      // 8. Devolver la función de callback que se ejecutará DESPUÉS de que NX escriba al disco
+        // Configurar transcribe para este servicio
+        const transcribeOptions: TranscribeGeneratorSchema = {
+          name: options.name,
+          runOptions: serviceOptions
+        };
+
+        // Ejecutar transcribe para este servicio (modifica el Tree)
+        logger.info(`Processing templates for service: ${service.name}`);
+        await transcribe(tree, transcribeOptions);
+      }
+
+      // 8. NX escribirá automáticamente los archivos en el branch 'base' cuando finalice el generador
+      logger.info(`Tree ready. NX will write ${servicesToProcess.length} services to disk upon completion.`);
+
+      // 9. Devolver la función de callback que se ejecutará DESPUÉS de que NX escriba al disco
       return async () => {
         try {
           logger.info('Post-generation operations starting...');
-
-          // 9. Generar y transcribir cada servicio seleccionado
-          for (const service of servicesToProcess) {
-            // Crear un objeto options específico para este servicio
-            const serviceOptions = {
-              ...options,
-              currentService: service.name,
-              currentServiceType: service.type
-            };
-
-            // Configurar transcribe para este servicio
-            const transcribeOptions: TranscribeGeneratorSchema = {
-              name: options.name,
-              runOptions: serviceOptions
-            };
-
-            // Ejecutar transcribe para este servicio
-            logger.info(`Processing templates for service: ${service.name}`);
-            await transcribe(tree, transcribeOptions);
-          }
 
           // 10. Git add y commit en branch base - TODOS los directorios afectados
           const serviceDescriptions = servicesToProcess.map(s =>
