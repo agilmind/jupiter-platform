@@ -9,7 +9,7 @@ import * as fs from 'fs-extra';
  * y luego se sincronizan con 'develop'.
  */
 export class NxProjectGit {
-  public git: SimpleGit;
+  private readonly git: SimpleGit;
   private readonly projectDir: string;
   private readonly absoluteProjectPath: string;
 
@@ -102,61 +102,12 @@ export class NxProjectGit {
   }
 
   /**
-   * Aplica cambios de base a develop usando merge de Git
-   * @returns true si el merge fue exitoso, false si hubo conflictos
+   * Aplica cambios de base a develop usando sincronización directa del directorio del proyecto
+   * @returns true si la sincronización fue exitosa, false si hubo conflictos
    */
   async patchToDevelop(): Promise<boolean> {
-    try {
-      // Cambiar a la rama develop
-      await this.git.checkout(this.developBranch);
-      logger.info(`Switched to ${this.developBranch} branch`);
-
-      try {
-        // Hacer el merge usando la estrategia --no-ff para crear siempre un commit de merge
-        await this.git.merge([this.baseBranch, '--no-ff', '-m', `Merge changes from ${this.baseBranch} for ${path.basename(this.projectDir)}`]);
-        logger.info(`Successfully merged ${this.baseBranch} into ${this.developBranch} without conflicts`);
-        return true;
-      } catch (mergeError) {
-        // Si hay conflictos, Git los marcará en los archivos y dejará el merge en estado incompleto
-        if (mergeError.message.includes('CONFLICT') || mergeError.message.includes('Merge conflict')) {
-          logger.warn('Merge conflicts detected!');
-          logger.info(`
-==========================================================================
-CONFLICTO DE MERGE DETECTADO
-
-Se ha detectado un conflicto al hacer merge de '${this.baseBranch}' a '${this.developBranch}'.
-Para resolver este conflicto, sigue estos pasos:
-
-1. Resuelve los conflictos manualmente en los archivos marcados
-   - Puedes usar tu editor o IDE para resolver los conflictos
-   - Busca las marcas <<<<<<< HEAD, =======, y >>>>>>> para identificarlos
-
-2. Una vez resueltos, marca los archivos como resueltos:
-   $ git add [archivos_con_conflictos]
-
-3. Completa el merge:
-   $ git commit -m "Resolve merge conflicts"
-
-4. Si deseas abortar el merge:
-   $ git merge --abort
-==========================================================================
-`);
-          // El usuario debe resolver los conflictos manualmente
-          return false;
-        } else {
-          // Si es otro tipo de error, abortamos el merge y propagamos el error
-          try {
-            await this.git.merge(['--abort']);
-          } catch (abortError) {
-            // Ignorar errores al abortar
-          }
-          throw mergeError;
-        }
-      }
-    } catch (error) {
-      logger.error(`Merge process failed: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
-    }
+    // Usar el método especializado para sincronizar solo el directorio del proyecto
+    return await this.syncProjectDirectory();
   }
 
   /**
@@ -193,6 +144,166 @@ Para resolver este conflicto, sigue estos pasos:
       }
     } catch (error) {
       logger.error(`Failed to clean project directory: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Sincroniza SOLO los cambios del directorio específico del proyecto de base a develop
+   * utilizando características nativas de Git para restringir el merge a un directorio
+   * @returns true si la sincronización fue exitosa, false si hubo conflictos
+   */
+  private async syncProjectDirectory(): Promise<boolean> {
+    try {
+      // 1. Cambiar a develop para aplicar los cambios
+      await this.git.checkout(this.developBranch);
+      logger.info(`Switched to ${this.developBranch} branch`);
+
+      // 2. Realizar un merge de base a develop SOLO para el directorio específico
+      try {
+        // Usar --no-commit para que podamos revisar los cambios antes de commitear
+        await this.git.raw(['merge', this.baseBranch, '--no-commit', '--', this.projectDir]);
+        logger.info(`Merged changes from ${this.baseBranch} for directory: ${this.projectDir}`);
+
+        // 3. Verificar si hay conflictos
+        const status = await this.git.status();
+
+        if (status.conflicted.length > 0) {
+          // Hay conflictos
+          logger.warn('Merge conflicts detected!');
+          logger.info(`
+==========================================================================
+CONFLICTO DE MERGE DETECTADO (en directorio ${this.projectDir})
+
+Se ha detectado un conflicto al sincronizar los cambios de '${this.baseBranch}' a '${this.developBranch}'.
+Para resolver este conflicto, sigue estos pasos:
+
+1. Resuelve los conflictos manualmente en los archivos marcados
+   - Puedes usar tu editor o IDE para resolver los conflictos
+   - Busca las marcas <<<<<<< HEAD, =======, y >>>>>>> para identificarlos
+
+2. Una vez resueltos, marca los archivos como resueltos:
+   $ git add [archivos_con_conflictos]
+
+3. Completa el merge:
+   $ git commit -m "Resolve merge conflicts"
+
+4. Si deseas abortar el merge:
+   $ git merge --abort
+==========================================================================
+`);
+          return false;
+        }
+
+        // 4. Si no hay conflictos, commitear los cambios
+        if (status.staged.length > 0 || status.not_added.length > 0 || status.modified.length > 0) {
+          // Asegurarse de que todos los cambios están añadidos
+          await this.git.add([this.projectDir]);
+
+          // Commitear los cambios
+          await this.git.commit(`Sync ${this.projectDir} from ${this.baseBranch} to ${this.developBranch}`);
+          logger.info(`Changes committed to ${this.developBranch}`);
+        } else {
+          // No hay cambios, abort del merge
+          await this.git.merge(['--abort']);
+          logger.info(`No changes to sync for ${this.projectDir}`);
+        }
+
+        return true;
+      } catch (mergeError) {
+        // Manejar errores específicos
+        if (mergeError.message.includes('CONFLICT') || mergeError.message.includes('Merge conflict')) {
+          logger.warn('Merge conflicts detected!');
+          logger.info(`
+==========================================================================
+CONFLICTO DE MERGE DETECTADO (en directorio ${this.projectDir})
+
+Se ha detectado un conflicto al sincronizar los cambios de '${this.baseBranch}' a '${this.developBranch}'.
+Para resolver este conflicto, sigue estos pasos:
+
+1. Resuelve los conflictos manualmente en los archivos marcados
+   - Puedes usar tu editor o IDE para resolver los conflictos
+   - Busca las marcas <<<<<<< HEAD, =======, y >>>>>>> para identificarlos
+
+2. Una vez resueltos, marca los archivos como resueltos:
+   $ git add [archivos_con_conflictos]
+
+3. Completa el merge:
+   $ git commit -m "Resolve merge conflicts"
+
+4. Si deseas abortar el merge:
+   $ git merge --abort
+==========================================================================
+`);
+          return false;
+        } else {
+          // Si el directorio no existe en base, tratamos de crearlo
+          if (mergeError.message.includes('not something we can merge') ||
+              mergeError.message.includes('does not exist in')) {
+
+            logger.info(`Directory ${this.projectDir} may not exist in ${this.baseBranch}, trying alternative approach`);
+
+            // Verificar si existe en base
+            const currentBranch = await this.getCurrentBranch();
+            await this.git.checkout(this.baseBranch);
+
+            const existsInBase = fs.existsSync(this.absoluteProjectPath);
+
+            if (existsInBase) {
+              // Existe en base pero no puede ser mergeado, tratamos de usar checkout
+              await this.git.checkout(this.developBranch);
+
+              try {
+                // Asegurarse de que el directorio existe en develop
+                fs.mkdirSync(this.absoluteProjectPath, { recursive: true });
+
+                // Traer los archivos específicos del directorio desde base
+                await this.git.checkout([this.baseBranch, '--', this.projectDir]);
+                logger.info(`Checked out ${this.projectDir} from ${this.baseBranch}`);
+
+                // Commitear los cambios
+                await this.git.add([this.projectDir]);
+                await this.git.commit(`Add ${this.projectDir} from ${this.baseBranch} to ${this.developBranch}`);
+                logger.info(`Added ${this.projectDir} to ${this.developBranch}`);
+
+                return true;
+              } catch (checkoutError) {
+                logger.error(`Failed to checkout directory: ${checkoutError.message}`);
+                throw checkoutError;
+              }
+            } else {
+              // No existe ni en base ni en develop, nada que hacer
+              await this.git.checkout(this.developBranch);
+              logger.info(`Directory ${this.projectDir} does not exist in either branch`);
+              return true;
+            }
+          } else {
+            // Cualquier otro error, abortamos el merge y propagamos el error
+            try {
+              await this.git.merge(['--abort']);
+            } catch (abortError) {
+              // Ignorar errores al abortar
+            }
+
+            throw mergeError;
+          }
+        }
+      }
+    } catch (error) {
+      logger.error(`Failed to sync project directory: ${error instanceof Error ? error.message : String(error)}`);
+
+      // Intentar abortar cualquier operación pendiente
+      try {
+        const status = await this.git.status();
+        if (status.current === this.developBranch && (status.conflicted.length > 0 || status.staged.length > 0)) {
+          // Si hay un merge en progreso, abortarlo
+          await this.git.merge(['--abort']);
+          logger.info('Aborted merge operation');
+        }
+      } catch (cleanupError) {
+        // Ignorar errores en la limpieza
+      }
+
       throw error;
     }
   }
