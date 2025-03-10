@@ -43,7 +43,7 @@ export default async function (
       await projectGit.ensureBranches();
 
       // Cambiar a la rama base
-      await projectGit.rootGit.git.checkout('base');
+      await projectGit.git.checkout('base');
       logger.info('Switched to base branch');
 
       // Verificar si el proyecto ya existe
@@ -64,7 +64,7 @@ export default async function (
 
         if (answer.toLowerCase() !== 'y') {
           // Volver al branch original si se cancela
-          await projectGit.rootGit.git.checkout(originalBranch);
+          await projectGit.git.checkout(originalBranch);
           logger.info('Update cancelled. Returning to original branch.');
           return;
         }
@@ -74,17 +74,7 @@ export default async function (
         logger.info(`Creating ${options.currentService}`);
       }
 
-      // Limpiar directorio en base si existe
-      try {
-        await projectGit.rootGit.git.rm(['-r', `${projectDir}/*`]);
-        logger.info('Cleaned existing files in base branch');
-      } catch (rmError) {
-        if (rmError.message.includes('did not match any files')) {
-          logger.info('No existing files to clean in base branch');
-        } else {
-          throw rmError;
-        }
-      }
+      await projectGit.cleanProjectDirectory();
 
       // 4. IMPORTANTE: Aquí terminamos nuestra preparación
       // NX escribirá automáticamente los archivos en el branch 'base' cuando finalice el generador
@@ -103,19 +93,19 @@ export default async function (
           // Estamos en base, verificamos para estar seguros
           const currentBranch = await projectGit.getCurrentBranch();
           if (currentBranch !== 'base') {
-            await projectGit.rootGit.git.checkout('base');
+            await projectGit.git.checkout('base');
           }
 
           // Añadir específicamente los archivos del proyecto
-          await projectGit.rootGit.git.add([projectDir]);
+          await projectGit.git.add([projectDir]);
 
           // Verificar si hay cambios para commit
-          const status = await projectGit.rootGit.git.status();
+          const status = await projectGit.git.status();
           const filesToCommit = status.files.filter(f => f.path.startsWith(projectDir));
 
           if (filesToCommit.length > 0) {
             const commitMsg = `${action} ${options.currentService} ${options.currentServiceType}: ${options.name}`;
-            await projectGit.rootGit.git.commit(commitMsg);
+            await projectGit.git.commit(commitMsg);
             logger.info(`Changes committed to base branch`);
           } else {
             logger.info('No changes to commit');
@@ -129,7 +119,7 @@ export default async function (
             // Verificar explícitamente que estamos en develop
             const currentBranch = await projectGit.getCurrentBranch();
             if (currentBranch !== 'develop') {
-              await projectGit.rootGit.git.checkout('develop');
+              await projectGit.git.checkout('develop');
             }
 
             logger.info('You are now in develop branch. Please resolve merge conflicts before continuing.');
@@ -138,7 +128,7 @@ export default async function (
 
           // 5.4 Si todo fue bien (sin conflictos), volver al branch original solo si no es base
           if (originalBranch && originalBranch !== 'base') {
-            await projectGit.rootGit.git.checkout(originalBranch);
+            await projectGit.git.checkout(originalBranch);
             logger.info(`Returned to original branch: ${originalBranch}`);
           }
 
@@ -153,13 +143,13 @@ export default async function (
             if (!mergeSuccess) {
               const currentBranch = await projectGit.getCurrentBranch();
               if (currentBranch !== 'develop') {
-                await projectGit.rootGit.git.checkout('develop');
+                await projectGit.git.checkout('develop');
                 logger.info('Switched to develop branch to handle conflicts');
               }
             }
             // En otros casos de error, también preferimos develop para facilitar depuración
             else {
-              await projectGit.rootGit.git.checkout('develop');
+              await projectGit.git.checkout('develop');
               logger.info('Switched to develop branch to handle error');
             }
           } catch (checkoutError) {
@@ -167,7 +157,7 @@ export default async function (
             // Solo como último recurso, intentar volver al branch original
             if (originalBranch) {
               try {
-                await projectGit.rootGit.git.checkout(originalBranch);
+                await projectGit.git.checkout(originalBranch);
                 logger.info(`Returned to original branch: ${originalBranch}`);
               } catch (finalError) {
                 logger.error(`Failed to return to any branch: ${finalError.message}`);
@@ -183,7 +173,7 @@ export default async function (
       // Intentar volver al branch original
       if (originalBranch) {
         try {
-          await projectGit.rootGit.git.checkout(originalBranch);
+          await projectGit.git.checkout(originalBranch);
           logger.info(`Returned to original branch: ${originalBranch}`);
         } catch (checkoutError) {
           logger.error(`Failed to return to original branch: ${checkoutError.message}`);
