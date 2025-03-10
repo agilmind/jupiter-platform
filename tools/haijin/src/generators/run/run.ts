@@ -405,9 +405,34 @@ async function postGenerationOperations(gitContext: GitContext, services: Servic
     await git.checkout('develop');
     logger.info('Switched to develop branch');
 
+    // Preguntar estrategia de merge
+    const readline = require('readline').createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    const mergeStrategy = await new Promise<string>(resolve => {
+      readline.question(`
+Seleccione estrategia de merge:
+1. Automática (intentar merge normal)
+2. Preferir cambios de develop (-X ours)
+3. Preferir cambios generados (-X theirs)
+Opción (1-3): `, answer => {
+        if (answer === '2') resolve('-X ours');
+        else if (answer === '3') resolve('-X theirs');
+        else resolve('');
+      });
+    });
+
+    readline.close();
+
     try {
-      // Intentar merge
-      await git.merge([tempBranch, '--no-ff', '-m', `Merge ${tempBranch}: ${commitMessage}`]);
+      // Intentar merge con la estrategia seleccionada
+      const mergeArgs = [tempBranch, '--no-ff'];
+      if (mergeStrategy) mergeArgs.push(mergeStrategy);
+      mergeArgs.push('-m', `Merge ${tempBranch}: ${commitMessage}`);
+
+      await git.merge(mergeArgs);
       logger.info('Changes merged successfully to develop');
     } catch (error) {
       // Verificar si rerere resolvió los conflictos
