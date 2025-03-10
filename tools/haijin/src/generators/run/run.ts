@@ -46,14 +46,6 @@ export default async function (
       logger.info(`Creating ${options.currentService}`);
     }
 
-    const transcribeOptions: TranscribeGeneratorSchema = {
-      name: options.name,
-      dryRun: true,
-      runOptions: options
-    };
-
-    await transcribe(tree, transcribeOptions);
-
     return async () => {
       // Guardar la rama original
       const originalBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
@@ -88,9 +80,13 @@ export default async function (
           }
         }
 
-        // 5. Escribir archivos procesados en la rama base
-        logger.info(`Writing processed files to base branch...`);
-        await transcribe(tree, {...transcribeOptions, dryRun: false});
+        const transcribeOptions: TranscribeGeneratorSchema = {
+          name: options.name,
+          dryRun: true,
+          runOptions: options
+        };
+
+        await transcribe(tree, transcribeOptions);
 
         // 6. Git add y commit
         const action = projectExists ? 'Update' : 'Add';
