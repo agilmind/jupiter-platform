@@ -348,114 +348,187 @@ que puede ser útil para resolver manualmente los conflictos.
   }
 
   /**
-   * Aplicar cambios como parche a develop
-   */
-  async patchToDevelop() {
-    try {
-      // Crear el parche desde branch base
-      await this.rootGit.git.checkout('base');
-      logger.info('Switched to base branch to create patch');
+ * Aplicar cambios como parche a develop con mejor tolerancia a modificaciones previas
+ */
+async patchToDevelop() {
+  try {
+    // 1. Crear un directorio temporal para el respaldo de develop
+    const tempBackupDir = path.join(process.cwd(), '.temp-backup');
+    if (fs.existsSync(tempBackupDir)) {
+      fs.removeSync(tempBackupDir);
+    }
+    fs.mkdirSync(tempBackupDir);
 
-      // Crear y aplicar el parche
-      let patchFilePath;
-      try {
-        // Intentar con format-patch primero
-        const fileName = await this.rootGit.git.raw('format-patch', '-1', 'HEAD');
-        patchFilePath = path.join(process.cwd(), fileName.trim());
-        logger.info(`Created patch file: ${patchFilePath}`);
-      } catch (formatError) {
-        logger.warn(`Failed to create patch with format-patch: ${formatError.message}`);
+    // 2. Crear el parche desde branch base
+    await this.rootGit.git.checkout('base');
+    logger.info('Switched to base branch to create changes list');
 
-        // Enfoque alternativo: usar diff
-        const diffOutput = await this.rootGit.git.diff(['HEAD~1', 'HEAD']);
-        patchFilePath = path.join(process.cwd(), `${path.basename(this.projectDir)}.patch`);
-        fs.writeFileSync(patchFilePath, diffOutput);
-        logger.info(`Created patch file using diff: ${patchFilePath}`);
+    // 3. Obtener la lista de archivos modificados (respecto al commit anterior)
+    const diffSummary = await this.rootGit.git.diff(['--name-status', 'HEAD~1', 'HEAD']);
+    const changedFiles = diffSummary.split('\n')
+      .filter(line => line.trim().length > 0)
+      .map(line => {
+        const [status, file] = line.trim().split(/\s+/);
+        return { status, file };
+      })
+      .filter(change => change.file.startsWith(this.projectDir));
+
+    logger.info(`Detected ${changedFiles.length} changed files in base`);
+
+    // 4. Cambiar a develop para preparar la aplicación de cambios
+    await this.rootGit.git.checkout('develop');
+    logger.info('Switched to develop branch');
+
+    // 5. Hacer backup de los archivos en develop antes de modificarlos
+    for (const change of changedFiles) {
+      const srcPath = change.file;
+      const backupPath = path.join(tempBackupDir, srcPath);
+
+      // Crear el directorio padre si no existe
+      fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+
+      // Copiar el archivo a backup si existe
+      if (fs.existsSync(srcPath)) {
+        fs.copyFileSync(srcPath, backupPath);
+        logger.info(`Backed up: ${srcPath}`);
       }
+    }
 
-      // Cambiar a develop
-      await this.rootGit.git.checkout('develop');
-      logger.info('Switched to develop branch');
+    // 6. Crear parche para resolver conflictos manualmente (si es necesario)
+    const manualPatchPath = path.join(process.cwd(), `${path.basename(this.projectDir)}-manual.patch`);
+    const patchContent = await this.rootGit.git.diff(['base', 'develop', '--', this.projectDir]);
+    fs.writeFileSync(manualPatchPath, patchContent);
+    logger.info(`Manual resolution patch created: ${manualPatchPath}`);
 
+    // 7. Sincronizar archivos de base a develop con estrategia inteligente
+    let hasConflicts = false;
+    const conflictingFiles = [];
+
+    for (const change of changedFiles) {
       try {
-        // Aplicar el parche con opciones extendidas
-        await this.rootGit.git.applyPatch([patchFilePath], [
-          '--ignore-space-change',
-          '--ignore-whitespace',
-          '--reject',  // Permite aplicar parcialmente el parche, rechazando partes problemáticas
-          '--whitespace=fix'  // Arregla problemas de espacios en blanco
-        ]);
-        logger.info('Patch applied successfully to develop branch');
+        const srcPath = change.file;
+        const basePath = path.join(process.cwd(), srcPath);
+        const developPath = path.join(process.cwd(), srcPath);
+        const backupPath = path.join(tempBackupDir, srcPath);
 
-        // Verificar si hay archivos .rej (rechazados por conflictos)
-        const rejFiles = await this.findRejFiles();
-        if (rejFiles.length > 0) {
-          // Hay archivos rechazados, hay conflictos
-          logger.warn(`
+        // Si es un archivo nuevo (no existe backup), simplemente copiarlo
+        if (change.status === 'A' || !fs.existsSync(backupPath)) {
+          // Asegurar que el directorio existe
+          fs.mkdirSync(path.dirname(developPath), { recursive: true });
+
+          // Copiar el nuevo archivo de base a develop
+          fs.copyFileSync(basePath, developPath);
+          logger.info(`Added new file: ${srcPath}`);
+          continue;
+        }
+
+        // Para archivos existentes, intentar estrategia de merge inteligente
+        // 1. Intentar usar diff3 para merge de 3 vías
+        try {
+          // Crear archivos temporales para el merge
+          const baseContentPath = path.join(tempBackupDir, `${path.basename(srcPath)}.base`);
+          const developContentPath = path.join(tempBackupDir, `${path.basename(srcPath)}.develop`);
+          const baseContent = fs.readFileSync(basePath, 'utf8');
+          const developContent = fs.readFileSync(developPath, 'utf8');
+
+          // Obtener el contenido original (del commit previo en base)
+          await this.rootGit.git.checkout(['base~1', '--', srcPath]);
+          const originalContent = fs.existsSync(srcPath) ? fs.readFileSync(srcPath, 'utf8') : '';
+
+          // Volver a develop
+          await this.rootGit.git.checkout(['develop']);
+
+          // Escribir contenidos a archivos temporales
+          fs.writeFileSync(baseContentPath, originalContent);
+          fs.writeFileSync(developContentPath, developContent);
+
+          // Intentar merge de 3 vías usando la herramienta diff3
+          const mergeCommand = `diff3 -m "${developContentPath}" "${baseContentPath}" "${basePath}" > "${developPath}.merged"`;
+          try {
+            execSync(mergeCommand, { stdio: 'pipe' });
+
+            // Verificar si hay marcadores de conflicto en el archivo merged
+            const mergedContent = fs.readFileSync(`${developPath}.merged`, 'utf8');
+            if (mergedContent.includes('<<<<<<<') || mergedContent.includes('=======')) {
+              // Hay conflictos, registrarlo pero guardar el resultado
+              hasConflicts = true;
+              conflictingFiles.push(srcPath);
+              logger.warn(`Conflicts detected in: ${srcPath}`);
+
+              // Renombrar el archivo original antes de reemplazarlo
+              fs.renameSync(developPath, `${developPath}.orig`);
+            }
+
+            // Mover el archivo merged a la ubicación final
+            fs.renameSync(`${developPath}.merged`, developPath);
+            logger.info(`Merged changes in: ${srcPath}`);
+          } catch (mergeError) {
+            // Si diff3 falla, caer al enfoque de copia + advertencia
+            hasConflicts = true;
+            conflictingFiles.push(srcPath);
+            fs.copyFileSync(basePath, `${developPath}.base`);
+            logger.warn(`Failed to auto-merge: ${srcPath}`);
+          }
+        } catch (mergeError) {
+          // Si algo falla en el proceso de merge, registrar el conflicto
+          hasConflicts = true;
+          conflictingFiles.push(srcPath);
+          logger.warn(`Merge process failed for: ${srcPath} - ${mergeError.message}`);
+        }
+      } catch (fileError) {
+        logger.error(`Error processing file ${change.file}: ${fileError.message}`);
+        hasConflicts = true;
+        conflictingFiles.push(change.file);
+      }
+    }
+
+    // 8. Añadir todos los cambios al staging
+    await this.rootGit.git.add([this.projectDir]);
+
+    // 9. Verificar si hay archivos en staging (cambios pendientes)
+    const status = await this.rootGit.git.status();
+
+    if (status.files.length > 0) {
+      // Hay cambios para commitear
+      await this.rootGit.git.commit(`Sync changes from base to develop for ${path.basename(this.projectDir)}`);
+      logger.info('Committed synchronized changes to develop branch');
+    } else {
+      logger.info('No changes to commit after synchronization');
+    }
+
+    // 10. Limpiar directorio temporal
+    fs.removeSync(tempBackupDir);
+
+    // 11. Mostrar mensaje adecuado si hubo conflictos
+    if (hasConflicts) {
+      logger.warn(`
 ==========================================================================
-CONFLICTO EN APLICACIÓN DE PARCHE DETECTADO
+⚠️ ATENCIÓN: CAMBIOS SINCRONIZADOS CON POSIBLES CONFLICTOS
 
-Se detectaron conflictos al aplicar el parche a la rama develop.
-Los siguientes archivos tuvieron conflictos:
-${rejFiles.map(f => `- ${f}`).join('\n')}
+Se han sincronizado los archivos de "base" a "develop", pero se detectaron
+potenciales conflictos en los siguientes archivos:
+${conflictingFiles.map(f => `- ${f}`).join('\n')}
 
 Para cada archivo con conflicto:
-1. Edita el archivo original para incorporar los cambios rechazados
-   - Cada archivo rechazado está en formato .rej con el mismo nombre base
-   - Compara el archivo .rej con el original y combínalos manualmente
+1. Revisa los archivos con extensión .orig (respaldo del original) y .base (versión de base)
+2. Verifica que los cambios se hayan integrado correctamente
+3. Si necesitas ayuda adicional, consulta el parche manual en: ${manualPatchPath}
 
-2. Una vez resueltos todos los conflictos, añade los cambios:
-   $ git add [archivos_modificados]
-
-3. Haz commit de los cambios:
-   $ git commit -m "Resueltos conflictos de parche"
-
-El parche original queda guardado en: ${patchFilePath}
+Los cambios ya han sido commiteados, pero puedes hacer ajustes adicionales
+y luego hacer commit con:
+$ git add [archivos_modificados]
+$ git commit --amend
 ==========================================================================`);
 
-          // Retornamos false para indicar que hay conflictos
-          return false;
-        }
-
-        // Añadir y commitear todos los cambios
-        await this.rootGit.git.add([this.projectDir]);
-        await this.rootGit.git.commit(`Apply patch from base to develop: ${path.basename(this.projectDir)}`);
-        logger.info('Committed patched changes to develop branch');
-
-        // Limpiar el archivo de parche después de aplicarlo
-        if (fs.existsSync(patchFilePath)) {
-          fs.unlinkSync(patchFilePath);
-          logger.info('Deleted patch file after applying');
-        }
-
-        return true; // Patch aplicado con éxito
-      } catch (applyError) {
-        logger.error(`Error applying patch: ${applyError.message}`);
-
-        // Guardar una copia del parche para referencia
-        const backupPatchPath = path.join(process.cwd(), `${path.basename(this.projectDir)}-manual-patch.patch`);
-        fs.copyFileSync(patchFilePath, backupPatchPath);
-
-        logger.warn(`
-==========================================================================
-ERROR AL APLICAR PARCHE
-
-No se pudo aplicar el parche automáticamente.
-Se ha guardado una copia del parche en: ${backupPatchPath}
-
-Para aplicar manualmente los cambios:
-1. Examina el archivo de parche
-2. Aplica los cambios manualmente a los archivos en la rama develop
-3. Haz commit de los cambios: git add . && git commit -m "Aplicar cambios manualmente"
-==========================================================================`);
-
-        return false; // Patch falló
-      }
-    } catch (error) {
-      logger.error(`Patch process failed: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+      return false; // Indicar que hubo conflictos
     }
+
+    return true; // Todo fue sincronizado exitosamente
+  } catch (error) {
+    logger.error(`Patch process failed: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
   }
+}
 
   /**
    * Encuentra archivos .rej (rechazados durante la aplicación de un parche)
