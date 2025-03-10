@@ -441,6 +441,9 @@ en el futuro.
     await git.branch(['-D', tempBranch]);
     logger.info(`Temporary branch ${tempBranch} deleted`);
 
+    // Volver al branch original después del merge exitoso
+    await returnToOriginalBranch(gitContext);
+
     logger.info(`✅ ${services.length} servicios generados exitosamente!`);
 
   } catch (error) {
