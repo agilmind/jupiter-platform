@@ -1,6 +1,7 @@
 import { Tree, formatFiles, generateFiles, logger } from '@nx/devkit';
 import * as path from 'path';
 import { TranscribeGeneratorSchema } from './schema';
+import { customGenerateFiles } from './files/customGenerateFiles';
 
 export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
   if (!options.runOptions) {
@@ -15,19 +16,20 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
       directoryPrefix,
       options.runOptions.currentService
     );
-    logger.info(`Procesando plantillas desde: ${templatePath}`);
-    logger.info(`Destino: ${targetDir}`);
+    logger.info(`Transcribiendo en: ${targetDir}`);
 
     generateFiles(
       tree,
-      templatePath,
+      path.join(templatePath, 'templates'),
       targetDir,
       options.runOptions
     );
     await formatFiles(tree);
+    customGenerateFiles(tree, options, targetDir)
+
 
     return () => {
-        logger.info(`Simulación de generación completada`);
+        logger.info(`Transcripción completada`);
     };
   } catch (error) {
     logger.error(`Error en el generador Transcribe: ${error instanceof Error ? error.message : String(error)}`);
