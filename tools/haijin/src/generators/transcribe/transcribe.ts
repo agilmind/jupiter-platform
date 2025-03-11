@@ -24,7 +24,7 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
       targetDir,
       options.runOptions
     );
-    // await formatFiles(tree);
+    await formatFiles(tree);
 
     return () => {
         logger.info(`Simulación de generación completada`);
