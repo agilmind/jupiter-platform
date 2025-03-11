@@ -1,0 +1,214 @@
+@class BlocksParser
+
+@subheader '''
+from ast_builder import Builder
+builder = Builder()
+'''
+
+NL: NEWLINE
+
+start: m=[module] [NL] ENDMARKER                      { builder.root(m or []) }
+
+module:
+  | a=NL.definition+                                  { a }
+
+definition:
+  | a=import_def                                         { a }
+  | a=block                                              { builder.root_block(a) }
+
+block:
+  | a=NAME [NL] '{' [NL] b=[k=NL.block+ [NL] {k}] '}'                             { builder.build_block(a, None, b) }
+  | a=NAME [NL] ':' [NL] b=expression \
+    c=[[NL] '{' [NL] k=[k=NL.block+ [NL] {k}] '}' {k}]                            { builder.build_block(a, b, c or []) }
+  | a=NAME                                                                        { builder.build_block(a, None, []) }
+
+import_def:
+  | "from" a=STRING "import" b=','.import_member+                 { builder.build_import(a, b) }
+
+import_member:
+  | a=NAME b=['as' k=NAME {k}]                                 { builder.build_import_member(a, b) }
+
+#############
+# Expressions
+#############
+
+expression:
+  | &'(' [NL] inline_function                                 { inline_function }
+  | if_else                                                   { if_else }
+
+if_else:
+  | a=disjunction [NL] t='?' [NL] b=if_else [NL] ':' [NL] c=expression            { builder.build_if_else(a, b, c, t) }
+  | disjunction                                                                   { disjunction }
+
+disjunction:
+  | conjunction t='||' [NL] or_conjunctions        { builder.build_binary_operation('or', [conjunction] + or_conjunctions[0], [t] + or_conjunctions[1]) }
+  | conjunction                                    { conjunction }
+
+or_conjunctions:
+  | conjunction t='||' [NL] or_conjunctions        { ([conjunction] + or_conjunctions[0], [t] + or_conjunctions[1] ) }
+  | conjunction                                    { ([conjunction], []) }
+
+conjunction:
+  | comparisons t='&&' [NL] and_comparisons        { builder.build_binary_operation('and', [comparisons] + and_comparisons[0], [t] + and_comparisons[1]) }
+  | comparisons                                    { comparisons }
+
+and_comparisons:
+    | comparisons t='&&' [NL] and_comparisons      { ([comparisons] + and_comparisons[0], [t] + and_comparisons[1]) }
+    | comparisons                                  { ([comparisons], []) }
+
+comparisons:
+    | bitwise_or compare_op_bitwise_or_pairs       { builder.build_binary_operation(compare_op_bitwise_or_pairs["ops"], [bitwise_or] + compare_op_bitwise_or_pairs["comp"], compare_op_bitwise_or_pairs["tok"]) }
+    | bitwise_or                                   { bitwise_or }
+
+compare_op_bitwise_or_pairs:
+    | compare_op_bitwise_or_pair compare_op_bitwise_or_pairs    { {"ops": [compare_op_bitwise_or_pair[0]] + compare_op_bitwise_or_pairs["ops"], "comp": [compare_op_bitwise_or_pair[1]] + compare_op_bitwise_or_pairs["comp"], "tok": [compare_op_bitwise_or_pair[2]] + compare_op_bitwise_or_pairs["tok"]} }
+    | compare_op_bitwise_or_pair                                { {"ops": [compare_op_bitwise_or_pair[0]], "comp": [compare_op_bitwise_or_pair[1]], "tok": [compare_op_bitwise_or_pair[2]]} }
+
+compare_op_bitwise_or_pair:
+    | eq_bitwise_or                               { eq_bitwise_or }
+    | noteq_bitwise_or                            { noteq_bitwise_or }
+    | lte_bitwise_or                              { lte_bitwise_or }
+    | lt_bitwise_or                               { lt_bitwise_or }
+    | gte_bitwise_or                              { gte_bitwise_or }
+    | gt_bitwise_or                               { gt_bitwise_or }
+    | notin_bitwise_or                            { notin_bitwise_or }
+    | in_bitwise_or                               { in_bitwise_or }
+
+eq_bitwise_or: t='==' [NL] bitwise_or                  { 'eq', bitwise_or, t }
+
+noteq_bitwise_or:
+    | (t='!=' ) [NL] bitwise_or                        { 'ne', bitwise_or, t }
+
+lte_bitwise_or: t='<=' [NL] bitwise_or                 { 'lte', bitwise_or, t }
+
+lt_bitwise_or: t='<' [NL] bitwise_or                   { 'lt', bitwise_or, t }
+
+gte_bitwise_or: t='>=' [NL] bitwise_or                 { 'gte', bitwise_or, t }
+
+gt_bitwise_or: t='>' [NL] bitwise_or                   { 'gt', bitwise_or, t }
+
+notin_bitwise_or: t='not' 'in' [NL] bitwise_or         { 'not in', bitwise_or, t }
+
+in_bitwise_or: t='in' [NL] bitwise_or                  { 'in', bitwise_or, t }
+
+bitwise_or:
+    | bitwise_or '|' [NL] !'|' bitwise_xor                 { BinOp(bitwise_or, '|', bitwise_xor) }
+    | bitwise_xor                                          { bitwise_xor }
+
+bitwise_xor:
+    | bitwise_xor '^' [NL] bitwise_and               { BinOp(bitwise_xor, '^', bitwise_and) }
+    | bitwise_and                                    { bitwise_and }
+
+bitwise_and:
+    | bitwise_and '&' [NL] !'&' shift_expr      { BinOp(bitwise_and, '&', shift_expr) }
+    | shift_expr                                { shift_expr }
+
+shift_expr:
+    | shift_expr '<<' sum                       { BinOp(shift_expr, '<<', sum) }
+    | shift_expr '>>' sum                       { BinOp(shift_expr, '>>', sum) }
+    | sum                                       { sum }
+
+sum:
+    | sum t='+' [NL] term                       { builder.build_sum(sum, term, t) }
+    | sum t='-' [NL] term                       { builder.build_subtraction(sum, term, t) }
+    | term                                      { term }
+
+term:
+    | term '*' [NL] factor                      { BinOp(term, '*', factor) }
+    | term '/' [NL] factor                      { BinOp(term, '/', factor) }
+    | term '//' [NL] factor                     { BinOp(term, '//', factor) }
+    | term '%' [NL] factor                      { BinOp(term, '%', factor) }
+    | factor                                    { factor }
+
+factor:
+    | t='!' [NL] factor                              { builder.build_not(factor, t) }
+    | t='+' [NL] factor                              { builder.build_unary_plus(factor, t) }
+    | t='-' [NL] factor                              { UnaryOp('-', factor) }
+    | t='~' [NL] factor                              { UnaryOp('~', factor) }
+    | power                                          { power }
+
+power:
+    | primary '**' [NL] factor                  { BinOp(primary, '**', factor) }
+    | primary                                   { primary }
+
+primary:
+    | primary [NL] t='.' [NL] a=reverse_call_tail    { builder.build_call(a[0], [primary] + a[1], a[2] or t) }
+    | call                                           { call }
+    | primary t='[' [NL] expression [NL] ']'         { builder.build_index_access(primary, expression, t) }
+    | atom                                           { atom }
+
+call:
+  | primary t='(' [NL] a=[k=arguments [NL] [',' [NL]] {k}] ')'   { builder.build_call(primary, a or [], t) }
+
+arguments:
+  | kwargs                                            { kwargs }
+  | a=(',' [NL]).arg+ b=[[NL] ',' [NL] k=kwargs {k}]  { a + (b or []) }
+
+arg:
+  | expression !'='                                   { expression }
+
+kwargs:
+  | a=(',' [NL]).kwarg+                                 { a }
+
+kwarg:
+  | n=NAME '=' [NL] a=expression                        { (n, a) }
+
+reverse_call_tail:
+    | atom t='(' [NL] a=arguments [NL] [',' [NL]] ')'      {  (atom, a, t) }
+    | atom                                                 {  (atom, [], None) }
+
+inline_function:
+    | t='(' [NL] a=[k=(',' [NL]).inline_function_param+ [NL] {k}] ')' [NL]\
+      '=>' [NL]\
+      b=expression                        { builder.build_inline_function(a or [], b, r, t) }
+
+inline_function_param:
+    | n=NAME                                    { builder.build_inline_function_param(n, t) }
+
+slices:
+    | slice ',' slices                          { [slice] + slices }
+    | slice !','                                { [slice] }
+
+slice:
+    | l=[expression] ':' u=[expression] s=[':' [expression] ]   { Slice(l, u, s[1] if s else None) }
+    | expression                                                { expression }
+
+atom:
+    | t='true'                                      { builder.build_boolean_literal(t, True) }
+    | t='false'                                     { builder.build_boolean_literal(t, False) }
+    | t='void'                                      { builder.build_void_literal(t) }
+    | t=switch                                      { t }
+    #| t=(member_access | identifier) tl='{' [NL] \
+    #  a=[k=(',' [NL]).edge+ [NL] [',' [NL]] {k}] tr='}'    { builder.build_node_literal(t, a or []) }
+    | a=member_access                               { a }
+    | q="'" a=NAME                                  { builder.build_literal_identifier(a, q) }
+    | a=NAME                                        { builder.build_identifier(a) }
+    | strings                                       { builder.build_string_literal(strings) }
+    | t=NUMBER                                      { builder.build_number_literal(t) }
+    | list                                          { list }
+    | group                                         { group }
+    | '...'
+
+switch:
+    | t='switch' [NL] test=if_else [NL] '{' [NL] cases=NL.switch_case+ [NL] '}'     { builder.build_switch(test, cases, t) }
+
+switch_case:
+    | '|' [NL] a=expression [NL] '=>' [NL] b=expression          { builder.build_switch_case(a, b) }
+
+member_access:
+  | a=NAME t='::' [NL] b=NAME                       { builder.build_member_access(a, b, t) }
+
+edge:
+    | n=NAME [NL] ":" [NL] expression                           { builder.build_edge(n, expression) }
+    | n=NAME                                                    { builder.build_edge(n, builder.build_identifier(n)) }
+
+strings:
+    | t=STRING strings                                { [t] + strings }
+    | t=STRING                                        { [t] }
+    | '`' t=STRING '`'                                { [t] }
+
+list:
+    | t='[' [NL] a=[k=(',' [NL]).expression+ [NL] [',' [NL]] {k}] [NL] ']'       { builder.build_list(a or [], t) }
+
+group:
+    | '(' [NL] expression [NL] ')'                    { expression }
