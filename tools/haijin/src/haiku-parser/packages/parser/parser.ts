@@ -9,12 +9,21 @@ type Params = {
 
 export const runPegParser = async ({ parserPath, content, pythonPath = getPythonPath() }: Params): Promise<any> =>
   new Promise((resolve, reject) => {
-    const pyshell = new PythonShell(parserPath, {
+    interface PythonShellOptions {
+      pythonPath?: string;
+      mode?: "text" | "json" | "binary";
+      pythonOptions?: string[];
+      args?: string[];
+    }
+
+    const options: PythonShellOptions = {
       pythonPath,
       mode: "text" as const,
       pythonOptions: ["-u"],
       args: ["-"],
-    });
+    };
+
+    const pyshell = new PythonShell(parserPath, options);
     pyshell.send(content);
 
     let result = "";
