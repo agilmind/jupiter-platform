@@ -2,8 +2,6 @@ import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { PrismaClient } from '@prisma/client';
 
-// cambio en main por segunda vuelta
-
 const prismaMain = new PrismaClient();
 
 const typeDefs = `#graphql
