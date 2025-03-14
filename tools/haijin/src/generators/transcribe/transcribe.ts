@@ -20,7 +20,7 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
 
     generateFiles(
       tree,
-      path.join(templatePath, 'templates'),
+      path.join(templatePath),
       targetDir,
       options.runOptions
     );
