@@ -1,22 +1,20 @@
 import { Tree } from '@nx/devkit';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Revierte los archivos generados usando el directorio de plantillas como referencia
  * @param tree El árbol de archivos
  * @param templatePath Ruta a los templates en el sistema de archivos
  * @param targetDir Directorio donde se escribieron los archivos
- * @param options Opciones usadas en la generación (para sustituciones)
+ * @param options Opciones usadas en la generación
  */
-function revertGeneratedFiles(
+export function revertGeneratedFiles(
   tree: Tree,
   templatePath: string,
   targetDir: string,
-  options: any
-) {
-  // Importaciones necesarias
-  const fs = require('fs');
-  const path = require('path');
-
+  options: Record<string, any>
+): void {
   // Función para escanear el directorio de plantillas en el sistema de archivos real
   function scanTemplateDir(currentPath: string, basePath: string = ""): string[] {
     const results: string[] = [];
@@ -66,37 +64,37 @@ function revertGeneratedFiles(
       }
     }
 
-    // Limpiar directorios vacíos
-    function removeEmptyDirs(dir: string) {
-      if (!tree.exists(dir)) return;
-
-      const children = tree.children(dir);
-      if (children.length === 0) {
-        console.log(`Eliminando directorio vacío: ${dir}`);
-        tree.delete(dir);
-        return;
-      }
-
-      // Procesar subdirectorios recursivamente
-      for (const child of children) {
-        const childPath = `${dir}/${child}`;
-        if (!tree.isFile(childPath)) {
-          removeEmptyDirs(childPath);
-        }
-      }
-
-      // Verificar nuevamente si el directorio quedó vacío
-      if (tree.children(dir).length === 0) {
-        console.log(`Eliminando directorio vacío después de limpieza: ${dir}`);
-        tree.delete(dir);
-      }
-    }
-
     // Limpiar directorios vacíos después de eliminar los archivos
     removeEmptyDirs(targetDir);
 
     console.log(`Revertida la generación de archivos en ${targetDir}`);
   } catch (error) {
-    console.error(`Error al revertir la generación: ${error.message}`);
+    console.error(`Error al revertir la generación: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  // Función para limpiar directorios vacíos
+  function removeEmptyDirs(dir: string) {
+    if (!tree.exists(dir)) return;
+
+    const children = tree.children(dir);
+    if (children.length === 0) {
+      console.log(`Eliminando directorio vacío: ${dir}`);
+      tree.delete(dir);
+      return;
+    }
+
+    // Procesar subdirectorios recursivamente
+    for (const child of children) {
+      const childPath = `${dir}/${child}`;
+      if (!tree.isFile(childPath)) {
+        removeEmptyDirs(childPath);
+      }
+    }
+
+    // Verificar nuevamente si el directorio quedó vacío
+    if (tree.children(dir).length === 0) {
+      console.log(`Eliminando directorio vacío después de limpieza: ${dir}`);
+      tree.delete(dir);
+    }
   }
 }
