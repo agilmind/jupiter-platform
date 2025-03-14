@@ -74,7 +74,6 @@ export default async function (tree: Tree, options: RunGeneratorSchema) {
 
     if (successfulServices.length === 0) {
       logger.error('No se pudo generar ningún servicio');
-      safeDelete()
       return;
     }
 
