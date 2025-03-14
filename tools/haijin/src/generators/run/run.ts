@@ -55,33 +55,30 @@ export default async function (tree: Tree, options: RunGeneratorSchema) {
 
     if (servicesToProcess.length === 0) {
       logger.error('No hay servicios válidos para procesar');
-      await returnToOriginalBranch(gitContext);
       return;
     }
 
     // 6. Verificar que existan los branches base y develop
     await ensureBranches(gitContext);
 
-    // 7. Cambiar a base para la generación
-    await switchToBaseBranch(gitContext);
-
-    // 8. Verificar cada servicio y preguntar por actualización
+    // 7. Verificar cada servicio y preguntar por actualización
     const servicesToGenerate = await confirmServiceUpdates(servicesToProcess);
 
     if (servicesToGenerate.length === 0) {
       logger.info('No hay servicios seleccionados para actualizar');
-      await returnToOriginalBranch(gitContext);
       return;
     }
 
-    // 9. Generar Tree para los servicios seleccionados
+    // 8. Generar Tree para los servicios seleccionados en branch actual
     const successfulServices = await generateTreeForServices(tree, servicesToGenerate, options);
 
     if (successfulServices.length === 0) {
       logger.error('No se pudo generar ningún servicio');
-      await returnToOriginalBranch(gitContext);
       return;
     }
+
+    // 9. Cambiar a base para la generación
+    await switchToBaseBranch(gitContext);
 
     // 10. NX escribirá los archivos al disco al finalizar
     logger.info(`Tree ready. NX will write ${successfulServices.length} services to disk upon completion.`);
