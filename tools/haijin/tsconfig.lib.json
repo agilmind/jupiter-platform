@@ -3,12 +3,7 @@
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
     "declaration": true,
-    "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@haiku/*": ["haiku-generator/haiku/prismaServer/projectDir/*"],
-      "@apolloPrisma/*": ["haiku-generator/haiku/prismaServer/projectDir/*"]
-    }
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["jest.config.ts", "src/**/*.spec.ts", "src/**/*.test.ts"]

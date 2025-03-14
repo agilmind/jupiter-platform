@@ -4,12 +4,7 @@
     "outDir": "../../dist/out-tsc",
     "module": "commonjs",
     "moduleResolution": "node10",
-    "types": ["jest", "node"],
-    "baseUrl": ".",
-    "paths": {
-      "@haiku/*": ["haiku-generator/haiku/prismaServer/projectDir/*"],
-      "@apolloPrisma/*": ["haiku-generator/haiku/prismaServer/projectDir/*"]
-    }
+    "types": ["jest", "node"]
   },
   "include": [
     "jest.config.ts",
