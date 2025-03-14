@@ -2,7 +2,7 @@ import { Tree, formatFiles, generateFiles, logger } from '@nx/devkit';
 import * as path from 'path';
 import { TranscribeGeneratorSchema } from './schema';
 import { customGenerateFiles } from './customGenerateFiles';
-import { revertGeneratedFiles } from '../utils/revertGeneratedFiles';
+import { revertGeneratedFiles } from './revertGeneratedFiles';
 
 export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
   if (!options.runOptions) {
