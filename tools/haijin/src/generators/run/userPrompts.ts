@@ -8,7 +8,7 @@ export async function userPrompt(options: RunGeneratorSchema, tree: Tree) {
     throw new Error('Se debe proporcionar un nombre de proyecto');
   }
 
-  const configPath = path.join(options.haikuDir, 'hkconfig.json');
+  const configPath = path.join('haikus', 'options.name', 'hkconfig.json');
 
   if (!tree.exists(configPath)) {
     throw new Error(`Archivo de configuración no encontrado: ${configPath}`);

@@ -28,7 +28,7 @@ interface GitContext {
  */
 export default async function (tree: Tree, options: RunGeneratorSchema) {
   try {
-    options.haikuDir = `haikus/${options.name}`;
+    options.haikuDir = path.join(tree.root, 'haikus', options.name);
 
     // 1. Solicitar al usuario que seleccione servicios
     await userPrompt(options, tree);
