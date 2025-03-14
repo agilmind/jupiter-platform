@@ -3,6 +3,7 @@ export interface RunGeneratorSchema {
   // Para compatibilidad con el código existente (servicio único)
   currentService?: string;
   currentServiceType?: string;
+  haikuDir?: string;
 
   selectedServices?: string[]; // Nombres de los servicios seleccionados
 

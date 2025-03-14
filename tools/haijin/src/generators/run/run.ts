@@ -27,7 +27,9 @@ interface GitContext {
  * Función principal del generador
  */
 export default async function (tree: Tree, options: RunGeneratorSchema) {
-    try {
+  try {
+    options.haikuDir = `haikus/${options.name}`;
+
     // 1. Solicitar al usuario que seleccione servicios
     await userPrompt(options, tree);
 
@@ -423,6 +425,7 @@ async function generateTreeForServices(
 
       const transcribeOptions: TranscribeGeneratorSchema = {
         name: options.name,
+        haikuDir: options.haikuDir,
         runOptions: serviceOptions
       };
 

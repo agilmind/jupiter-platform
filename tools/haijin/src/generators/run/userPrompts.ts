@@ -1,13 +1,14 @@
 import { RunGeneratorSchema } from './schema';
 import { readJson, Tree, logger } from '@nx/devkit';
 import * as enquirer from 'enquirer';
+import * as path from 'path';
 
 export async function userPrompt(options: RunGeneratorSchema, tree: Tree) {
   if (!options.name) {
     throw new Error('Se debe proporcionar un nombre de proyecto');
   }
 
-  const configPath = `haikus/${options.name}/hkconfig.json`;
+  const configPath = path.join(options.haikuDir, 'hkconfig.json');
 
   if (!tree.exists(configPath)) {
     throw new Error(`Archivo de configuración no encontrado: ${configPath}`);
