@@ -27,7 +27,7 @@ interface GitContext {
  * Función principal del generador
  */
 export default async function (tree: Tree, options: RunGeneratorSchema) {
-  try {
+    try {
     // 1. Solicitar al usuario que seleccione servicios
     await userPrompt(options, tree);
 
@@ -74,6 +74,7 @@ export default async function (tree: Tree, options: RunGeneratorSchema) {
 
     if (successfulServices.length === 0) {
       logger.error('No se pudo generar ningún servicio');
+      safeDelete()
       return;
     }
 

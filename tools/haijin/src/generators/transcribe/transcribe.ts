@@ -2,11 +2,13 @@ import { Tree, formatFiles, generateFiles, logger } from '@nx/devkit';
 import * as path from 'path';
 import { TranscribeGeneratorSchema } from './schema';
 import { customGenerateFiles } from './customGenerateFiles';
+import { revertGeneratedFiles } from '../utils/revertGeneratedFiles';
 
 export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
   if (!options.runOptions) {
     throw new Error(`Este generador se ejecuta únicamente invocado por el generador haijin:run`);
   }
+  let ctx;
   try {
     logger.info(`Iniciando transcribe`);
     const templatePath = path.join(__dirname, 'files', options.runOptions.currentServiceType);
@@ -17,10 +19,11 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
       options.runOptions.currentService
     );
     logger.info(`Transcribiendo en: ${targetDir}`);
+    ctx = { templatePath, targetDir };
 
     generateFiles(
       tree,
-      path.join(templatePath),
+      templatePath,
       targetDir,
       options.runOptions
     );
@@ -33,6 +36,14 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
     };
   } catch (error) {
     logger.error(`Error en el generador Transcribe: ${error instanceof Error ? error.message : String(error)}`);
+    if (ctx) {
+      revertGeneratedFiles(
+        tree,
+        ctx.templatePath,
+        ctx.targetDir,
+        options.runOptions
+      );
+    }
     throw error;
   }
 }
