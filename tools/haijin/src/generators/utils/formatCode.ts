@@ -2,7 +2,23 @@ import { logger } from '@nx/devkit';
 import * as prettier from 'prettier';
 import * as path from 'path';
 
-// Función para formatear un solo archivo con la configuración de Nx
+export const formatCode = (content: string, parser: any = {parser: "typescript"}) => {
+  const prettierConfig = await prettier.resolveConfig(process.cwd());
+  return prettier.format(content, {
+      ...prettierConfig,
+      parser,
+    });
+}
+
+export const firstUpper = (string: string) => {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+};
+
+export const firstLower = (string: string) => {
+    return string.charAt(0).toLowerCase() + string.slice(1);
+};
+
+
 async function formatSingleFile(tree, filePath, content) {
   try {
     // 1. Obtener la configuración de Prettier desde el proyecto
