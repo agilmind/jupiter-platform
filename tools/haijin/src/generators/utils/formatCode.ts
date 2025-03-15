@@ -3,11 +3,7 @@ import * as prettier from 'prettier';
 import * as path from 'path';
 
 export const formatCode = (content: string, parser: any = {parser: "typescript"}) => {
-  const prettierConfig = await prettier.resolveConfig(process.cwd());
-  return prettier.format(content, {
-      ...prettierConfig,
-      parser,
-    });
+  return prettier.format(content, {parser});
 }
 
 export const firstUpper = (string: string) => {

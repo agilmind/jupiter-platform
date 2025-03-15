@@ -3,18 +3,16 @@ import { Haiku } from '@haiku';
 import { schemaPrismaTs } from '@haiku/apolloPrisma/prisma/schema.prisma';
 import * as path from 'path';
 import { firstLower, firstUpper, formatCode } from '../utils/formatCode';
-import {
-  apiErrorTs,
-  commonGraphQL, commonSchemasIndexTs, commonUtilsEmailTs, commonUtilsIndexTs,
-  graphQLErrorTs,
-  serverTs, serviceContextTs,
-} from '../../../../../../haiku-generator/haiku/prismaServer/projectDir';
-import {
-  fileUploadTs
-} from '@haiku/apolloPrisma/common/resolvers/fileUpload.ts';
-import {
-  profileResolversTs
-} from '@haiku/apolloPrisma/common/resolvers/profileResolvers.ts';
+import {apiErrorTs} from '@haiku/apolloPrisma/common/errors/ApiError.ts';
+import {commonGraphQL} from '@haiku/apolloPrisma/common/schemas/common.graphql';
+import {commonUtilsIndexTs} from '@haiku/apolloPrisma/common/utils/index.ts';
+import {commonUtilsEmailTs} from '@haiku/apolloPrisma/common/utils/email.ts';
+import {commonSchemasIndexTs} from '@haiku/apolloPrisma/common/schemas/index.ts';
+import {serviceContextTs} from '@haiku/apolloPrisma/service-context.ts';
+import {graphQLErrorTs} from '@haiku/apolloPrisma/common/errors/GraphQLError.ts';
+import {fileUploadTs} from '@haiku/apolloPrisma/common/resolvers/fileUpload.ts';
+import {serverTs} from '@haiku/apolloPrisma/server.ts';
+import {profileResolversTs} from '@haiku/apolloPrisma/common/resolvers/profileResolvers.ts';
 import {
   commonConstantsTs
 } from '@haiku/apolloPrisma/common/constants.ts';
@@ -54,7 +52,7 @@ import {
 import {
   commonTypesIndexTs
 } from '@haiku/apolloPrisma/common/types/index.ts';
-import { AdditionalResolversType } from '@haiku';
+import { AdditionalResolversType } from '@haiku/server/types';
 import {
   userResolversTs
 } from '@haiku/apolloPrisma/entities/entity/resolvers/userResolvers';
