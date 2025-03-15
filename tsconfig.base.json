@@ -18,7 +18,7 @@
       "@haiku/apolloPrisma/*": [
         "node_modules/haiku-generator/haiku/prismaServer/projectDir/*"
       ],
-      "@haiku/*": ["node_modules/haiku-generator/haiku/*"],
+//      "@haiku/*": ["node_modules/haiku-generator/haiku/*"],
       "@haiku": ["node_modules/haiku-generator/haiku/index"],
       "@jupiter-platform/shared-utils": ["libs/shared-utils/src/index.ts"],
       "@jupiter-platform/test-worker": ["test-worker/src/index.ts"],
