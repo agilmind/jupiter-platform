@@ -1,6 +1,6 @@
 import { Tree } from '@nx/devkit';
 import { Haiku } from '@haiku';
-import { schemaPrismaTs } from '@apolloPrisma/src/prisma/schema.prisma';
+import { schemaPrismaTs } from '@haiku/apolloPrisma/src/prisma/schema.prisma';
 import * as path from 'path';
 
 export function writeApolloPrisma(haiku: Haiku, tree: Tree, targetDir: string) {
