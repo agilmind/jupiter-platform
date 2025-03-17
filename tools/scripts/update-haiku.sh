@@ -1,6 +1,10 @@
 #!/bin/bash
 # update-haiku.sh
 
+# Capturar el directorio del proyecto NX (donde estás ejecutando el script)
+PROJECT_DIR=$(pwd)
+echo "Directorio del proyecto: $PROJECT_DIR"
+
 # Directorio temporal
 TMP_DIR=$(mktemp -d)
 echo "Usando directorio temporal: $TMP_DIR"
@@ -23,7 +27,6 @@ if [ ! -d "./build" ]; then
 fi
 
 # Copiar los archivos compilados
-PROJECT_DIR="$(pwd)/../" # Ajusta esto a la ruta de tu proyecto
 echo "Copiando archivos compilados a node_modules..."
 mkdir -p "$PROJECT_DIR/node_modules/haiku-generator/build"
 cp -R build/* "$PROJECT_DIR/node_modules/haiku-generator/build/"
