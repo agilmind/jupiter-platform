@@ -1,7 +1,7 @@
 {
-  "name": "create-worker",
+  "name": "worker-generator",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "tools/create-worker/src",
+  "sourceRoot": "tools/worker-generator/src",
   "projectType": "library",
   "tags": [],
   "targets": {
@@ -9,28 +9,28 @@
       "executor": "@nx/js:tsc",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "outputPath": "dist/tools/create-worker",
-        "main": "tools/create-worker/src/index.ts",
-        "tsConfig": "tools/create-worker/tsconfig.lib.json",
+        "outputPath": "dist/tools/worker-generator",
+        "main": "tools/worker-generator/src/index.ts",
+        "tsConfig": "tools/worker-generator/tsconfig.lib.json",
         "assets": [
-          "tools/create-worker/*.md",
+          "tools/worker-generator/*.md",
           {
-            "input": "./tools/create-worker/src",
+            "input": "./tools/worker-generator/src",
             "glob": "**/!(*.ts)",
             "output": "./src"
           },
           {
-            "input": "./tools/create-worker/src",
+            "input": "./tools/worker-generator/src",
             "glob": "**/*.d.ts",
             "output": "./src"
           },
           {
-            "input": "./tools/create-worker",
+            "input": "./tools/worker-generator",
             "glob": "generators.json",
             "output": "."
           },
           {
-            "input": "./tools/create-worker",
+            "input": "./tools/worker-generator",
             "glob": "executors.json",
             "output": "."
           }

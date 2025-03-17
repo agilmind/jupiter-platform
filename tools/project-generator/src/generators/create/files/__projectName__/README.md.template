@@ -1,0 +1,37 @@
+# <%= projectTitle %>
+
+## Description
+
+Briefly describe the purpose and main features of the <%= projectName %> project here.
+
+## Getting Started
+
+Instructions on how to get started with the development environment for this project.
+
+### Prerequisites
+
+List any prerequisites or dependencies required to run the project locally.
+
+### Installation
+
+Steps to install dependencies and set up the development environment.
+
+## Development
+
+Information about the development workflow, running the application in development mode, etc.
+
+## Deployment
+
+Instructions on how to deploy the <%= projectName %> project to staging and production environments.
+
+## Documentation
+
+Links to more detailed documentation, API references, etc. (if applicable).
+
+## Contributing
+
+Guidelines for contributing to the project.
+
+## License
+
+License information for the project.

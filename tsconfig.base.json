@@ -3,35 +3,33 @@
   "compilerOptions": {
     "rootDir": ".",
     "sourceMap": true,
-    "declaration": false,
+    "declaration": true,
     "moduleResolution": "node",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "importHelpers": true,
     "target": "es2015",
-    "module": "esnext",
+    "module": "NodeNext",
     "lib": ["es2021", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@haiku": ["node_modules/haiku-generator/haiku/Haiku.ts"],
       "@haiku/apolloPrisma/*": [
         "node_modules/haiku-generator/haiku/prismaServer/projectDir/src/*"
       ],
-      "@haiku/server/*": [
-        "node_modules/haiku-generator/haiku/prismaServer/*"
+      "@haiku/parseProject": [
+        "node_modules/haiku-generator/haiku/commands/parseProject.ts"
       ],
-      "@haiku": ["node_modules/haiku-generator/haiku/index"],
+      "@haiku/server/*": ["node_modules/haiku-generator/haiku/prismaServer/*"],
       "@jupiter-platform/shared-utils": ["libs/shared-utils/src/index.ts"],
       "@jupiter-platform/test-worker": ["test-worker/src/index.ts"],
       "@jupiter/worker-framework": ["libs/worker-framework/src/index.ts"],
       "create-worker": ["tools/create-worker/src/index.ts"],
-      "haijin": ["tools/haijin/src/index.ts"]
+      "haijin": ["tools/haijin/src/index.ts"],
+      "project-generator": ["tools/project-generator/src/index.ts"]
     }
   },
-  "exclude": [
-    "node_modules",
-    "tmp",
-    "/Users/fido/Documents/Developments/haiku-generator/**"
-  ]
+  "exclude": ["node_modules", "tmp"]
 }

@@ -1,0 +1,27 @@
+{
+  "name": "create",
+  "description": "Generates a new project with basic structure and documentation",
+  "schema": {
+    "properties": {
+      "projectName": {
+        "type": "string",
+        "description": "Name of the project (kebab-case, e.g., 'my-new-project')",
+        "x-prompt": "What is the name of the project? (kebab-case)"
+      },
+      "documentationLanguage": {
+        "type": "string",
+        "description": "Language for project documentation (README.md)",
+        "default": "en",
+        "enum": ["en", "es"],
+        "x-prompt": {
+          "message": "Choose the language for the project documentation:",
+          "items": [
+            { "value": "en", "label": "English" },
+            { "value": "es", "label": "Español (Castellano)" }
+          ]
+        }
+      }
+    },
+    "required": ["projectName"]
+  }
+}

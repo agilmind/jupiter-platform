@@ -73,10 +73,13 @@
       }
     },
     {
-      "plugin": "./dist/tools/create-worker"
+      "plugin": "./dist/tools/worker-generator"
     },
     {
       "plugin": "./dist/tools/haijin"
+    },
+    {
+      "plugin": "./dist/tools/project-generator/src/collection"
     }
   ],
   "generators": {

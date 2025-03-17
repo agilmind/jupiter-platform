@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "create": {
+      "factory": "./tools/project-generator/src/generators/create/generator",
+      "schema": "./tools/project-generator/src/generators/create/schema.json",
+      "description": "Creates a new worker based on the worker-framework lib"
+    }
+  }
+}

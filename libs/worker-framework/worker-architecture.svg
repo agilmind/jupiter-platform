@@ -52,29 +52,38 @@
 
   <!-- GraphQL y RabbitMQ -->
   <rect x="100" y="450" width="240" height="80" fill="#ffc078" rx="10" ry="10" stroke="#868e96" stroke-width="2" />
-  <text x="220" y="492" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">RabbitMQ</text>
+  <text x="220" y="475" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Cola de Mensajes</text>
+  <text x="220" y="495" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">(RabbitMQ)</text>
 
   <rect x="460" y="450" width="240" height="80" fill="#74c0fc" rx="10" ry="10" stroke="#868e96" stroke-width="2" />
-  <text x="580" y="492" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">GraphQL API</text>
+  <text x="580" y="475" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Reporte de Progreso</text>
+  <text x="580" y="495" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">(GraphQL API)</text>
 
   <!-- Conexiones -->
   <!-- Core a Email -->
-  <line x1="220" y1="220" x2="220" y2="270" stroke="#868e96" stroke-width="2" stroke-dasharray="5,5" />
+  <line x1="220" y1="220" x2="220" y2="270" stroke="#868e96" stroke-width="2"  marker-end="url(#arrowhead)"/>
 
   <!-- Core a Scraper -->
-  <line x1="580" y1="220" x2="580" y2="270" stroke="#868e96" stroke-width="2" stroke-dasharray="5,5" />
+  <line x1="580" y1="220" x2="580" y2="270" stroke="#868e96" stroke-width="2" marker-end="url(#arrowhead)"/>
 
   <!-- Email a RabbitMQ -->
-  <line x1="220" y1="390" x2="220" y2="450" stroke="#868e96" stroke-width="2" />
+  <line x1="220" y1="390" x2="220" y2="450" stroke="#868e96" stroke-width="2" marker-end="url(#arrowhead)"/>
 
   <!-- Scraper a RabbitMQ -->
-  <path d="M580 390 L580 420 L220 420 L220 450" fill="none" stroke="#868e96" stroke-width="2" />
+  <path d="M580 390 L580 420 L220 420 L220 450" fill="none" stroke="#868e96" stroke-width="2" marker-end="url(#arrowhead)"/>
 
   <!-- Email a GraphQL -->
-  <path d="M220 390 L220 420 L580 420 L580 450" fill="none" stroke="#868e96" stroke-width="2" />
+  <path d="M220 390 L220 420 L580 420 L580 450" fill="none" stroke="#868e96" stroke-width="2" marker-end="url(#arrowhead)"/>
 
   <!-- Scraper a GraphQL -->
-  <line x1="580" y1="390" x2="580" y2="450" stroke="#868e96" stroke-width="2" />
+  <line x1="580" y1="390" x2="580" y2="450" stroke="#868e96" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- QueueConsumer a RabbitMQ -->
+  <line x1="270" y1="120" x2="220" y2="450" stroke="#868e96" stroke-width="2" marker-end="url(#arrowhead)" />
+
+  <!-- ProgressReporter a GraphQL -->
+  <line x1="530" y1="120" x2="580" y2="450" stroke="#868e96" stroke-width="2" marker-end="url(#arrowhead)"/>
+
 
   <!-- Leyenda -->
   <rect x="120" y="540" width="20" height="20" fill="#339af0" rx="3" ry="3" />
@@ -88,4 +97,12 @@
 
   <rect x="600" y="540" width="20" height="20" fill="#74c0fc" rx="3" ry="3" />
   <text x="630" y="555" font-family="Arial" font-size="12" text-anchor="start">Servicios Externos</text>
+
+  <!-- Definición de flecha -->
+  <defs>
+    <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5"
+      markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#868e96" />
+    </marker>
+  </defs>
 </svg>

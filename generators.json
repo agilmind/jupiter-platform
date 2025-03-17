@@ -1,8 +1,8 @@
 {
   "generators": {
     "worker-generator": {
-      "factory": "./tools/worker-plugin/src/generators/worker-generator",
-      "schema": "./tools/worker-plugin/src/generators/schema.json",
+      "factory": "./tools/worker-generator/src/generators/worker-generator",
+      "schema": "./tools/worker-generator/src/generators/worker-generator/schema.json",
       "description": "worker-generator generator"
     }
   }
