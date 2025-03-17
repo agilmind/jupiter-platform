@@ -156,7 +156,7 @@ export function writeApolloPrisma(tree: Tree, targetDir: string, options: Transc
       {roleNames: ["SysAdmin", "User"], defaultAppToken}, haiku)));
 
   const commonDir = path.join(srcDir, "common");
-  tree.write(path.join(commonDir, "schemas", "common.graphql"), formatCode(commonGraphQL(), {parser: "graphql"}));
+  tree.write(path.join(commonDir, "schemas", "common.graphql"), formatCode(commonGraphQL(), "graphql"));
   tree.write(path.join(commonDir, "schemas", "index.ts"), formatCode(commonSchemasIndexTs()));
   tree.write(path.join(commonDir, "resolvers", "fileUpload.ts"), formatCode(fileUploadTs()));
   tree.write(path.join(commonDir, "resolvers", "profileResolvers.ts"), formatCode(profileResolversTs()));
@@ -197,7 +197,7 @@ export function writeApolloPrisma(tree: Tree, targetDir: string, options: Transc
     const lowered = firstLower(entityName);
     const entity = haiku. entity(entityName);
     tree.write(path.join(entitiesDir, lowered, "schemas", "index.ts"), formatCode(entitySchemasIndexTs(lowered)));
-    tree.write(path.join(entitiesDir, lowered, "schemas", `${lowered}.graphql`), formatCode(schemaGraphqlTs(entityName, haiku), {parser: "graphql"}));
+    tree.write(path.join(entitiesDir, lowered, "schemas", `${lowered}.graphql`), formatCode(schemaGraphqlTs(entityName, haiku), "graphql"));
     tree.write(path.join(entitiesDir, lowered, "resolvers", "displayId.ts"), formatCode(displayIdResolversTs(entityName, haiku)));
     tree.write(path.join(entitiesDir, lowered, "resolvers", `${lowered}Resolvers.ts`), formatCode(entityResolversTs(
       entityName,

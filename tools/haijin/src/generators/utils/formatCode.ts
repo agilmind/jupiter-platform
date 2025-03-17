@@ -2,7 +2,7 @@ import { logger } from '@nx/devkit';
 import * as prettier from 'prettier';
 import * as path from 'path';
 
-export const formatCode = (content: string, parser: any = {parser: "typescript"}) => {
+export const formatCode = (content: string, parser = "typescript") => {
   return prettier.format(content, {parser});
 }
 

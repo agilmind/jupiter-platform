@@ -72,14 +72,14 @@
         "targetName": "test"
       }
     },
-    {
-      "plugin": "./dist/tools/worker-generator"
-    },
+//    {
+//      "plugin": "./dist/tools/worker-generator"
+//    },
     {
       "plugin": "./dist/tools/haijin"
     },
     {
-      "plugin": "./dist/tools/project-generator/src/collection"
+      "plugin": "./dist/tools/project-generator"
     }
   ],
   "generators": {

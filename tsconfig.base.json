@@ -9,18 +9,18 @@
     "experimentalDecorators": true,
     "importHelpers": true,
     "target": "es2015",
-    "module": "NodeNext",
+    "module": "esnext",
     "lib": ["es2021", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@haiku": ["node_modules/haiku-generator/haiku/Haiku.ts"],
+      "@haiku": ["node_modules/haiku-generator/build/haiku/Haiku"],
       "@haiku/apolloPrisma/*": [
-        "node_modules/haiku-generator/haiku/prismaServer/projectDir/src/*"
+        "node_modules/haiku-generator/build/haiku/prismaServer/projectDir/src/*"
       ],
       "@haiku/parseProject": [
-        "node_modules/haiku-generator/haiku/commands/parseProject.ts"
+        "node_modules/haiku-generator/build/haiku/commands/parseProject"
       ],
       "@haiku/server/*": ["node_modules/haiku-generator/haiku/prismaServer/*"],
       "@jupiter-platform/shared-utils": ["libs/shared-utils/src/index.ts"],
