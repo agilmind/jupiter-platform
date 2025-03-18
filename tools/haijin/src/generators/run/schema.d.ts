@@ -20,6 +20,6 @@ export interface RunGeneratorSchema {
   timeFormats?: Record<string, string>;
   multiTenancy?: boolean;
   services?: Record<string, string>;
-  defaultService?: string;
+  defaultServices?: string[];
   seeds?: any[];
 }

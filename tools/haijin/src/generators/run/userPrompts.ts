@@ -26,12 +26,12 @@ export async function userPrompt(options: RunGeneratorSchema, tree: Tree) {
     }
 
     // Preparar opciones para checkbox, marcando el servicio por defecto
-    const defaultService = options.defaultService || serviceKeys[0];
+    const defaultServices = options.defaultServices || serviceKeys;
     const choices = serviceKeys.map(service => ({
       name: service,
       message: service,
       value: service,
-      selected: service === defaultService
+      selected: defaultServices.includes(service)
     }));
 
     // Usar el prompt de tipo checkbox para selección múltiple
