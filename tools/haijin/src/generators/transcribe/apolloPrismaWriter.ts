@@ -131,21 +131,36 @@ import {
 import { TranscribeGeneratorSchema } from './schema';
 import { randomUUID } from 'crypto';
 
+import { dotEnv } from '@haiku/apolloPrisma';
+import { dotEnvProduction } from '@haiku/apolloPrisma';
+import { package_json } from '@haiku/apolloPrisma';
+import { jestConfigTs } from '@haiku/apolloPrisma';
+import { jestGlobalSetupTs } from '@haiku/apolloPrisma';
+import { jestGlobalTeardownTs } from '@haiku/apolloPrisma';
+import { jestSetupTs } from '@haiku/apolloPrisma';
+import { runDockerSh } from '@haiku/apolloPrisma';
+import { processesJsonTs } from '@haiku/apolloPrisma';
+import { tsconfig_json } from '@haiku/apolloPrisma';
+import { gitignore } from '@haiku/apolloPrisma';
+import { codegenYml } from '@haiku/apolloPrisma';
+import { configSpectaqlYml } from '@haiku/apolloPrisma';
+
 export function writeApolloPrisma(tree: Tree, options: TranscribeGeneratorSchema, targetDir: string, haiku: Haiku) {
-  // tree.write(path.join(targetDir, ".env.sample"), dotEnv(projectName));
-  // tree.write(path.join(targetDir, ".env.production.sample"), dotEnvProduction(projectName));
-  // tree.write(path.join(targetDir, ".haiku"), `{"projectName": "${projectName}"}`);
-  // tree.write(path.join(targetDir, "package.json"), package_json(projectName));
-  // tree.write(path.join(targetDir, "jest.config.ts"), formatCode(jestConfigTs()));
-  // tree.write(path.join(targetDir, "jest.global-setup.ts"), formatCode(jestGlobalSetupTs()));
-  // tree.write(path.join(targetDir, "jest.global-teardown.ts"), formatCode(jestGlobalTeardownTs()));
-  // tree.write(path.join(targetDir, "jest.setup.ts"), formatCode(jestSetupTs()));
-  // tree.write(path.join(targetDir, "run-docker.sh"), runDockerSh(haiku));
-  // tree.write(path.join(targetDir, "processes.json"), processesJsonTs(projectName));
-  // tree.write(path.join(targetDir, "tsconfig.json"), tsconfig_json());
-  // tree.write(path.join(targetDir, ".gitignore"), gitignore());
-  // tree.write(path.join(targetDir, "codegen.yml"), codegenYml());
-  // tree.write(path.join(targetDir, "config-spectaql.yml"), configSpectaqlYml(projectName));
+  const projectName = options.name;
+  tree.write(path.join(targetDir, ".env.sample"), dotEnv(projectName));
+  tree.write(path.join(targetDir, ".env.production.sample"), dotEnvProduction(projectName));
+  tree.write(path.join(targetDir, ".haiku"), `{"projectName": "${projectName}"}`);
+  tree.write(path.join(targetDir, "package.json"), package_json(projectName));
+  tree.write(path.join(targetDir, "jest.config.ts"), formatCode(jestConfigTs()));
+  tree.write(path.join(targetDir, "jest.global-setup.ts"), formatCode(jestGlobalSetupTs()));
+  tree.write(path.join(targetDir, "jest.global-teardown.ts"), formatCode(jestGlobalTeardownTs()));
+  tree.write(path.join(targetDir, "jest.setup.ts"), formatCode(jestSetupTs()));
+  tree.write(path.join(targetDir, "run-docker.sh"), runDockerSh(haiku));
+  tree.write(path.join(targetDir, "processes.json"), processesJsonTs(projectName));
+  tree.write(path.join(targetDir, "tsconfig.json"), tsconfig_json());
+  tree.write(path.join(targetDir, ".gitignore"), gitignore());
+  tree.write(path.join(targetDir, "codegen.yml"), codegenYml());
+  tree.write(path.join(targetDir, "config-spectaql.yml"), configSpectaqlYml(projectName));
 
   tree.write(path.join(targetDir, "prisma", "schema.prisma"), schemaPrismaTs(haiku));
 
