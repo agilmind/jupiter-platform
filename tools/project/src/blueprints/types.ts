@@ -1,4 +1,6 @@
 export interface GeneratorOptions {
-  projectName: string;  // Nombre del proyecto
-  projectRoot: string;  // Ruta raíz del proyecto
+  projectName: string;
+  projectRoot: string;
+  uniqueAppServerName?: string; // Hacerlo opcional para compatibilidad
+  uniqueWebAppName?: string;    // Hacerlo opcional para compatibilidad
 }

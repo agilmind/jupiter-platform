@@ -5,7 +5,6 @@ import {
 } from "@nx/devkit";
 import * as path from 'path';
 import { CreateGeneratorSchema } from "./schema";
-import { GeneratorOptions } from '../../blueprints/types';
 
 // Importamos los generadores modulares
 import { generateApolloPrisma } from './apollo-prisma-generator';
@@ -47,10 +46,8 @@ function normalizeOptions(tree: Tree, options: CreateGeneratorSchema) {
   const projectName = names(options.projectName).fileName;
   const projectRoot = `apps/${projectName}`;
 
-  // Generar un timestamp único para evitar conflictos
-  const timestamp = Date.now();
-  const uniqueAppServerName = `${projectName}-app-server-${timestamp}`;
-  const uniqueWebAppName = `${projectName}-web-app-${timestamp}`;
+  const uniqueAppServerName = `${projectName}-app-server`;
+  const uniqueWebAppName = `${projectName}-web-app`;
 
   return {
     ...options,
