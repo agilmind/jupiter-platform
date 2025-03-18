@@ -4,7 +4,7 @@ import { TranscribeGeneratorSchema } from './schema';
 import { customGenerateFiles } from './customGenerateFiles';
 import { revertGeneratedFiles } from './revertGeneratedFiles';
 
-export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
+export default async function (tree: Tree, options: TranscribeGeneratorSchema, targetDir: string) {
   if (!options.runOptions) {
     throw new Error(`Este generador se ejecuta únicamente invocado por el generador haijin:run`);
   }
@@ -13,11 +13,6 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
     logger.info(`Iniciando transcribe`);
     const templatePath = path.join(__dirname, 'files', options.runOptions.currentServiceType);
 
-    const targetDir = path.join(
-      'apps',
-      options.name,
-      options.runOptions.currentService
-    );
     logger.info(`Transcribiendo en: ${targetDir}`);
     ctx = { templatePath, targetDir };
 

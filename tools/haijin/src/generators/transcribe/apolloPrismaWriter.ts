@@ -131,7 +131,7 @@ import {
 import { TranscribeGeneratorSchema } from './schema';
 import { randomUUID } from 'crypto';
 
-export function writeApolloPrisma(tree: Tree, targetDir: string, options: TranscribeGeneratorSchema, haiku: Haiku) {
+export function writeApolloPrisma(tree: Tree, options: TranscribeGeneratorSchema, targetDir: string, haiku: Haiku) {
   // tree.write(path.join(targetDir, ".env.sample"), dotEnv(projectName));
   // tree.write(path.join(targetDir, ".env.production.sample"), dotEnvProduction(projectName));
   // tree.write(path.join(targetDir, ".haiku"), `{"projectName": "${projectName}"}`);

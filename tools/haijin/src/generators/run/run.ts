@@ -23,6 +23,15 @@ interface GitContext {
   originalBranch: string;
 }
 
+function getTargetDir(projectName: string, serviceName: string) {
+  return path.join(
+    'apps',
+    projectName,
+    serviceName
+  );
+}
+
+
 /**
  * Función principal del generador
  */
@@ -307,8 +316,7 @@ function verifyServicesAndTemplates(selectedServices: string[], options: RunGene
       continue;
     }
 
-    const servicePrefix = serviceType === 'apollo-prisma' ? 'services' : 'apps';
-    const serviceDir = `${servicePrefix}/${serviceName}`;
+    const serviceDir = getTargetDir(options.name, serviceName);
 
     servicesToProcess.push({
       name: serviceName,
@@ -416,6 +424,7 @@ async function generateTreeForServices(
   const result = [...services];
 
   for (const service of result) {
+    const targetDir = getTargetDir(options.name, service.name);
     try {
       const serviceOptions = {
         ...options,
@@ -430,7 +439,7 @@ async function generateTreeForServices(
       };
 
       logger.info(`Processing templates for service: ${service.name}`);
-      await transcribe(tree, transcribeOptions);
+      await transcribe(tree, transcribeOptions, targetDir);
     } catch (error) {
       logger.error(`Error al procesar plantillas para ${service.name}: ${error instanceof Error ? error.message : String(error)}`);
       service.failed = true;

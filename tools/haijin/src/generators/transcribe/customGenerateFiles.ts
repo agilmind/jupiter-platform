@@ -7,6 +7,6 @@ import { writeApolloPrisma } from './apolloPrismaWriter';
 export async function customGenerateFiles(tree: Tree, options: TranscribeGeneratorSchema, targetDir: string) {
   const haiku: Haiku = await parseHaikuProject({haikuDir: options.haikuDir});
   if (options.runOptions.currentServiceType === 'apollo-prisma') {
-    writeApolloPrisma(tree, targetDir, options, haiku);
+    writeApolloPrisma(tree, options, targetDir, haiku);
   }
 }
