@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "create": {
+      "factory": "./src/generators/create/generator",
+      "schema": "./src/generators/create/schema.json",
+      "description": "Crear un nuevo proyecto en la estructura de monorepo"
+    }
+  }
+}

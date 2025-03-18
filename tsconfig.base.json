@@ -28,7 +28,8 @@
       "@jupiter/worker-framework": ["libs/worker-framework/src/index.ts"],
       "create-worker": ["tools/create-worker/src/index.ts"],
       "haijin": ["tools/haijin/src/index.ts"],
-      "project-generator": ["tools/project-generator/src/index.ts"]
+      "project": ["tools/project/src/index.ts"],
+      "tools": ["tools/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
