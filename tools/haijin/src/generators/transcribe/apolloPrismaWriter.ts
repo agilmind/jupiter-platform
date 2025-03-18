@@ -5,7 +5,7 @@ import { Haiku } from '@haiku';
 import {package_json} from "@haiku/apolloPrisma/package.json";
 import {gitignore} from "@haiku/apolloPrisma/dot_gitignore";
 import {codegenYml} from "@haiku/apolloPrisma/codegen.yml";
-import {configSpectaqlYml} from "@haiku/apolloPrisma/config-spectaql.yml";
+//import {configSpectaqlYml} from "@haiku/apolloPrisma/config-spectaql.yml";
 import { schemaPrismaTs } from '@haiku/apolloPrisma/src/prisma/schema.prisma';
 import {apiErrorTs} from '@haiku/apolloPrisma/src/common/errors/ApiError.ts';
 import {commonGraphQL} from '@haiku/apolloPrisma/src/common/schemas/common.graphql';
@@ -141,7 +141,7 @@ export function writeApolloPrisma(tree: Tree, options: TranscribeGeneratorSchema
   tree.write(path.join(targetDir, "package.json"), package_json(projectName));
   tree.write(path.join(targetDir, ".gitignore"), gitignore());
   tree.write(path.join(targetDir, "codegen.yml"), codegenYml());
-  tree.write(path.join(targetDir, "config-spectaql.yml"), configSpectaqlYml(projectName));
+  // tree.write(path.join(targetDir, "config-spectaql.yml"), configSpectaqlYml(projectName));
 
   tree.write(path.join(targetDir, "prisma", "schema.prisma"), schemaPrismaTs(haiku));
 
