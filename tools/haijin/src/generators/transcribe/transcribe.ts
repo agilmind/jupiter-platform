@@ -20,7 +20,7 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema, t
       tree,
       templatePath,
       targetDir,
-      options.runOptions
+      {...options.runOptions, targetDir}
     );
     await formatFiles(tree);
     await customGenerateFiles(tree, options, targetDir)

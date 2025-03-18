@@ -1,7 +1,7 @@
 {
   "name": "<%= name %>",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "services/<%= name %>/src",
+  "sourceRoot": "<%= targetDir %>/src",
   "projectType": "application",
   "targets": {
     "build": {
@@ -10,12 +10,12 @@
       "defaultConfiguration": "production",
       "options": {
         "platform": "node",
-        "outputPath": "dist/services/<%= name %>",
+        "outputPath": "dist/<%= targetDir %>",
         "format": ["cjs"],
         "bundle": false,
-        "main": "services/<%= name %>/src/main.ts",
-        "tsConfig": "services/<%= name %>/tsconfig.app.json",
-        "assets": ["services/<%= name %>/src/assets"],
+        "main": "<%= targetDir %>/src/main.ts",
+        "tsConfig": "<%= targetDir %>/tsconfig.app.json",
+        "assets": ["<%= targetDir %>/src/assets"],
         "generatePackageJson": true,
         "esbuildOptions": {
           "sourcemap": true,
