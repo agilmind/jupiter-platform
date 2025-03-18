@@ -1,3 +1,0 @@
-# miproyecto
-
-Proyecto generado automáticamente.

@@ -3,16 +3,14 @@ import { GeneratorOptions } from '../types';
 export function dockerComposeDev(options: GeneratorOptions): string {
   const { projectName } = options;
 
-  return `version: '3.8'
-
+  return `
 services:
   app-server:
     build:
       context: ./app-server
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
-      - "9229:9229"  # Puerto para depuración
     environment:
       - NODE_ENV=development
       - PORT=3000
@@ -26,7 +24,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    command: npx nodemon --inspect=0.0.0.0:9229 src/index.js
 
   web-app:
     build:
