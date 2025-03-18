@@ -89,7 +89,8 @@ export default async function (tree: Tree, options: RunGeneratorSchema) {
     }
 
     // 9. Cambiar a base para la generación
-    await switchToBaseBranch(gitContext);
+    const targets: string[] = successfulServices.map(x=>x.dir);
+    await switchToBaseBranch(gitContext, targets);
 
     // 10. NX escribirá los archivos al disco al finalizar
     logger.info(`Tree ready. NX will write ${successfulServices.length} services to disk upon completion.`);
@@ -232,7 +233,7 @@ async function ensureBranches(gitContext: GitContext): Promise<void> {
 /**
  * Cambia al branch base para generación y sincroniza plantillas
  */
-async function switchToBaseBranch(gitContext: GitContext): Promise<void> {
+async function switchToBaseBranch(gitContext: GitContext, targetsDir: string[]): Promise<void> {
   const { git, originalBranch } = gitContext;
 
   try {
@@ -252,9 +253,12 @@ async function switchToBaseBranch(gitContext: GitContext): Promise<void> {
       const templatePath = 'tools/haijin/src/generators/transcribe/files';
 
       try {
-        // Checkout selectivo de las plantillas desde el branch original
-        await git.checkout([originalBranch, '--', templatePath]);
-        logger.info(`Updated templates from ${originalBranch}`);
+        // // Checkout selectivo de las plantillas desde el branch original
+        // await git.checkout([originalBranch, '--', templatePath]);
+        // logger.info(`Updated templates from ${originalBranch}`);
+        for (const targetDir of targetsDir) {
+          await git.rm(["-r", `${targetDir}/*`]);
+        }
 
         // Verificar si hay cambios
         const status = await git.status();
