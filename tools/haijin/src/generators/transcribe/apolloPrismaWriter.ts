@@ -1,133 +1,133 @@
 import { Tree } from '@nx/devkit';
 import { Haiku } from '@haiku';
-import { schemaPrismaTs } from '@haiku/apolloPrisma/prisma/schema.prisma';
+import { schemaPrismaTs } from '@haiku/apolloPrisma/src/prisma/schema.prisma';
 import * as path from 'path';
 import { firstLower, firstUpper, formatCode } from '../utils/formatCode';
-import {apiErrorTs} from '@haiku/apolloPrisma/common/errors/ApiError.ts';
-import {commonGraphQL} from '@haiku/apolloPrisma/common/schemas/common.graphql';
-import {commonUtilsIndexTs} from '@haiku/apolloPrisma/common/utils/index.ts';
-import {commonUtilsEmailTs} from '@haiku/apolloPrisma/common/utils/email.ts';
-import {commonSchemasIndexTs} from '@haiku/apolloPrisma/common/schemas/index.ts';
-import {serviceContextTs} from '@haiku/apolloPrisma/service-context.ts';
-import {graphQLErrorTs} from '@haiku/apolloPrisma/common/errors/GraphQLError.ts';
-import {fileUploadTs} from '@haiku/apolloPrisma/common/resolvers/fileUpload.ts';
-import {serverTs} from '@haiku/apolloPrisma/server.ts';
-import {profileResolversTs} from '@haiku/apolloPrisma/common/resolvers/profileResolvers.ts';
+import {apiErrorTs} from '@haiku/apolloPrisma/src/common/errors/ApiError.ts';
+import {commonGraphQL} from '@haiku/apolloPrisma/src/common/schemas/common.graphql';
+import {commonUtilsIndexTs} from '@haiku/apolloPrisma/src/common/utils/index.ts';
+import {commonUtilsEmailTs} from '@haiku/apolloPrisma/src/common/utils/email.ts';
+import {commonSchemasIndexTs} from '@haiku/apolloPrisma/src/common/schemas/index.ts';
+import {serviceContextTs} from '@haiku/apolloPrisma/src/service-context.ts';
+import {graphQLErrorTs} from '@haiku/apolloPrisma/src/common/errors/GraphQLError.ts';
+import {fileUploadTs} from '@haiku/apolloPrisma/src/common/resolvers/fileUpload.ts';
+import {serverTs} from '@haiku/apolloPrisma/src/server.ts';
+import {profileResolversTs} from '@haiku/apolloPrisma/src/common/resolvers/profileResolvers.ts';
 import {
   commonConstantsTs
-} from '@haiku/apolloPrisma/common/constants.ts';
+} from '@haiku/apolloPrisma/src/common/constants.ts';
 import {
   conversionsTs
-} from '@haiku/apolloPrisma/common/utils/conversions.ts';
+} from '@haiku/apolloPrisma/src/common/utils/conversions.ts';
 import {
   prismaUtilsTs
-} from '@haiku/apolloPrisma/common/utils/prismaUtils.ts';
+} from '@haiku/apolloPrisma/src/common/utils/prismaUtils.ts';
 import {
   commonUtilsNullsTs
-} from '@haiku/apolloPrisma/common/utils/nulls.ts';
+} from '@haiku/apolloPrisma/src/common/utils/nulls.ts';
 import {
   fileSetterTs
-} from '@haiku/apolloPrisma/common/utils/fileSetter.ts';
+} from '@haiku/apolloPrisma/src/common/utils/fileSetter.ts';
 import {
   moveUploadedFilesTs
-} from '@haiku/apolloPrisma/common/utils/moveUploadedFiles.ts';
+} from '@haiku/apolloPrisma/src/common/utils/moveUploadedFiles.ts';
 import {
   duplicatesErrorTs
-} from '@haiku/apolloPrisma/common/errors/DuplicatesError.ts';
+} from '@haiku/apolloPrisma/src/common/errors/DuplicatesError.ts';
 import {
   prismaErrorTs
-} from '@haiku/apolloPrisma/common/errors/PrismaError.ts';
+} from '@haiku/apolloPrisma/src/common/errors/PrismaError.ts';
 import {
   commonErrorsIndexTs
-} from '@haiku/apolloPrisma/common/errors/index.ts';
+} from '@haiku/apolloPrisma/src/common/errors/index.ts';
 import {
   anyApiErrorTs
-} from '@haiku/apolloPrisma/common/errors/AnyApiErrorTs';
+} from '@haiku/apolloPrisma/src/common/errors/AnyApiErrorTs';
 import {
   unknownErrorHelperTs
-} from '@haiku/apolloPrisma/common/errors/unknownErrorHelper.ts';
+} from '@haiku/apolloPrisma/src/common/errors/unknownErrorHelper.ts';
 import {
   commonTypesServiceTs
-} from '@haiku/apolloPrisma/common/types/serviceTypes.ts';
+} from '@haiku/apolloPrisma/src/common/types/serviceTypes.ts';
 import {
   commonTypesIndexTs
-} from '@haiku/apolloPrisma/common/types/index.ts';
+} from '@haiku/apolloPrisma/src/common/types/index.ts';
 import { AdditionalResolversType } from '@haiku/server/types';
 import {
   userResolversTs
-} from '@haiku/apolloPrisma/entities/entity/resolvers/userResolvers';
-import { entitiesIndexTs } from '@haiku/apolloPrisma/entities/index.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/resolvers/userResolvers';
+import { entitiesIndexTs } from '@haiku/apolloPrisma/src/entities/index.ts';
 import {
   serviceTypesTs
-} from '@haiku/apolloPrisma/entities/service-types.ts';
+} from '@haiku/apolloPrisma/src/entities/service-types.ts';
 import {
   entitySchemasIndexTs
-} from '@haiku/apolloPrisma/entities/entitySchemasIndexTs';
+} from '@haiku/apolloPrisma/src/entities/entitySchemasIndexTs';
 import {
   schemaGraphqlTs
-} from '@haiku/apolloPrisma/entities/entity/schemas/entity.graphql';
+} from '@haiku/apolloPrisma/src/entities/entity/schemas/entity.graphql';
 import {
   displayIdResolversTs
-} from '@haiku/apolloPrisma/entities/entity/resolvers/displayId.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/resolvers/displayId.ts';
 import {
   entityResolversTs
-} from '@haiku/apolloPrisma/entities/entity/resolvers/entityResolvers.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/resolvers/entityResolvers.ts';
 import {
   userCreateServiceTs
-} from '@haiku/apolloPrisma/entities/entity/services/userCreateService';
+} from '@haiku/apolloPrisma/src/entities/entity/services/userCreateService';
 import {
   entityCreateServiceTs
-} from '@haiku/apolloPrisma/entities/entity/services/entityCreateService.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/entityCreateService.ts';
 import {
   entityUpdateServiceTs
-} from '@haiku/apolloPrisma/entities/entity/services/entityUpdateService.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/entityUpdateService.ts';
 import {
   entityDeleteServiceTs
-} from '@haiku/apolloPrisma/entities/entity/services/entityDeleteService.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/entityDeleteService.ts';
 import {
   entityCurrentItemTs
-} from '@haiku/apolloPrisma/entities/entity/services/entityCurrentItem.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/entityCurrentItem.ts';
 import {
   entityWorkflowServicesTs
-} from '@haiku/apolloPrisma/entities/entity/services/entityWorkflowServices.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/entityWorkflowServices.ts';
 import {
   entityListWithCursorServiceTs
-} from '@haiku/apolloPrisma/entities/entity/services/entityListWithCursorService.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/entityListWithCursorService.ts';
 import {
   entityListWithOffsetServiceTs
-} from '@haiku/apolloPrisma/entities/entity/services/entityListWithOffsetService.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/entityListWithOffsetService.ts';
 import {
   entityOneServiceTs
-} from '@haiku/apolloPrisma/entities/entity/services/entityOneService.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/entityOneService.ts';
 import {
   entityServicesIndexTs
-} from '@haiku/apolloPrisma/entities/entity/services/index.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/index.ts';
 import {
   entityFileDownload
-} from '@haiku/apolloPrisma/entities/entity/services/entityFileDownload.ts';
+} from '@haiku/apolloPrisma/src/entities/entity/services/entityFileDownload.ts';
 import {
   getFileDataTs
-} from '@haiku/apolloPrisma/common/utils/download.ts';
-import { prismaClientTs } from '@haiku/apolloPrisma/prisma/client.ts';
-import { seedUtilsTs } from '@haiku/apolloPrisma/prisma/seed/utils.ts';
-import { seedUsersTs } from '@haiku/apolloPrisma/prisma/seed/users.ts';
+} from '@haiku/apolloPrisma/src/common/utils/download.ts';
+import { prismaClientTs } from '@haiku/apolloPrisma/src/prisma/client.ts';
+import { seedUtilsTs } from '@haiku/apolloPrisma/src/prisma/seed/utils.ts';
+import { seedUsersTs } from '@haiku/apolloPrisma/src/prisma/seed/users.ts';
 import {
   seedPermissionsTs
-} from '@haiku/apolloPrisma/prisma/seed/permissions.ts';
+} from '@haiku/apolloPrisma/src/prisma/seed/permissions.ts';
 import {
   seedWorkflowsTs
-} from '@haiku/apolloPrisma/prisma/seed/workflows.ts';
+} from '@haiku/apolloPrisma/src/prisma/seed/workflows.ts';
 import {
   seedCustomRolesTs
-} from '@haiku/apolloPrisma/prisma/seed/customRoles.ts';
-import { seedRolesTs } from '@haiku/apolloPrisma/prisma/seed/roles.ts';
-import { seedTs } from '@haiku/apolloPrisma/prisma/seed/seed.ts';
+} from '@haiku/apolloPrisma/src/prisma/seed/customRoles.ts';
+import { seedRolesTs } from '@haiku/apolloPrisma/src/prisma/seed/roles.ts';
+import { seedTs } from '@haiku/apolloPrisma/src/prisma/seed/seed.ts';
 import {
   multiTenantPrismaClientTs
-} from '@haiku/apolloPrisma/prisma/multiTenantPrismaClient.ts';
+} from '@haiku/apolloPrisma/src/prisma/multiTenantPrismaClient.ts';
 import {
   tenantMiddlewareTs
-} from '@haiku/apolloPrisma/prisma/middleware/tenant.middleware.ts';
+} from '@haiku/apolloPrisma/src/prisma/middleware/tenant.middleware.ts';
 import { TranscribeGeneratorSchema } from './schema';
 import { randomUUID } from 'crypto';
 

@@ -13,9 +13,9 @@ export default async function (tree: Tree, options: TranscribeGeneratorSchema) {
     logger.info(`Iniciando transcribe`);
     const templatePath = path.join(__dirname, 'files', options.runOptions.currentServiceType);
 
-    const directoryPrefix = options.runOptions.currentServiceType === 'apollo-prisma' ? 'services' : 'apps';
     const targetDir = path.join(
-      directoryPrefix,
+      'apps',
+      options.name,
       options.runOptions.currentService
     );
     logger.info(`Transcribiendo en: ${targetDir}`);

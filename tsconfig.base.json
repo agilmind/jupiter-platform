@@ -17,7 +17,7 @@
     "paths": {
       "@haiku": ["node_modules/haiku-generator/build/haiku/Haiku"],
       "@haiku/apolloPrisma/*": [
-        "node_modules/haiku-generator/build/haiku/prismaServer/projectDir/src/*"
+        "node_modules/haiku-generator/build/haiku/prismaServer/projectDir/*"
       ],
       "@haiku/parseProject": [
         "node_modules/haiku-generator/build/haiku/commands/parseProject"
