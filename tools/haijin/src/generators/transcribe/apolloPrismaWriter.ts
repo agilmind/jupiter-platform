@@ -2,10 +2,7 @@ import { Tree } from '@nx/devkit';
 import * as path from 'path';
 import { firstLower, firstUpper, formatCode } from '../utils/formatCode';
 import { Haiku } from '@haiku';
-import { dotEnv } from '@haiku/apolloPrisma/dot_env';
-import { dotEnvProduction } from '@haiku/apolloPrisma/dot_env.production';
 import {package_json} from "@haiku/apolloPrisma/package.json";
-import {tsconfig_json} from "@haiku/apolloPrisma/tsconfig.json";
 import {gitignore} from "@haiku/apolloPrisma/dot_gitignore";
 import {jestGlobalSetupTs} from "@haiku/apolloPrisma/jest.global-setup.ts";
 import {jestGlobalTeardownTs} from "@haiku/apolloPrisma/jest.global-teardown.ts";
@@ -145,8 +142,6 @@ import { randomUUID } from 'crypto';
 
 export function writeApolloPrisma(tree: Tree, options: TranscribeGeneratorSchema, targetDir: string, haiku: Haiku) {
   const projectName = options.name;
-  tree.write(path.join(targetDir, ".env.sample"), dotEnv(projectName));
-  tree.write(path.join(targetDir, ".env.production.sample"), dotEnvProduction(projectName));
   tree.write(path.join(targetDir, ".haiku"), `{"projectName": "${projectName}"}`);
   tree.write(path.join(targetDir, "package.json"), package_json(projectName));
   tree.write(path.join(targetDir, "jest.config.ts"), formatCode(jestConfigTs()));
@@ -154,7 +149,6 @@ export function writeApolloPrisma(tree: Tree, options: TranscribeGeneratorSchema
   tree.write(path.join(targetDir, "jest.global-teardown.ts"), formatCode(jestGlobalTeardownTs()));
   tree.write(path.join(targetDir, "jest.setup.ts"), formatCode(jestSetupTs()));
   tree.write(path.join(targetDir, "processes.json"), processesJsonTs(projectName));
-  tree.write(path.join(targetDir, "tsconfig.json"), tsconfig_json());
   tree.write(path.join(targetDir, ".gitignore"), gitignore());
   tree.write(path.join(targetDir, "codegen.yml"), codegenYml());
   tree.write(path.join(targetDir, "config-spectaql.yml"), configSpectaqlYml(projectName));
