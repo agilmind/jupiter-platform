@@ -1,125 +1,187 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 850" font-family="Arial" font-size="14">
-    <style>
-        .box-core { stroke: #868e96; stroke-width: 2; fill: #e9ecef; }
-        .box-app { stroke: #868e96; stroke-width: 2; fill: #d0bfff; }
-        .box-infra { stroke: #868e96; stroke-width: 2; fill: #c3fae8; }
-        .box-monitor { stroke: #868e96; stroke-width: 2; fill: #ffc078; }
-        .box-ext { stroke: #868e96; stroke-width: 2; fill: #74c0fc; }
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700">
+  <!-- Background -->
+  <rect width="900" height="700" fill="#f5f5f7" rx="5" ry="5"/>
 
-        .vps-border { stroke: #868e96; stroke-width: 2; fill: none; stroke-dasharray: 5,5; } /* Dashed border for VPS group */
+  <!-- Title -->
+  <text x="450" y="40" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">NX Monorepo Architecture with VPS Deployment</text>
 
-        .arrow { stroke: #868e96; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
-    </style>
-    <defs>
-        <marker id="arrowhead" viewBox="0 0 10 10" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#868e96"/>
-        </marker>
-    </defs>
+  <!-- Local Development Environment -->
+  <rect x="50" y="80" width="250" height="280" fill="#e6f7ff" stroke="#1890ff" stroke-width="2" rx="5" ry="5"/>
+  <text x="175" y="105" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle" fill="#1890ff">Local Development</text>
+  <rect x="70" y="120" width="210" height="220" fill="#ffffff" stroke="#d9d9d9" stroke-width="1" rx="5" ry="5"/>
+  <text x="175" y="140" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">NX Monorepo</text>
 
-    <!-- Background -->
-    <rect width="1000" height="850" fill="#f8f9fa" />
+  <!-- Apps -->
+  <rect x="80" y="150" width="90" height="120" fill="#f0f5ff" stroke="#597ef7" stroke-width="1" rx="3" ry="3"/>
+  <text x="125" y="170" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Apps</text>
+  <rect x="90" y="180" width="70" height="20" fill="#d6e4ff" stroke="#597ef7" stroke-width="1" rx="2" ry="2"/>
+  <text x="125" y="194" font-family="Arial" font-size="10" text-anchor="middle">project-1</text>
+  <rect x="90" y="205" width="70" height="20" fill="#d6e4ff" stroke="#597ef7" stroke-width="1" rx="2" ry="2"/>
+  <text x="125" y="219" font-family="Arial" font-size="10" text-anchor="middle">project-2</text>
+  <rect x="90" y="230" width="70" height="20" fill="#d6e4ff" stroke="#597ef7" stroke-width="1" rx="2" ry="2"/>
+  <text x="125" y="244" font-family="Arial" font-size="10" text-anchor="middle">monitor</text>
 
-    <text x="500" y="30" text-anchor="middle" font-size="24" font-weight="bold">Monorepo Architecture</text>
+  <!-- Libs -->
+  <rect x="180" y="150" width="90" height="120" fill="#f9f0ff" stroke="#9254de" stroke-width="1" rx="3" ry="3"/>
+  <text x="225" y="170" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Libs</text>
+  <rect x="190" y="180" width="70" height="20" fill="#efdbff" stroke="#9254de" stroke-width="1" rx="2" ry="2"/>
+  <text x="225" y="194" font-family="Arial" font-size="10" text-anchor="middle">worker-framework</text>
+  <rect x="190" y="205" width="70" height="20" fill="#efdbff" stroke="#9254de" stroke-width="1" rx="2" ry="2"/>
+  <text x="225" y="219" font-family="Arial" font-size="10" text-anchor="middle">shared-ui</text>
+  <rect x="190" y="230" width="70" height="20" fill="#efdbff" stroke="#9254de" stroke-width="1" rx="2" ry="2"/>
+  <text x="225" y="244" font-family="Arial" font-size="10" text-anchor="middle">utils</text>
 
-    <!-- Developer -->
-    <g id="developer-group" transform="translate(50, 50)">
-        <rect id="developer" width="150" height="60" class="box-core" />
-        <text x="75" y="35" text-anchor="middle">Developer</text>
-    </g>
+  <!-- Docker -->
+  <rect x="80" y="280" width="190" height="50" fill="#e6fffb" stroke="#13c2c2" stroke-width="1" rx="3" ry="3"/>
+  <text x="175" y="295" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Docker Compose (Dev)</text>
+  <text x="175" y="315" font-family="Arial" font-size="10" text-anchor="middle">docker-compose.dev.yml</text>
 
-    <!-- CI/CD Pipeline -->
-    <g id="cicd-group" transform="translate(250, 50)">
-        <rect id="cicd" width="150" height="60" class="box-core" />
-        <text x="75" y="35" text-anchor="middle">CI/CD Pipeline</text>
-    </g>
+  <!-- VPS Servers -->
+  <rect x="400" y="80" width="450" height="580" fill="#f9f0ff" stroke="#722ed1" stroke-width="2" rx="5" ry="5"/>
+  <text x="625" y="105" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle" fill="#722ed1">VPS Deployment Environment</text>
 
-    <!-- VPS Server Border -->
-    <rect id="vps-border" x="450" y="30" width="500" height="770" class="vps-border" rx="10" ry="10"/>
-    <text x="500" y="60" text-anchor="start" font-size="16" font-weight="bold">  VPS Server</text>
+  <!-- VPS1 -->
+  <rect x="420" y="120" width="200" height="520" fill="#ffffff" stroke="#d9d9d9" stroke-width="1" rx="5" ry="5"/>
+  <text x="520" y="140" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">VPS 1</text>
 
+  <!-- Shared Services VPS1 -->
+  <rect x="430" y="150" width="180" height="160" fill="#fff2e8" stroke="#fa8c16" stroke-width="1" rx="3" ry="3"/>
+  <text x="520" y="170" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Shared Services</text>
 
-    <!-- VPS Server - Base Services Group -->
-    <g id="vps-base-services-group" transform="translate(470, 100)">
-        <text x="0" y="0" text-anchor="start" font-size="14" font-weight="bold">  Base Services</text>
+  <!-- Nginx -->
+  <rect x="440" y="180" width="160" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="520" y="199" font-family="Arial" font-size="11" text-anchor="middle">Nginx (Reverse Proxy)</text>
 
-        <!-- Nginx -->
-        <g id="nginx-group">
-            <rect id="nginx" x="0" y="20" width="150" height="60" class="box-infra" />
-            <text x="75" y="55" text-anchor="middle">Nginx</text>
-        </g>
+  <!-- Database -->
+  <rect x="440" y="215" width="75" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="477" y="234" font-family="Arial" font-size="11" text-anchor="middle">PostgreSQL</text>
 
-        <!-- PgBouncer (Single - for Option 1) -->
-        <g id="pgbouncer-group" transform="translate(0, 100)">
-            <rect id="pgbouncer" width="150" height="60" class="box-infra" />
-            <text x="75" y="35" text-anchor="middle">PgBouncer</text>
-        </g>
+  <!-- PgBouncer -->
+  <rect x="525" y="215" width="75" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="562" y="234" font-family="Arial" font-size="11" text-anchor="middle">PgBouncer</text>
 
-        <!-- PostgreSQL DB (Single - for Option 1) -->
-        <g id="db-group" transform="translate(0, 200)">
-            <rect id="db" width="150" height="60" class="box-infra" />
-            <text x="75" y="35" text-anchor="middle">PostgreSQL DB</text>
-            <text x="75" y="55" text-anchor="middle">(Single Instance)</text>
-        </g>
+  <!-- RabbitMQ -->
+  <rect x="440" y="250" width="75" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="477" y="269" font-family="Arial" font-size="11" text-anchor="middle">RabbitMQ</text>
 
-        <!-- RabbitMQ (Single) -->
-        <g id="rabbitmq-group" transform="translate(200, 20)">
-            <rect id="rabbitmq" width="150" height="60" class="box-infra" />
-            <text x="75" y="35" text-anchor="middle">RabbitMQ</text>
-            <text x="75" y="55" text-anchor="middle">(Single Instance)</text>
-        </g>
+  <!-- MySQL -->
+  <rect x="525" y="250" width="75" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="562" y="269" font-family="Arial" font-size="11" text-anchor="middle">MySQL</text>
 
-        <!-- Monitor App -->
-        <g id="monitorapp-group" transform="translate(200, 100)">
-            <rect id="monitorapp" width="150" height="60" class="box-monitor" />
-            <text x="75" y="35" text-anchor="middle">Monitor App</text>
-        </g>
+  <!-- Monitor App -->
+  <rect x="430" y="320" width="180" height="80" fill="#e6f7ff" stroke="#1890ff" stroke-width="1" rx="3" ry="3"/>
+  <text x="520" y="340" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Monitor Application</text>
+  <rect x="440" y="350" width="75" height="40" fill="#bae7ff" stroke="#1890ff" stroke-width="1" rx="2" ry="2"/>
+  <text x="477" y="370" font-family="Arial" font-size="11" text-anchor="middle">Grafana</text>
+  <rect x="525" y="350" width="75" height="40" fill="#bae7ff" stroke="#1890ff" stroke-width="1" rx="2" ry="2"/>
+  <text x="562" y="370" font-family="Arial" font-size="11" text-anchor="middle">Prometheus</text>
 
-        <!-- Certbot -->
-        <g id="certbot-group" transform="translate(200, 200)">
-            <rect id="certbot" width="150" height="60" class="box-monitor" />
-            <text x="75" y="35" text-anchor="middle">Certbot</text>
-        </g>
-    </g>
+  <!-- Project 1 Deployment -->
+  <rect x="430" y="410" width="180" height="220" fill="#f6ffed" stroke="#52c41a" stroke-width="1" rx="3" ry="3"/>
+  <text x="520" y="430" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Project 1 Deployment</text>
 
+  <!-- Frontend -->
+  <rect x="440" y="440" width="160" height="30" fill="#d9f7be" stroke="#52c41a" stroke-width="1" rx="2" ry="2"/>
+  <text x="520" y="459" font-family="Arial" font-size="11" text-anchor="middle">React App (web-react)</text>
 
-    <!-- Container Registry -->
-    <g id="registry-group" transform="translate(250, 750)">
-        <rect id="registry" width="150" height="60" class="box-ext" />
-        <text x="75" y="35" text-anchor="middle">Container Registry</text>
-    </g>
+  <!-- Backend -->
+  <rect x="440" y="480" width="160" height="30" fill="#d9f7be" stroke="#52c41a" stroke-width="1" rx="2" ry="2"/>
+  <text x="520" y="499" font-family="Arial" font-size="11" text-anchor="middle">Apollo-Prisma API</text>
 
-    <!-- Docker Engine -->
-    <g id="docker-group" transform="translate(500, 250)">
-        <rect id="docker" width="150" height="60" class="box-infra" />
-        <text x="75" y="35" text-anchor="middle">Docker Engine</text>
-    </g>
+  <!-- Workers -->
+  <rect x="440" y="520" width="160" height="100" fill="#d9f7be" stroke="#52c41a" stroke-width="1" rx="2" ry="2"/>
+  <text x="520" y="538" font-family="Arial" font-size="11" font-weight="bold" text-anchor="middle">Workers</text>
+  <rect x="450" y="545" width="140" height="20" fill="#f6ffed" stroke="#52c41a" stroke-width="1" rx="2" ry="2"/>
+  <text x="520" y="559" font-family="Arial" font-size="10" text-anchor="middle">Email Worker</text>
+  <rect x="450" y="570" width="140" height="20" fill="#f6ffed" stroke="#52c41a" stroke-width="1" rx="2" ry="2"/>
+  <text x="520" y="584" font-family="Arial" font-size="10" text-anchor="middle">Reporting Worker</text>
+  <rect x="450" y="595" width="140" height="20" fill="#f6ffed" stroke="#52c41a" stroke-width="1" rx="2" ry="2"/>
+  <text x="520" y="609" font-family="Arial" font-size="10" text-anchor="middle">Scraping Worker</text>
 
-    <!-- Project Apps (Combined) -->
-    <g id="apps-group" transform="translate(500, 350)">
-        <rect id="apps" width="300" height="80" class="box-app" />
-        <text x="150" y="45" text-anchor="middle">Project Apps</text>
-        <text x="150" y="65" text-anchor="middle">(Project 1, 2, 3, Monitor, WordPress, ...)</text>
-    </g>
+  <!-- VPS2 -->
+  <rect x="630" y="120" width="200" height="520" fill="#ffffff" stroke="#d9d9d9" stroke-width="1" rx="5" ry="5"/>
+  <text x="730" y="140" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">VPS 2</text>
 
-    <!-- WordPress MySQL/MariaDB -->
-    <g id="wordpress-db-group" transform="translate(700, 350)">
-        <rect id="wordpress-db" width="150" height="60" class="box-infra" />
-        <text x="75" y="35" text-anchor="middle">MySQL/MariaDB</text>
-        <text x="75" y="55" text-anchor="middle">(WordPress DB)</text>
-    </g>
+  <!-- Shared Services VPS2 -->
+  <rect x="640" y="150" width="180" height="160" fill="#fff2e8" stroke="#fa8c16" stroke-width="1" rx="3" ry="3"/>
+  <text x="730" y="170" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Shared Services</text>
 
+  <!-- Nginx VPS2 -->
+  <rect x="650" y="180" width="160" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="730" y="199" font-family="Arial" font-size="11" text-anchor="middle">Nginx (Reverse Proxy)</text>
 
-    <!-- Arrows -->
-    <path class="arrow" d="M200 80 L250 80" /> <!-- Developer to CI/CD -->
-    <path class="arrow" d="M400 80 L500 80" /> <!-- CI/CD to VPS -->
-    <path class="arrow" d="M325 110 L325 750" /> <!-- CI/CD to Registry -->
-    <path class="arrow" d="M575 150 L575 110" /> <!-- Nginx to VPS -->
-    <path class="arrow" d="M575 250 L575 210" /> <!-- Docker to Nginx -->
-    <path class="arrow" d="M650 350 L575 480" /> <!-- Apps to PgBouncer -->
-    <path class="arrow" d="M575 480 L575 580" /> <!-- PgBouncer to DB -->
-    <path class="arrow" d="M575 580 L575 700" /> <!-- DB to RabbitMQ -->
-    <path class="arrow" d="M775 350 L775 310" /> <!-- WordPress Apps to Docker (implicitly) -->
-    <path class="arrow" d="M775 350 L875 380" /> <!-- WordPress Apps to MySQL -->
+  <!-- Database VPS2 -->
+  <rect x="650" y="215" width="75" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="687" y="234" font-family="Arial" font-size="11" text-anchor="middle">PostgreSQL</text>
 
+  <!-- PgBouncer VPS2 -->
+  <rect x="735" y="215" width="75" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="772" y="234" font-family="Arial" font-size="11" text-anchor="middle">PgBouncer</text>
 
+  <!-- RabbitMQ VPS2 -->
+  <rect x="650" y="250" width="75" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="687" y="269" font-family="Arial" font-size="11" text-anchor="middle">RabbitMQ</text>
+
+  <!-- MySQL VPS2 -->
+  <rect x="735" y="250" width="75" height="30" fill="#ffe7ba" stroke="#fa8c16" stroke-width="1" rx="2" ry="2"/>
+  <text x="772" y="269" font-family="Arial" font-size="11" text-anchor="middle">MySQL</text>
+
+  <!-- Monitor App VPS2 -->
+  <rect x="640" y="320" width="180" height="80" fill="#e6f7ff" stroke="#1890ff" stroke-width="1" rx="3" ry="3"/>
+  <text x="730" y="340" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Monitor Application</text>
+  <rect x="650" y="350" width="75" height="40" fill="#bae7ff" stroke="#1890ff" stroke-width="1" rx="2" ry="2"/>
+  <text x="687" y="370" font-family="Arial" font-size="11" text-anchor="middle">Grafana</text>
+  <rect x="735" y="350" width="75" height="40" fill="#bae7ff" stroke="#1890ff" stroke-width="1" rx="2" ry="2"/>
+  <text x="772" y="370" font-family="Arial" font-size="11" text-anchor="middle">Prometheus</text>
+
+  <!-- Project 2 Deployment -->
+  <rect x="640" y="410" width="180" height="110" fill="#fff0f6" stroke="#eb2f96" stroke-width="1" rx="3" ry="3"/>
+  <text x="730" y="430" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Project 2 Deployment</text>
+  <rect x="650" y="440" width="160" height="30" fill="#ffd6e7" stroke="#eb2f96" stroke-width="1" rx="2" ry="2"/>
+  <text x="730" y="459" font-family="Arial" font-size="11" text-anchor="middle">React App (web-react)</text>
+  <rect x="650" y="480" width="160" height="30" fill="#ffd6e7" stroke="#eb2f96" stroke-width="1" rx="2" ry="2"/>
+  <text x="730" y="499" font-family="Arial" font-size="11" text-anchor="middle">Apollo-Prisma API</text>
+
+  <!-- WordPress Project -->
+  <rect x="640" y="530" width="180" height="110" fill="#f0f5ff" stroke="#2f54eb" stroke-width="1" rx="3" ry="3"/>
+  <text x="730" y="550" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">WordPress Project</text>
+  <rect x="650" y="560" width="160" height="30" fill="#d6e4ff" stroke="#2f54eb" stroke-width="1" rx="2" ry="2"/>
+  <text x="730" y="579" font-family="Arial" font-size="11" text-anchor="middle">WordPress</text>
+  <rect x="650" y="600" width="160" height="30" fill="#d6e4ff" stroke="#2f54eb" stroke-width="1" rx="2" ry="2"/>
+  <text x="730" y="619" font-family="Arial" font-size="11" text-anchor="middle">Custom Plugins</text>
+
+  <!-- Deployment Flow -->
+  <path d="M 300 200 Q 350 200 400 200" fill="none" stroke="#333" stroke-width="2" stroke-dasharray="5,5"/>
+  <polygon points="395,195 405,200 395,205" fill="#333"/>
+
+  <!-- CI/CD Pipeline -->
+  <rect x="50" y="400" width="250" height="200" fill="#f9f0ff" stroke="#722ed1" stroke-width="2" rx="5" ry="5"/>
+  <text x="175" y="425" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle" fill="#722ed1">CI/CD Pipeline</text>
+
+  <!-- Pipeline Steps -->
+  <rect x="70" y="440" width="210" height="150" fill="#ffffff" stroke="#d9d9d9" stroke-width="1" rx="3" ry="3"/>
+  <rect x="80" y="450" width="190" height="25" fill="#efdbff" stroke="#722ed1" stroke-width="1" rx="2" ry="2"/>
+  <text x="175" y="467" font-family="Arial" font-size="12" text-anchor="middle">1. Build Docker Images</text>
+  <rect x="80" y="480" width="190" height="25" fill="#efdbff" stroke="#722ed1" stroke-width="1" rx="2" ry="2"/>
+  <text x="175" y="497" font-family="Arial" font-size="12" text-anchor="middle">2. Push to Registry</text>
+  <rect x="80" y="510" width="190" height="25" fill="#efdbff" stroke="#722ed1" stroke-width="1" rx="2" ry="2"/>
+  <text x="175" y="527" font-family="Arial" font-size="12" text-anchor="middle">3. SSH to VPS</text>
+  <rect x="80" y="540" width="190" height="25" fill="#efdbff" stroke="#722ed1" stroke-width="1" rx="2" ry="2"/>
+  <text x="175" y="557" font-family="Arial" font-size="12" text-anchor="middle">4. Pull and Deploy Images</text>
+  <rect x="80" y="570" width="190" height="25" fill="#efdbff" stroke="#722ed1" stroke-width="1" rx="2" ry="2"/>
+  <text x="175" y="587" font-family="Arial" font-size="12" text-anchor="middle">5. Run Migrations</text>
+
+  <!-- Pipeline to VPS Connection -->
+  <path d="M 300 500 Q 350 500 400 500" fill="none" stroke="#333" stroke-width="2"/>
+  <polygon points="395,495 405,500 395,505" fill="#333"/>
+
+  <!-- Legend -->
+  <rect x="50" y="620" width="250" height="40" fill="#ffffff" stroke="#d9d9d9" stroke-width="1" rx="3" ry="3"/>
+  <text x="175" y="640" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Environment Legend</text>
+  <rect x="70" y="650" width="20" height="10" fill="#e6f7ff" stroke="#1890ff" stroke-width="1"/>
+  <text x="100" y="658" font-family="Arial" font-size="10" text-anchor="start">Development</text>
+  <rect x="150" y="650" width="20" height="10" fill="#fff2e8" stroke="#fa8c16" stroke-width="1"/>
+  <text x="180" y="658" font-family="Arial" font-size="10" text-anchor="start">Shared Services</text>
+  <rect x="260" y="650" width="20" height="10" fill="#f6ffed" stroke="#52c41a" stroke-width="1"/>
+  <text x="290" y="658" font-family="Arial" font-size="10" text-anchor="start">Project-Specific</text>
 </svg>
