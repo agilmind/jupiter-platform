@@ -158,7 +158,7 @@ export function registerNxProjects(tree: Tree, options: GeneratorOptions): void 
       "serve-api-only": {
         executor: "nx:run-commands",
         options: {
-          command: `DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${projectName} npx tsx --watch apps/${projectName}/app-server/src/main.ts`
+          command: `LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${projectName} npx tsx --watch apps/${projectName}/app-server/src/main.ts`
         }
       },
       "serve-db-only": {
@@ -167,20 +167,90 @@ export function registerNxProjects(tree: Tree, options: GeneratorOptions): void 
           command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up postgres`
         }
       },
+      "db-setup": {
+        executor: "nx:run-commands",
+        options: {
+          command: `cd apps/${projectName}/app-server && npx prisma migrate dev --name init`
+        }
+      },
       "serve-ui-only": {
         executor: "nx:run-commands",
         options: {
           command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up web-app`
         }
       },
-      "debug": {
+      "serve-scraper-only": {
+        executor: "nx:run-commands",
+        options: {
+          command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up scraper-worker`
+        }
+      },
+      "debug-full-stack": {
         executor: "nx:run-commands",
         options: {
           parallel: true,
           commands: [
-            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up postgres web-app`,
-            `sleep 5 && DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${projectName} npx tsx --watch apps/${projectName}/app-server/src/main.ts`
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up postgres rabbitmq web-app scraper-worker`,
+            `sleep 15 && LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${projectName} npx tsx --watch apps/${projectName}/app-server/src/main.ts`
           ]
+        }
+      },
+      "prepare-scraper": {
+        executor: "nx:run-commands",
+        options: {
+          commands: [
+            `cd apps/${projectName}/scraper-worker && npm install`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build scraper-worker`
+          ],
+          parallel: false
+        }
+      },
+      "prebuild-images": {
+        executor: "nx:run-commands",
+        options: {
+          command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build`
+        }
+      },
+      "workflow": {
+        executor: "nx:run-commands",
+        options: {
+          commands: [
+            // Paso 1: Construir imágenes (silenciosamente)
+            `echo "Paso 1: Construyendo imágenes Docker..."`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build --quiet`,
+
+            // Paso 2: Iniciar servicios de infraestructura
+            `echo "Paso 2: Iniciando servicios de infraestructura..."`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up -d postgres rabbitmq`,
+            `sleep 10`,
+
+            // Paso 3: Configurar base de datos
+            `echo "Paso 3: Configurando base de datos..."`,
+            `cd apps/${projectName}/app-server && npx prisma migrate dev --name init --skip-generate || npx prisma db push`,
+
+            // Paso 4: Iniciar servicios de aplicación
+            `echo "Paso 4: Iniciando servicios de aplicación..."`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up -d web-app scraper-worker`,
+            `sleep 5`,
+
+            // Paso 5: Iniciar app-server en modo depuración
+            `echo "Paso 5: Iniciando servidor en modo depuración..."`,
+            `LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${projectName} npx tsx --watch apps/${projectName}/app-server/src/main.ts`
+          ],
+          parallel: false
+        }
+      },
+      "debug": {
+        executor: "nx:run-commands",
+        options: {
+          commands: [
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build --quiet`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up -d postgres rabbitmq`,
+            `sleep 10`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up -d web-app scraper-worker`,
+            `sleep 5 && LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${projectName} npx tsx --watch apps/${projectName}/app-server/src/main.ts`
+          ],
+          parallel: false
         }
       }
     }

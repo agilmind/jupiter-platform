@@ -7,13 +7,10 @@ WORKDIR /app
 
 # Copiar los archivos de proyecto
 COPY package*.json ./
-RUN npm ci
+RUN npm install    # Cambiado de 'npm ci' a 'npm install'
 
 # Copiar el código fuente
 COPY . .
-
-# No necesitamos instalar browsers ya que la imagen de playwright ya los trae
-# RUN npx playwright install --with-deps chromium
 
 EXPOSE 9229
 

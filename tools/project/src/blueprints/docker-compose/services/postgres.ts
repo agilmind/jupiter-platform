@@ -10,7 +10,7 @@ export function postgresService(options: GeneratorOptions): string {
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"  # Cambiado a 5433 para evitar conflictos
+      - "5433:5432"  # Usar 5433 externos para evitar conflictos
     networks:
       - app-network
     healthcheck:
@@ -22,5 +22,6 @@ export function postgresService(options: GeneratorOptions): string {
       driver: "json-file"
       options:
         max-size: "10m"
-        max-file: "3"`;
+        max-file: "3"
+`;
 }

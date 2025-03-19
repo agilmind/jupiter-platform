@@ -1,18 +1,11 @@
 import { Tree } from '@nx/devkit';
 import * as path from 'path';
 import { GeneratorOptions } from '../../blueprints/types';
-
 import * as apolloPrisma from '../../blueprints/apollo-prisma';
 
 export function generateApolloPrisma(tree: Tree, options: GeneratorOptions): void {
   const { projectRoot } = options;
   const appServerDir = path.join(projectRoot, 'app-server');
-
-  // Crear project.json para NX
-  tree.write(
-    path.join(appServerDir, 'project.json'),
-    apolloPrisma.projectJson(options)
-  );
 
   // Crear archivos de configuración TypeScript
   tree.write(
@@ -31,7 +24,7 @@ export function generateApolloPrisma(tree: Tree, options: GeneratorOptions): voi
     apolloPrisma.packageJson(options)
   );
 
-  // Crear los Dockerfiles
+  // Crear Dockerfile
   tree.write(
     path.join(appServerDir, 'Dockerfile'),
     apolloPrisma.dockerfile(options)
@@ -42,15 +35,28 @@ export function generateApolloPrisma(tree: Tree, options: GeneratorOptions): voi
     apolloPrisma.dockerfileDev(options)
   );
 
-  // Crear archivo principal src/main.ts
+  // Crear archivos fuente
   tree.write(
     path.join(appServerDir, 'src', 'main.ts'),
     apolloPrisma.srcMainTs(options)
   );
 
+  // Crear schema Prisma
+  tree.write(
+    path.join(appServerDir, 'prisma', 'schema.prisma'),
+    apolloPrisma.prismaSchema(options)
+  );
+
   // Crear .env.example
   tree.write(
     path.join(appServerDir, '.env.example'),
-    apolloPrisma.envExample(options)
+    `PORT=3000
+# Para desarrollo en Docker
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/${options.projectName}?schema=public
+# Para desarrollo local (fuera de Docker)
+LOCAL_DEV=true
+RABBITMQ_LOCAL_URL=amqp://localhost:5672
+DATABASE_URL_LOCAL=postgresql://postgres:postgres@localhost:5433/${options.projectName}?schema=public
+`
   );
 }

@@ -111,7 +111,22 @@ export function srcScriptJs(options: GeneratorOptions): string {
 
   // Iniciar polling automático cada 2 segundos
   function startPolling() {
-    pollingInterval = setInterval(getCheckStatus, 2000);
+    // Contador para rastrear cuántos intentos llevamos
+    let attempts = 0;
+    const maxAttempts = 30; // 30 intentos * 2 segundos = 60 segundos máximo
+
+    pollingInterval = setInterval(() => {
+      attempts++;
+
+      // Verificar si hemos alcanzado el máximo de intentos
+      if (attempts >= maxAttempts) {
+        stopPolling();
+        checkStatusElement.textContent = "Se alcanzó el tiempo máximo de espera. El scraper podría no estar funcionando.";
+        return;
+      }
+
+      getCheckStatus();
+    }, 2000);
   }
 
   // Detener polling

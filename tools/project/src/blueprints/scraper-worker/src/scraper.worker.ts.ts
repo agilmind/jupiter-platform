@@ -71,15 +71,32 @@ export class ScraperWorker extends BaseWorker<ScraperTask, ScraperResult> {
       const text = await extractTextFromPage(page, task.selector);
 
       this.log(context, 'info', \`Texto extraído (\${text.length} caracteres)\`);
+      let resultMessage: ScraperResult;
 
-      // Crear y devolver el resultado
-      const result: ScraperResult = {
-        url: task.url,
-        text: text.substring(0, 500), // Limitamos a 500 caracteres
-        timestamp: new Date().toISOString()
-      };
+      try {
+        const channel = await this.connection.createChannel();
+        await channel.assertQueue('result_queue', { durable: true });
 
-      return result;
+        resultMessage = {
+          id: task.id,
+          url: task.url,
+          text: text.substring(0, 500), // Limitamos a 500 caracteres
+          timestamp: new Date().toISOString()
+        };
+
+        channel.sendToQueue(
+          'result_queue',
+          Buffer.from(JSON.stringify(resultMessage)),
+          { persistent: true }
+        );
+
+        this.log(context, 'info', \`Resultado enviado a la cola result_queue\`);
+        await channel.close();
+      } catch (error) {
+        this.log(context, 'error', \`Error enviando resultado a la cola: \${error.message}\`);
+      }
+
+      return resultMessage;
     } finally {
       // Asegurarnos de cerrar el navegador
       await browser.close();
