@@ -78,6 +78,10 @@
     "miproyecto-web-app": {
       "tags": [],
       "root": "apps/miproyecto/web-app"
+    },
+    "miproyecto-scraper-worker": {
+      "tags": [],
+      "root": "apps/miproyecto/scraper-worker"
     }
   }
 }
