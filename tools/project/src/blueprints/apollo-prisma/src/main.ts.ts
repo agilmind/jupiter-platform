@@ -188,6 +188,7 @@ app.post('/api/check', async (req, res) => {
 
     // Verificar si el scraper está disponible
     const scraperAvailable = await checkScraperAvailability();
+    console.log(\`Iniciando check con scraper \${scraperAvailable ? 'DISPONIBLE' : 'NO DISPONIBLE'}\`);
 
     if (channel && scraperAvailable) {
       // Enviar mensaje a la cola normalmente
@@ -228,9 +229,11 @@ async function checkScraperAvailability() {
   try {
     // Verificar si hay consumidores en la cola
     const queueInfo = await channel.checkQueue(SCRAPER_QUEUE);
-    return queueInfo.consumerCount > 0;
+    const scraperAvailable = queueInfo.consumerCount > 0;
+    console.log(\`Verificando disponibilidad del scraper: \${scraperAvailable ? 'DISPONIBLE' : 'NO DISPONIBLE'} (\${queueInfo.consumerCount} consumidores)\`);
+    return scraperAvailable;
   } catch (error) {
-    console.warn('Error verificando disponibilidad del scraper:', error.message);
+    console.warn(\`Error verificando disponibilidad del scraper: \${error.message}\`);
     return false;
   }
 }

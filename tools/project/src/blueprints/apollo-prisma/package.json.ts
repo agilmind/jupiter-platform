@@ -2,26 +2,26 @@ import { GeneratorOptions } from '../types';
 
 export function packageJson(options: GeneratorOptions): string {
   return `{
-  "name": "${options.projectName}-app-server",
+  "name": "${options.projectName}-scraper-worker",
   "version": "0.0.1",
+  "description": "Web scraper worker for ${options.projectName}",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "ts-node src/main.ts"
+  },
   "dependencies": {
-    "@prisma/client": "^4.16.2",
     "amqplib": "^0.10.3",
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
+    "playwright": "^1.37.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.1",
-    "@types/cors": "^2.8.13",
-    "@types/express": "^4.17.17",
     "@types/node": "^18.16.3",
     "@types/uuid": "^9.0.1",
-    "prisma": "^4.16.2",
+    "ts-node": "^10.9.1",
     "typescript": "^5.0.4"
-  },
-  "prisma": {
-    "schema": "prisma/schema.prisma"
   }
 }`;
 }

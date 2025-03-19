@@ -205,6 +205,12 @@ export function registerNxProjects(tree: Tree, options: GeneratorOptions): void 
           parallel: false
         }
       },
+      "scraper-logs": {
+        executor: "nx:run-commands",
+        options: {
+          command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml logs -f scraper-worker`
+        }
+      },
       "prebuild-images": {
         executor: "nx:run-commands",
         options: {

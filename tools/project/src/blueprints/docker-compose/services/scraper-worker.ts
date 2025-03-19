@@ -1,6 +1,5 @@
 import { GeneratorOptions } from '../../types';
 
-// tools/project/src/blueprints/docker-compose/services/scraper-worker.ts
 export function scraperWorkerService(options: GeneratorOptions): string {
   return `  scraper-worker:
     build:
@@ -17,9 +16,6 @@ export function scraperWorkerService(options: GeneratorOptions): string {
       - MAX_RETRIES=3
       - BACKOFF_MULTIPLIER=2000
       - GRAPHQL_URL=http://app-server:3000/graphql
-    volumes:
-      - ./scraper-worker:/app
-      - /app/node_modules
     depends_on:
       - rabbitmq
     networks:
@@ -30,5 +26,5 @@ export function scraperWorkerService(options: GeneratorOptions): string {
         max-size: "10m"
         max-file: "3"
     restart: unless-stopped
-`;
+    `;
 }

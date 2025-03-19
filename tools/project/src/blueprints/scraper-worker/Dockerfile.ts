@@ -12,7 +12,11 @@ RUN npm install    # Cambiado de 'npm ci' a 'npm install'
 # Copiar el código fuente
 COPY . .
 
+# Instalar dependencias del proyecto primero
+RUN npm run build || echo "No build script found, continuing..."
+
 EXPOSE 9229
 
-CMD ["npm", "run", "start"]`;
+CMD ["node", "src/main.js"]
+`;
 }
