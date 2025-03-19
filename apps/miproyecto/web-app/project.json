@@ -1,0 +1,14 @@
+{
+  "name": "miproyecto-web-app",
+  "projectType": "application",
+  "root": "apps/miproyecto/web-app",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up web-app"
+      }
+    }
+  },
+  "tags": []
+}

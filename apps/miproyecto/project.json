@@ -1,0 +1,164 @@
+{
+  "name": "miproyecto-stack",
+  "projectType": "application",
+  "root": "apps/miproyecto",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up"
+      }
+    },
+    "serve-api-only": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/miproyecto npx tsx --watch apps/miproyecto/app-server/src/main.ts"
+      }
+    },
+    "serve-db-only": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up postgres"
+      }
+    },
+    "db-setup": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/miproyecto/app-server && npx prisma migrate dev --name init"
+      }
+    },
+    "serve-ui-only": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up web-app"
+      }
+    },
+    "serve-scraper-only": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up scraper-worker"
+      }
+    },
+    "debug-full-stack": {
+      "executor": "nx:run-commands",
+      "options": {
+        "parallel": true,
+        "commands": [
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up postgres rabbitmq web-app scraper-worker",
+          "sleep 15 && LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/miproyecto npx tsx --watch apps/miproyecto/app-server/src/main.ts"
+        ]
+      }
+    },
+    "prepare-scraper": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cd apps/miproyecto/scraper-worker && npm install",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build scraper-worker"
+        ],
+        "parallel": false
+      }
+    },
+    "debug-scraper": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml stop scraper-worker || true",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml rm -f scraper-worker || true",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build scraper-worker",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up scraper-worker"
+        ],
+        "parallel": false
+      }
+    },
+    "build-scraper": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cd apps/miproyecto/scraper-worker && tsc --project tsconfig.json || echo \"Compilación fallida pero continuando\"",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build scraper-worker"
+        ],
+        "parallel": false
+      }
+    },
+    "build-scraper-only": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build --no-cache scraper-worker",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d --force-recreate scraper-worker"
+        ],
+        "parallel": false
+      }
+    },
+    "debug-logs": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml logs -f --tail=100 scraper-worker"
+        ],
+        "parallel": false
+      }
+    },
+    "scraper-logs": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/miproyecto && docker compose -f docker-compose.dev.yml logs -f scraper-worker"
+      }
+    },
+    "prebuild-images": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build"
+      }
+    },
+    "workflow": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "echo \"Paso 1: Construyendo imágenes Docker...\"",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build --quiet",
+          "echo \"Paso 2: Iniciando servicios de infraestructura...\"",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d postgres rabbitmq",
+          "echo \"Esperando 10 segundos para que los servicios estén disponibles...\"",
+          "sleep 10",
+          "echo \"Paso 3: Configurando base de datos...\"",
+          "cd apps/miproyecto/app-server && npx prisma migrate dev --name init --skip-generate || npx prisma db push || echo \"Configuración de base de datos falló - continuando\"",
+          "echo \"Paso 4: Iniciando servicios de aplicación...\"",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d web-app scraper-worker",
+          "echo \"Esperando 5 segundos para que los servicios estén disponibles...\"",
+          "sleep 5",
+          "echo \"Paso 5: Iniciando servidor en modo depuración...\"",
+          "LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/miproyecto npx tsx --watch apps/miproyecto/app-server/src/main.ts"
+        ],
+        "parallel": false
+      }
+    },
+    "reset-all": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml down -v",
+          "echo \"Eliminando volúmenes y containers...\"",
+          "docker volume prune -f",
+          "echo \"Reconstruyendo imágenes...\"",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build --no-cache"
+        ],
+        "parallel": false
+      }
+    },
+    "debug": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build --quiet",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d postgres rabbitmq",
+          "sleep 10",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d web-app scraper-worker",
+          "sleep 5 && LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/miproyecto npx tsx --watch apps/miproyecto/app-server/src/main.ts"
+        ],
+        "parallel": false
+      }
+    }
+  }
+}

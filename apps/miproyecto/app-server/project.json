@@ -1,0 +1,24 @@
+{
+  "name": "miproyecto-app-server",
+  "sourceRoot": "apps/miproyecto/app-server/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/miproyecto/app-server",
+        "main": "apps/miproyecto/app-server/src/main.ts",
+        "tsConfig": "apps/miproyecto/app-server/tsconfig.app.json",
+        "assets": []
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx --watch apps/miproyecto/app-server/src/main.ts"
+      }
+    }
+  },
+  "tags": []
+}
