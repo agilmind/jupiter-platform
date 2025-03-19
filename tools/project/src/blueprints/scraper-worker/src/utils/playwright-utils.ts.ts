@@ -18,7 +18,7 @@ export async function extractTextFromPage(page: Page, selector?: string): Promis
       const text = await page.$eval('body', el => el.textContent || '');
       return text.trim();
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error extrayendo texto:', error);
     return \`Error extrayendo texto: \${error.message}\`;
   }

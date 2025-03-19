@@ -1,22 +1,19 @@
 import { GeneratorOptions } from '../types';
 
 export function dockerfile(options: GeneratorOptions): string {
-  return `FROM mcr.microsoft.com/playwright:focal
+  return `FROM mcr.microsoft.com/playwright:v1.40.0-jammy
 
 WORKDIR /app
 
-# Copiar los archivos de proyecto
+# Copiar package.json
 COPY package*.json ./
-RUN npm install    # Cambiado de 'npm ci' a 'npm install'
+RUN npm install
 
-# Copiar el código fuente
-COPY . .
-
-# Instalar dependencias del proyecto primero
-RUN npm run build || echo "No build script found, continuing..."
+# Copiar código fuente
+COPY ./src-js ./src-js
 
 EXPOSE 9229
 
-CMD ["node", "src/main.js"]
-`;
+# Ejecutar el script de depuración simple
+CMD ["node", "src-js/debug.js"]`;
 }

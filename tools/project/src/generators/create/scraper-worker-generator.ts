@@ -7,6 +7,11 @@ export function generateScraperWorker(tree: Tree, options: GeneratorOptions): vo
   const { projectRoot } = options;
   const scraperWorkerDir = path.join(projectRoot, 'scraper-worker');
 
+  tree.write(
+    path.join(scraperWorkerDir, 'src-js', 'debug.js'),
+    scraperWorker.debugJs(options)
+  );
+
   // Crear package.json
   tree.write(
     path.join(scraperWorkerDir, 'package.json'),
@@ -28,6 +33,12 @@ export function generateScraperWorker(tree: Tree, options: GeneratorOptions): vo
   tree.write(
     path.join(scraperWorkerDir, 'tsconfig.app.json'),
     scraperWorker.tsConfigApp(options)
+  );
+
+  // Crear .dockerignore
+  tree.write(
+    path.join(scraperWorkerDir, '.dockerignore'),
+    scraperWorker.dockerignore(options)
   );
 
   // Crear archivos fuente

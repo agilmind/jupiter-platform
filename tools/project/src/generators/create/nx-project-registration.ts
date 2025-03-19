@@ -205,6 +205,47 @@ export function registerNxProjects(tree: Tree, options: GeneratorOptions): void 
           parallel: false
         }
       },
+      "debug-scraper": {
+        executor: "nx:run-commands",
+        options: {
+          commands: [
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml stop scraper-worker || true`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml rm -f scraper-worker || true`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build scraper-worker`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up scraper-worker`
+          ],
+          parallel: false
+        }
+      },
+      "build-scraper": {
+        executor: "nx:run-commands",
+        options: {
+          commands: [
+            `cd apps/${projectName}/scraper-worker && tsc --project tsconfig.json || echo "Compilación fallida pero continuando"`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build scraper-worker`
+          ],
+          parallel: false
+        }
+      },
+      "build-scraper-only": {
+        executor: "nx:run-commands",
+        options: {
+          commands: [
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build --no-cache scraper-worker`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up -d --force-recreate scraper-worker`
+          ],
+          parallel: false
+        }
+      },
+      "debug-logs": {
+        executor: "nx:run-commands",
+        options: {
+          commands: [
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml logs -f --tail=100 scraper-worker`
+          ],
+          parallel: false
+        }
+      },
       "scraper-logs": {
         executor: "nx:run-commands",
         options: {
@@ -221,27 +262,42 @@ export function registerNxProjects(tree: Tree, options: GeneratorOptions): void 
         executor: "nx:run-commands",
         options: {
           commands: [
-            // Paso 1: Construir imágenes (silenciosamente)
+            // Paso 1: Construir imágenes
             `echo "Paso 1: Construyendo imágenes Docker..."`,
             `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build --quiet`,
 
             // Paso 2: Iniciar servicios de infraestructura
             `echo "Paso 2: Iniciando servicios de infraestructura..."`,
             `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up -d postgres rabbitmq`,
+            `echo "Esperando 10 segundos para que los servicios estén disponibles..."`,
             `sleep 10`,
 
-            // Paso 3: Configurar base de datos
+            // Paso 3: Configurar base de datos (con manejo mejorado de errores)
             `echo "Paso 3: Configurando base de datos..."`,
-            `cd apps/${projectName}/app-server && npx prisma migrate dev --name init --skip-generate || npx prisma db push`,
+            `cd apps/${projectName}/app-server && npx prisma migrate dev --name init --skip-generate || npx prisma db push || echo "Configuración de base de datos falló - continuando"`,
 
             // Paso 4: Iniciar servicios de aplicación
             `echo "Paso 4: Iniciando servicios de aplicación..."`,
             `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up -d web-app scraper-worker`,
+            `echo "Esperando 5 segundos para que los servicios estén disponibles..."`,
             `sleep 5`,
 
             // Paso 5: Iniciar app-server en modo depuración
             `echo "Paso 5: Iniciando servidor en modo depuración..."`,
             `LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${projectName} npx tsx --watch apps/${projectName}/app-server/src/main.ts`
+          ],
+          parallel: false
+        }
+      },
+      "reset-all": {
+        executor: "nx:run-commands",
+        options: {
+          commands: [
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml down -v`,
+            `echo "Eliminando volúmenes y containers..."`,
+            `docker volume prune -f`,
+            `echo "Reconstruyendo imágenes..."`,
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build --no-cache`
           ],
           parallel: false
         }

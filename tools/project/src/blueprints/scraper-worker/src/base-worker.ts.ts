@@ -22,7 +22,46 @@ class QueueConsumer {
   }
 
   async consume(callback: any) {
-    console.log('Ready to consume messages');
+    console.log('Setting up consumer for queue:', this.config.mainQueue);
+
+    // Si estamos en una implementación simulada, falta esta parte crítica:
+    try {
+      // Conectar a RabbitMQ si aún no lo hemos hecho
+      const connection = await amqp.connect(this.config.url);
+      const channel = await connection.createChannel();
+
+      // Asegurarse de que la cola existe
+      await channel.assertQueue(this.config.mainQueue, { durable: true });
+
+      // Configurar prefetch
+      channel.prefetch(this.config.prefetch || 1);
+
+      // ¡ESTA ES LA PARTE CRÍTICA! Registrarse como consumidor:
+      channel.consume(this.config.mainQueue, async (msg) => {
+        if (msg === null) return;
+
+        try {
+          const task = JSON.parse(msg.content.toString());
+          console.log(\`Received task: \${task.id}\`);
+
+          const success = await callback(task, channel);
+
+          if (success) {
+            channel.ack(msg);
+          } else {
+            channel.nack(msg, false, false);
+          }
+        } catch (error) {
+          console.error(\`Error processing message: \${error.message}\`);
+          channel.nack(msg, false, false);
+        }
+      });
+
+      console.log(\`Consumer registered for queue: \${this.config.mainQueue}\`);
+    } catch (error) {
+      console.error(\`Failed to setup consumer: \${error.message}\`);
+      throw error;
+    }
   }
 
   async sendToDeadLetterQueue(task: any, errorMessage: string) {
@@ -110,74 +149,6 @@ export abstract class BaseWorker<T extends WorkerTask, R = any> {
    * Procesa una tarea individual
    * Implementa el flujo común con puntos de extensión
    */
-  protected async processTask(task: T, channel: any): Promise<boolean> {
-    // Crea el contexto de ejecución
-    const context: TaskContext = {
-      attempt: (task.retryCount || 0) + 1,
-      startTime: new Date(),
-      logs: []
-    };
-
-    try {
-      // Actualizar contador de intentos
-      task.retryCount = context.attempt - 1;
-
-      // Reportar inicio de procesamiento
-      await this.progressReporter.reportProgress(task.id, {
-        status: TaskStatus.PROCESSING,
-        retryCount: task.retryCount,
-        currentStep: this.getInitialStep(task),
-        progress: 0,
-        lastAttempt: new Date().toISOString()
-      });
-
-      console.log(\`Processing task \${task.id}\`, {
-        type: this.getWorkerType(),
-        attempt: context.attempt
-      });
-
-      // Ejecutar la tarea específica (implementada por la subclase)
-      const result = await this.executeTask(task, context);
-
-      // Reportar éxito
-      await this.progressReporter.reportProgress(task.id, {
-        status: TaskStatus.COMPLETED,
-        progress: 100,
-        result: JSON.stringify(result),
-        completedAt: new Date().toISOString()
-      });
-
-      console.log(\`Task \${task.id} completed successfully\`, {
-        type: this.getWorkerType(),
-        attempt: context.attempt,
-        duration: Date.now() - context.startTime.getTime()
-      });
-
-      return true;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      console.error(\`Error processing task \${task.id}\`, {
-        error: errorMessage,
-        type: this.getWorkerType(),
-        attempt: context.attempt
-      });
-
-      // Verificar si el error es permanente o si se debe reintentar
-      const isPermanent = this.isPermanentError(error, task) ||
-                          (task.retryCount || 0) >= this.config.retry.maxRetries;
-
-      if (isPermanent) {
-        // Marcar como fallido permanentemente
-        await this.handlePermanentFailure(task, error, channel, context);
-        return false;
-      } else {
-        // Programar reintento
-        await this.scheduleRetry(task, error, channel, context);
-        return false;
-      }
-    }
-  }
 
   /**
    * Registra un log en el contexto de la tarea
@@ -197,8 +168,21 @@ export abstract class BaseWorker<T extends WorkerTask, R = any> {
 
     context.logs.push(logEntry);
 
-    // También enviar al logger global
-    console[level](message, { taskContext: true, ...data });
+    // Usar switch para evitar errores de tipo
+    switch(level) {
+      case 'info':
+        console.info(message, { taskContext: true, ...data });
+        break;
+      case 'warning':
+        console.warn(message, { taskContext: true, ...data });
+        break;
+      case 'error':
+        console.error(message, { taskContext: true, ...data });
+        break;
+      case 'debug':
+        console.debug(message, { taskContext: true, ...data });
+        break;
+    }
   }
 
   /**

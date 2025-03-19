@@ -16,15 +16,16 @@ export function scraperWorkerService(options: GeneratorOptions): string {
       - MAX_RETRIES=3
       - BACKOFF_MULTIPLIER=2000
       - GRAPHQL_URL=http://app-server:3000/graphql
-    depends_on:
-      - rabbitmq
+      - DEBUG=true
     networks:
       - app-network
+    depends_on:
+      - rabbitmq
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
     restart: unless-stopped
-    `;
+`;
 }
