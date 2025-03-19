@@ -13,6 +13,7 @@
     "lib": ["es2021", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
+    "esModuleInterop": true,
     "baseUrl": ".",
     "paths": {
       "@haiku": ["node_modules/haiku-generator/build/haiku/Haiku"],
