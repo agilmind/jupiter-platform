@@ -13,6 +13,46 @@
         "$source": "argv",
         "index": 0
       }
+    },
+    "includeApolloPrisma": {
+      "type": "boolean",
+      "description": "Incluir API GraphQL con Prisma",
+      "default": true
+    },
+    "includeWebApp": {
+      "type": "boolean",
+      "description": "Incluir aplicación web React",
+      "default": true
+    },
+    "includeNativeApp": {
+      "type": "boolean",
+      "description": "Incluir aplicación React Native",
+      "default": false
+    },
+    "includeScraperWorker": {
+      "type": "boolean",
+      "description": "Incluir servicio worker de scraping",
+      "default": false
+    },
+    "includeReportWorker": {
+      "type": "boolean",
+      "description": "Incluir servicio worker de reportes",
+      "default": false
+    },
+    "includeEmailWorker": {
+      "type": "boolean",
+      "description": "Incluir servicio worker de email",
+      "default": false
+    },
+    "includePgBouncer": {
+      "type": "boolean",
+      "description": "Incluir PgBouncer para conexiones a PostgreSQL",
+      "default": false
+    },
+    "includeRabbitMQ": {
+      "type": "boolean",
+      "description": "Incluir RabbitMQ para mensajería entre servicios",
+      "default": false
     }
   },
   "required": ["projectName"]

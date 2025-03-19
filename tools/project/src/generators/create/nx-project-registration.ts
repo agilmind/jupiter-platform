@@ -3,91 +3,148 @@ import * as path from 'path';
 import { GeneratorOptions } from '../../blueprints/types';
 
 export function registerNxProjects(tree: Tree, options: GeneratorOptions): void {
-  const { projectName, projectRoot, uniqueAppServerName, uniqueWebAppName } = options;
+  const { projectName, projectRoot } = options;
 
-  // 1. Definir los nombres únicos para los proyectos
-  const appServerName = uniqueAppServerName || `${projectName}-app-server`;
-  const webAppName = uniqueWebAppName || `${projectName}-web-app`;
+  // 1. Definir nombres de proyectos
+  const projectNames = {};
 
-  // 2. Actualizar nx.json directamente para registrar los proyectos
+  if (options.includeApolloPrisma) {
+    projectNames['appServer'] = `${projectName}-app-server`;
+  }
+
+  if (options.includeWebApp) {
+    projectNames['webApp'] = `${projectName}-web-app`;
+  }
+
+  if (options.includeNativeApp) {
+    projectNames['nativeApp'] = `${projectName}-native-app`;
+  }
+
+  if (options.includeScraperWorker) {
+    projectNames['scraperWorker'] = `${projectName}-scraper-worker`;
+  }
+
+  if (options.includeReportWorker) {
+    projectNames['reportWorker'] = `${projectName}-report-worker`;
+  }
+
+  if (options.includeEmailWorker) {
+    projectNames['emailWorker'] = `${projectName}-email-worker`;
+  }
+
+  // 2. Actualizar nx.json
   if (tree.exists('nx.json')) {
     updateJson(tree, 'nx.json', (json) => {
       if (!json.projects) {
         json.projects = {};
       }
 
-      // Registrar app-server con nombre único
-      json.projects[appServerName] = {
-        tags: [],
-        root: `apps/${projectName}/app-server`
-      };
+      // Registrar proyectos según lo que se ha incluido
+      if (options.includeApolloPrisma) {
+        json.projects[projectNames['appServer']] = {
+          tags: [],
+          root: `apps/${projectName}/app-server`
+        };
+      }
 
-      // Registrar web-app con nombre único
-      json.projects[webAppName] = {
-        tags: [],
-        root: `apps/${projectName}/web-app`
-      };
+      if (options.includeWebApp) {
+        json.projects[projectNames['webApp']] = {
+          tags: [],
+          root: `apps/${projectName}/web-app`
+        };
+      }
+
+      if (options.includeNativeApp) {
+        json.projects[projectNames['nativeApp']] = {
+          tags: [],
+          root: `apps/${projectName}/native-app`
+        };
+      }
+
+      if (options.includeScraperWorker) {
+        json.projects[projectNames['scraperWorker']] = {
+          tags: [],
+          root: `apps/${projectName}/scraper-worker`
+        };
+      }
+
+      if (options.includeReportWorker) {
+        json.projects[projectNames['reportWorker']] = {
+          tags: [],
+          root: `apps/${projectName}/report-worker`
+        };
+      }
+
+      if (options.includeEmailWorker) {
+        json.projects[projectNames['emailWorker']] = {
+          tags: [],
+          root: `apps/${projectName}/email-worker`
+        };
+      }
 
       return json;
     });
   }
 
-  // 3. Crear project.json para app-server con el nombre correcto
-  const appServerProjectJson = {
-    name: appServerName,
-    sourceRoot: `apps/${projectName}/app-server/src`,
-    projectType: "application",
-    targets: {
-      build: {
-        executor: "@nx/js:tsc",
-        outputs: ["{options.outputPath}"],
-        options: {
-          outputPath: `dist/apps/${projectName}/app-server`,
-          main: `apps/${projectName}/app-server/src/main.ts`,
-          tsConfig: `apps/${projectName}/app-server/tsconfig.app.json`,
-          assets: []
+  // 3. Crear archivos project.json según los componentes incluidos
+  if (options.includeApolloPrisma) {
+    const appServerProjectJson = {
+      name: projectNames['appServer'],
+      sourceRoot: `apps/${projectName}/app-server/src`,
+      projectType: "application",
+      targets: {
+        build: {
+          executor: "@nx/js:tsc",
+          outputs: ["{options.outputPath}"],
+          options: {
+            outputPath: `dist/apps/${projectName}/app-server`,
+            main: `apps/${projectName}/app-server/src/main.ts`,
+            tsConfig: `apps/${projectName}/app-server/tsconfig.app.json`,
+            assets: []
+          }
+        },
+        serve: {
+          executor: "nx:run-commands",
+          options: {
+            command: `npx tsx --watch apps/${projectName}/app-server/src/main.ts`
+          }
         }
       },
-      serve: {
-        executor: "nx:run-commands",
-        options: {
-          command: `npx tsx --watch apps/${projectName}/app-server/src/main.ts`
+      tags: []
+    };
+
+    tree.write(
+      path.join(projectRoot, 'app-server', 'project.json'),
+      JSON.stringify(appServerProjectJson, null, 2)
+    );
+  }
+
+  // Configuraciones para otros componentes (similarmente condicionales)
+  if (options.includeWebApp) {
+    const webAppProjectJson = {
+      name: projectNames['webApp'],
+      projectType: "application",
+      root: `apps/${projectName}/web-app`,
+      targets: {
+        serve: {
+          executor: "nx:run-commands",
+          options: {
+            command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up web-app`
+          }
         }
-      }
-    },
-    tags: []
-  };
+      },
+      tags: []
+    };
 
-  // Escribir el archivo project.json para app-server
-  tree.write(
-    path.join(projectRoot, 'app-server', 'project.json'),
-    JSON.stringify(appServerProjectJson, null, 2)
-  );
+    tree.write(
+      path.join(projectRoot, 'web-app', 'project.json'),
+      JSON.stringify(webAppProjectJson, null, 2)
+    );
+  }
 
-  // 4. Crear project.json para web-app con el nombre correcto
-  const webAppProjectJson = {
-    name: webAppName,
-    projectType: "application",
-    root: `apps/${projectName}/web-app`,
-    targets: {
-      serve: {
-        executor: "nx:run-commands",
-        options: {
-          command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up web-app`
-        }
-      }
-    },
-    tags: []
-  };
-
-  // Escribir el archivo project.json para web-app
-  tree.write(
-    path.join(projectRoot, 'web-app', 'project.json'),
-    JSON.stringify(webAppProjectJson, null, 2)
-  );
-
-  // 5. Informar sobre los nombres usados
-  console.log(`Proyectos registrados como:`);
-  console.log(`- Backend: ${appServerName}`);
-  console.log(`- Frontend: ${webAppName}`);
+  // Información sobre los proyectos registrados
+  console.log(`Proyectos registrados:`);
+  Object.entries(projectNames).forEach(([key, value]) => {
+    console.log(`- ${key}: ${value}`);
+  });
 }

@@ -1,6 +1,12 @@
 export interface GeneratorOptions {
   projectName: string;
   projectRoot: string;
-  uniqueAppServerName?: string; // Hacerlo opcional para compatibilidad
-  uniqueWebAppName?: string;    // Hacerlo opcional para compatibilidad
+  includeApolloPrisma: boolean;
+  includeWebApp: boolean;
+  includeNativeApp: boolean;
+  includeScraperWorker: boolean;
+  includeReportWorker: boolean;
+  includeEmailWorker: boolean;
+  includePgBouncer: boolean;
+  includeRabbitMQ: boolean;
 }

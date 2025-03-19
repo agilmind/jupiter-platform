@@ -14,10 +14,16 @@ export function srcStyleCss(options: GeneratorOptions): string {
 
 .container {
   text-align: center;
+  max-width: 800px;
+  width: 100%;
+}
+
+.card {
   background-color: white;
   padding: 2rem;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
 }
 
 .message {
@@ -35,9 +41,19 @@ button {
   border-radius: 4px;
   cursor: pointer;
   font-size: 1rem;
+  margin: 0.5rem;
 }
 
 button:hover {
   background-color: #45a049;
+}
+
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+h1, h2 {
+  color: #333;
 }`;
 }
