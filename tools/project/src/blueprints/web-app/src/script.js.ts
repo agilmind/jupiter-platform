@@ -5,12 +5,15 @@ export function srcScriptJs(options: GeneratorOptions): string {
   const messageElement = document.getElementById('message');
   const fetchButton = document.getElementById('fetchButton');
   const checkButton = document.getElementById('checkButton');
+  const urlInput = document.getElementById('urlInput');
   const checkIdElement = document.getElementById('checkId');
   const checkStatusElement = document.getElementById('checkStatus');
   const refreshButton = document.getElementById('refreshButton');
+  const resultElement = document.getElementById('result');
 
   // Variables para almacenar el ID del check actual
   let currentCheckId = null;
+  let pollingInterval = null;
 
   // Función para obtener el mensaje del servidor
   async function fetchMessage() {
@@ -28,15 +31,22 @@ export function srcScriptJs(options: GeneratorOptions): string {
 
   // Función para iniciar un nuevo check
   async function startCheck() {
+    // Detener polling anterior si existe
+    stopPolling();
+
     checkIdElement.textContent = 'Iniciando check...';
     checkStatusElement.textContent = '';
+    resultElement.textContent = '';
 
     try {
+      const url = urlInput.value.trim() || 'https://en.wikipedia.org/wiki/Main_Page';
+
       const response = await fetch('http://localhost:3000/api/check', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ url })
       });
 
       const data = await response.json();
@@ -47,6 +57,9 @@ export function srcScriptJs(options: GeneratorOptions): string {
 
       // Habilitar el botón de refrescar
       refreshButton.disabled = false;
+
+      // Iniciar polling automático
+      startPolling();
     } catch (error) {
       checkIdElement.textContent = 'Error al iniciar el check';
       console.error('Error:', error);
@@ -77,12 +90,35 @@ export function srcScriptJs(options: GeneratorOptions): string {
 
           checkStatusElement.textContent += \`\\nFlujo: \${flowDetails}\`;
         }
+
+        // Mostrar resultado si existe
+        if (data.result) {
+          resultElement.textContent = data.result;
+        }
+
+        // Si el estado es completed, detener el polling
+        if (data.status === 'completed') {
+          stopPolling();
+        }
       } else {
         checkStatusElement.textContent = 'Check no encontrado';
       }
     } catch (error) {
       checkStatusElement.textContent = 'Error al obtener el estado del check';
       console.error('Error:', error);
+    }
+  }
+
+  // Iniciar polling automático cada 2 segundos
+  function startPolling() {
+    pollingInterval = setInterval(getCheckStatus, 2000);
+  }
+
+  // Detener polling
+  function stopPolling() {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
     }
   }
 

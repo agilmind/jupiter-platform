@@ -16,6 +16,7 @@ export function srcStyleCss(options: GeneratorOptions): string {
   text-align: center;
   max-width: 800px;
   width: 100%;
+  padding: 2rem;
 }
 
 .card {
@@ -24,6 +25,7 @@ export function srcStyleCss(options: GeneratorOptions): string {
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   margin-bottom: 2rem;
+  text-align: left;
 }
 
 .message {
@@ -31,6 +33,23 @@ export function srcStyleCss(options: GeneratorOptions): string {
   padding: 1rem;
   background-color: #f0f0f0;
   border-radius: 4px;
+}
+
+.input-group {
+  margin-bottom: 1rem;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
 }
 
 button {
@@ -41,7 +60,7 @@ button {
   border-radius: 4px;
   cursor: pointer;
   font-size: 1rem;
-  margin: 0.5rem;
+  margin: 0.5rem 0;
 }
 
 button:hover {
@@ -53,7 +72,22 @@ button:disabled {
   cursor: not-allowed;
 }
 
-h1, h2 {
+h1, h2, h3 {
   color: #333;
+}
+
+.result-container {
+  margin-top: 1.5rem;
+}
+
+.result {
+  background-color: #f0f0f0;
+  padding: 1rem;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  font-family: monospace;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.9rem;
 }`;
 }

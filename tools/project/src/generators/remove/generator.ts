@@ -12,6 +12,7 @@ export default async function (tree: Tree, options: RemoveGeneratorSchema) {
   const projectName = names(options.projectName).fileName;
   const appServerProjectName = `${projectName}-app-server`;
   const webAppProjectName = `${projectName}-web-app`;
+  const stackProjectName = `${projectName}-stack`;
 
   // Eliminar configuraciones de proyectos
   try {
@@ -26,6 +27,13 @@ export default async function (tree: Tree, options: RemoveGeneratorSchema) {
     console.log(`Eliminada configuración de ${webAppProjectName}`);
   } catch (e) {
     console.log(`No se encontró configuración para ${webAppProjectName}`);
+  }
+
+  try {
+    removeProjectConfiguration(tree, stackProjectName);
+    console.log(`Eliminada configuración de ${stackProjectName}`);
+  } catch (e) {
+    console.log(`No se encontró configuración para ${stackProjectName}`);
   }
 
   // Eliminar directorios físicos

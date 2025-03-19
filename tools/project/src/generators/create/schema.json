@@ -32,7 +32,7 @@
     "includeScraperWorker": {
       "type": "boolean",
       "description": "Incluir servicio worker de scraping",
-      "default": false
+      "default": true
     },
     "includeReportWorker": {
       "type": "boolean",
@@ -47,12 +47,12 @@
     "includePgBouncer": {
       "type": "boolean",
       "description": "Incluir PgBouncer para conexiones a PostgreSQL",
-      "default": false
+      "default": true
     },
     "includeRabbitMQ": {
       "type": "boolean",
       "description": "Incluir RabbitMQ para mensajería entre servicios",
-      "default": false
+      "default": true
     }
   },
   "required": ["projectName"]

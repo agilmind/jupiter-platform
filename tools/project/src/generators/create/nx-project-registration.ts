@@ -7,6 +7,7 @@ export function registerNxProjects(tree: Tree, options: GeneratorOptions): void 
 
   // 1. Definir nombres de proyectos
   const projectNames = {};
+  const stackProjectName = `${projectName}-stack`;
 
   if (options.includeApolloPrisma) {
     projectNames['appServer'] = `${projectName}-app-server`;
@@ -141,6 +142,54 @@ export function registerNxProjects(tree: Tree, options: GeneratorOptions): void 
       JSON.stringify(webAppProjectJson, null, 2)
     );
   }
+
+  // 4. Crear project.json para el stack
+  const stackProjectJson = {
+    name: stackProjectName,
+    projectType: "application",
+    root: `apps/${projectName}`,
+    targets: {
+      serve: {
+        executor: "nx:run-commands",
+        options: {
+          command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up`
+        }
+      },
+      "serve-api-only": {
+        executor: "nx:run-commands",
+        options: {
+          command: `DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${projectName} npx tsx --watch apps/${projectName}/app-server/src/main.ts`
+        }
+      },
+      "serve-db-only": {
+        executor: "nx:run-commands",
+        options: {
+          command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up postgres`
+        }
+      },
+      "serve-ui-only": {
+        executor: "nx:run-commands",
+        options: {
+          command: `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up web-app`
+        }
+      },
+      "debug": {
+        executor: "nx:run-commands",
+        options: {
+          parallel: true,
+          commands: [
+            `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up postgres web-app`,
+            `sleep 5 && DATABASE_URL=postgresql://postgres:postgres@localhost:5433/${projectName} npx tsx --watch apps/${projectName}/app-server/src/main.ts`
+          ]
+        }
+      }
+    }
+  };
+
+  tree.write(
+    path.join(projectRoot, 'project.json'),
+    JSON.stringify(stackProjectJson, null, 2)
+  );
 
   // Información sobre los proyectos registrados
   console.log(`Proyectos registrados:`);

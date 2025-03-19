@@ -10,7 +10,7 @@ export function postgresService(options: GeneratorOptions): string {
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Cambiado a 5433 para evitar conflictos
     networks:
       - app-network
     healthcheck:

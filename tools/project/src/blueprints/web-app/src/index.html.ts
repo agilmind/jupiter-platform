@@ -22,10 +22,19 @@ export function srcIndexHtml(options: GeneratorOptions): string {
 
     <div class="card">
       <h2>Prueba de flujo entre servicios</h2>
+      <div class="input-group">
+        <label for="urlInput">URL para scraping:</label>
+        <input type="text" id="urlInput" placeholder="https://en.wikipedia.org/wiki/Main_Page" value="https://en.wikipedia.org/wiki/Main_Page" />
+      </div>
       <button id="checkButton">Iniciar nuevo check</button>
       <p id="checkId">-</p>
       <p id="checkStatus">-</p>
       <button id="refreshButton" disabled>Refrescar estado</button>
+
+      <div class="result-container">
+        <h3>Resultado del scraping:</h3>
+        <pre id="result" class="result"></pre>
+      </div>
     </div>
   </div>
   <script src="script.js"></script>

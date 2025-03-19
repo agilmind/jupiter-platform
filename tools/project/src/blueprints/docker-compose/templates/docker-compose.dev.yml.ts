@@ -4,6 +4,7 @@ import { webAppService } from '../services/web-app';
 import { postgresService } from '../services/postgres';
 import { pgbouncerService } from '../services/pgbouncer';
 import { rabbitmqService } from '../services/rabbitmq';
+import { scraperWorkerService } from '../services/scraper-worker';
 import { networks } from '../networks';
 import { volumes } from '../volumes';
 
@@ -26,6 +27,10 @@ export function dockerComposeDev(options: GeneratorOptions): string {
 
   if (options.includeRabbitMQ) {
     content += `${rabbitmqService(options)}\n\n`;
+  }
+
+  if (options.includeScraperWorker) {
+    content += `${scraperWorkerService(options)}\n\n`;
   }
 
   // Agregar redes
