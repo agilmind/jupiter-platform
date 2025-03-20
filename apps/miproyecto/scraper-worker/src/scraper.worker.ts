@@ -1,21 +1,19 @@
 import { chromium } from 'playwright';
 import { WorkerTask, TaskContext, WorkerConfig } from './types';
 import { BaseWorker } from './base-worker';
-import { extractTextFromPage } from './utils/playwright-utils';
-
-// Conexión a RabbitMQ
 import * as amqp from 'amqplib';
 
-// Definición de la tarea específica para este worker
+// Interfaces base
 export interface ScraperTask extends WorkerTask {
-  url: string;
+  url?: string;
   selector?: string;
+  data?: any;
 }
 
-// Definición del resultado
 export interface ScraperResult {
-  id: string; // Añadido id para evitar error
-  url: string;
+  id: string;
+  url?: string;
+  data?: any;
   text: string;
   timestamp: string;
 }
@@ -28,24 +26,32 @@ declare module 'amqplib' {
 }
 
 /**
- * Worker para realizar scraping de sitios web
+ * Worker abstracto para realizar scraping de sitios web
+ * Contiene la lógica común a todos los scrapers
  */
-export class ScraperWorker extends BaseWorker<ScraperTask, ScraperResult> {
-  // Añadir la propiedad connection
-  private connection: amqp.Connection | null = null;
-  private channel: amqp.Channel | null = null;
-  private resultQueue: string;
+export abstract class AbstractScraperWorker<
+  T extends ScraperTask = ScraperTask,
+  R extends ScraperResult = ScraperResult
+> extends BaseWorker<T, R> {
+
+  protected connection: amqp.Connection | null = null;
+  protected channel: amqp.Channel | null = null;
+  protected resultQueue: string;
 
   constructor(config: WorkerConfig) {
     super(config);
-    this.resultQueue = process.env.RESULT_QUEUE || 'result_queue';
+    this.resultQueue = config.queue.resultQueue || 'result_queue';
   }
 
   /**
-   * Método para detener el worker (para solucionar error en main.ts)
+   * Detiene el worker
    */
-  public async stop(): Promise<void> {
+  public override async shutdown(): Promise<void> {
     try {
+      // Llamar primero al shutdown de la clase base
+      await super.shutdown();
+
+      // Cerrar recursos específicos del scraper
       if (this.channel) {
         await this.channel.close();
       }
@@ -54,9 +60,9 @@ export class ScraperWorker extends BaseWorker<ScraperTask, ScraperResult> {
         await this.connection.close();
       }
 
-      console.log('Worker detenido correctamente');
+      console.log('Conexiones del scraper cerradas correctamente');
     } catch (error) {
-      console.error('Error al detener el worker:', error);
+      console.error('Error al cerrar conexiones del scraper:', error);
       throw error;
     }
   }
@@ -68,13 +74,11 @@ export class ScraperWorker extends BaseWorker<ScraperTask, ScraperResult> {
     try {
       console.log('Verificando disponibilidad de Playwright...');
 
-      // Primero intentamos conectar a RabbitMQ, ya que es menos intensivo
+      // Primero intentamos conectar a RabbitMQ
       console.log('Conectando a RabbitMQ...');
       try {
-        // Usamos aserciones de tipo para evitar errores
         this.connection = await amqp.connect(this.config.queue.url);
 
-        // Aseguramos que TypeScript reconozca el método createChannel
         if (this.connection) {
           this.channel = await this.connection.createChannel();
           await this.channel.assertQueue(this.resultQueue, { durable: true });
@@ -85,7 +89,7 @@ export class ScraperWorker extends BaseWorker<ScraperTask, ScraperResult> {
         throw error;
       }
 
-      // Ahora probamos Playwright con timeouts y retry
+      // Probamos Playwright con timeouts y retry
       let playwright_ready = false;
       let retry_count = 0;
       const max_retries = 3;
@@ -123,82 +127,52 @@ export class ScraperWorker extends BaseWorker<ScraperTask, ScraperResult> {
   }
 
   /**
-   * Implementa la lógica de scraping
+   * Implementación adaptada para ser compatible con BaseWorker
    */
-  protected async executeTask(
-    task: ScraperTask,
-    context: TaskContext
-  ): Promise<ScraperResult> {
-    this.log(context, 'info', `Iniciando scraping para URL: ${task.url}`);
+  protected override async processTask(task: T, channel: any): Promise<boolean> {
+    const context: TaskContext = {
+      id: task.id,
+      attempt: task.retryCount || 0,
+      startedAt: new Date(),
+      logs: [],
+    };
 
-    // Validar la URL
-    if (!task.url || !task.url.startsWith('http')) {
-      throw new Error(`URL inválida: ${task.url}`);
-    }
-
-    const browser = await chromium.launch({ headless: true });
     try {
-      this.log(context, 'info', 'Navegando a la página');
+      this.log(context, 'info', this.getInitialStep(task));
 
-      // Crear una nueva página
-      const page = await browser.newPage();
+      // Llamar al método especializado para procesar la tarea
+      const result = await this.executeTask(task, context);
 
-      // Navegar a la URL
-      await page.goto(task.url, { waitUntil: 'domcontentloaded' });
-
-      // Extraer texto según el selector o usar el texto de toda la página
-      const text = await extractTextFromPage(page, task.selector);
-
-      this.log(context, 'info', `Texto extraído (${text.length} caracteres)`);
-
-      // Crear el resultado
-      const result: ScraperResult = {
-        id: task.id,
-        url: task.url,
-        text: text.substring(0, 500), // Limitamos a 500 caracteres
-        timestamp: new Date().toISOString(),
-      };
-
-      // Enviar resultado a la cola
-      try {
-        if (this.channel) {
-          this.channel.sendToQueue(
-            this.resultQueue,
-            Buffer.from(JSON.stringify(result)),
-            { persistent: true }
-          );
-          this.log(
-            context,
-            'info',
-            `Resultado enviado a la cola ${this.resultQueue}`
-          );
-        } else {
-          this.log(
-            context,
-            'warning',
-            'No hay canal disponible para enviar resultados'
-          );
-        }
-      } catch (error: any) {
-        this.log(
-          context,
-          'error',
-          `Error enviando resultado: ${error.message}`
+      // Enviar el resultado a la cola si hay un canal disponible
+      if (this.channel) {
+        this.channel.sendToQueue(
+          this.resultQueue,
+          Buffer.from(JSON.stringify(result)),
+          { persistent: true }
         );
+        this.log(context, 'info', `Resultado enviado a la cola ${this.resultQueue}`);
       }
 
-      return result;
-    } finally {
-      // Asegurarnos de cerrar el navegador
-      await browser.close();
-      this.log(context, 'info', 'Navegador cerrado');
+      return true;
+    } catch (error) {
+      this.log(
+        context,
+        'error',
+        `Error procesando tarea: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return false;
     }
   }
 
   /**
+   * Método abstracto que debe ser implementado por cada scraper específico
+   */
+  protected abstract executeTask(task: T, context: TaskContext): Promise<R>;
+
+  /**
    * Determina si un error es permanente (no se debe reintentar)
    */
-  protected isPermanentError(error: any, task: ScraperTask): boolean {
+  protected isPermanentError(error: any, task: T): boolean {
     // Errores de formato de URL son permanentes
     if (error.message && error.message.includes('URL inválida')) {
       return true;
@@ -226,7 +200,7 @@ export class ScraperWorker extends BaseWorker<ScraperTask, ScraperResult> {
   /**
    * Retorna el paso inicial para esta tarea
    */
-  protected getInitialStep(task: ScraperTask): string {
-    return `Iniciando scraping para ${task.url}`;
+  protected getInitialStep(task: T): string {
+    return `Iniciando scraping para tarea ${task.id}`;
   }
 }

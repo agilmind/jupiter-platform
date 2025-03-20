@@ -315,7 +315,7 @@ export abstract class BaseWorker<T extends WorkerTask, R = any> {
   /**
    * Cierra las conexiones y libera recursos
    */
-  protected async shutdown(): Promise<void> {
+  async shutdown(): Promise<void> {
     try {
       await this.queueConsumer.close();
       console.log('Worker shut down successfully');

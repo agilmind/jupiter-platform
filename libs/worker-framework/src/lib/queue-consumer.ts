@@ -1,5 +1,5 @@
 import * as amqp from 'amqplib';
-import { QueueConfig, WorkerTask } from './types';
+import { QueueConfig, WorkerTask } from './interfaces';
 import { createLogger } from './utils/logger';
 
 const logger = createLogger('queue-consumer');
@@ -14,10 +14,10 @@ export class QueueConsumer {
 
   constructor(config: QueueConfig) {
     this.config = config;
-    logger.debug('QueueConsumer initialized', { 
-      host: config.host, 
+    logger.debug('QueueConsumer initialized', {
+      host: config.host,
       port: config.port,
-      mainQueue: config.mainQueue 
+      mainQueue: config.mainQueue
     });
   }
 
@@ -30,29 +30,31 @@ export class QueueConsumer {
       const url = `amqp://${this.config.user}:${this.config.password}@${this.config.host}:${this.config.port}`;
       // Usar casting para evitar errores de TypeScript
       this.connection = await amqp.connect(url) as unknown as amqp.Connection;
-      
+
       // Crear canal
       if (this.connection) {
         // Usar casting para los métodos que TypeScript no reconoce
         this.channel = await (this.connection as any).createChannel() as amqp.Channel;
-        
+
         // Configurar prefetch
         if (this.channel) {
-          await this.channel.prefetch(this.config.prefetch);
-          
+          if (this.config.prefetch) {
+            await this.channel.prefetch(this.config.prefetch);
+          }
+
           // Configurar colas
           await this.setupQueues();
-          
+
           // Manejar cierre de conexión
           (this.connection as any).on('close', () => {
             logger.warn('RabbitMQ connection closed');
             this.connection = null;
             this.channel = null;
           });
-          
-          logger.info('RabbitMQ connection established', { 
-            host: this.config.host, 
-            port: this.config.port 
+
+          logger.info('RabbitMQ connection established', {
+            host: this.config.host,
+            port: this.config.port
           });
         } else {
           throw new Error('Failed to create channel');
@@ -61,7 +63,7 @@ export class QueueConsumer {
         throw new Error('Failed to establish connection');
       }
     } catch (error) {
-      logger.error('Failed to setup RabbitMQ connection', { 
+      logger.error('Failed to setup RabbitMQ connection', {
         error: error instanceof Error ? error.message : String(error),
         host: this.config.host,
         port: this.config.port
@@ -77,13 +79,13 @@ export class QueueConsumer {
     if (!this.channel) {
       throw new Error('Channel not initialized');
     }
-    
+
     // Cola de reintentos con TTL dinámico
     await this.channel.assertExchange('retry_exchange', 'direct', { durable: true });
-    
+
     // Cola de mensajes fallidos permanentemente
     await this.channel.assertQueue(this.config.deadLetterQueue, { durable: true });
-    
+
     // Cola principal con reenvío a cola de reintentos
     await this.channel.assertQueue(this.config.mainQueue, {
       durable: true,
@@ -92,7 +94,7 @@ export class QueueConsumer {
         'x-dead-letter-routing-key': this.config.retryQueue
       }
     });
-    
+
     // Cola de reintentos que enruta de vuelta a la cola principal
     await this.channel.assertQueue(this.config.retryQueue, {
       durable: true,
@@ -101,14 +103,14 @@ export class QueueConsumer {
         'x-dead-letter-routing-key': this.config.mainQueue
       }
     });
-    
+
     // Binding de la cola de reintentos
     await this.channel.bindQueue(
-      this.config.retryQueue, 
-      'retry_exchange', 
+      this.config.retryQueue,
+      'retry_exchange',
       this.config.retryQueue
     );
-    
+
     logger.info('RabbitMQ queues setup complete', {
       mainQueue: this.config.mainQueue,
       retryQueue: this.config.retryQueue,
@@ -126,23 +128,23 @@ export class QueueConsumer {
     if (!this.channel) {
       throw new Error('Channel not initialized');
     }
-    
+
     this.channel.consume(this.config.mainQueue, async (msg) => {
       if (!msg || !this.channel) return;
-      
+
       try {
         const content = msg.content.toString();
         const task = JSON.parse(content) as T;
-        
-        logger.debug(`Received message`, { 
-          id: task.id, 
-          type: task.type,
+
+        logger.debug(`Received message`, {
+          id: task.id,
+          type: task['type'],
           retryCount: task.retryCount || 0
         });
-        
+
         // Procesar el mensaje
         const success = await processCallback(task, this.channel);
-        
+
         if (success) {
           // Confirmar procesamiento exitoso
           this.channel.ack(msg);
@@ -151,18 +153,18 @@ export class QueueConsumer {
           this.channel.ack(msg);
         }
       } catch (error) {
-        logger.error('Error processing message', { 
+        logger.error('Error processing message', {
           error: error instanceof Error ? error.message : String(error),
           content: msg.content.toString()
         });
-        
+
         // Rechazar para volver a encolar
         if (this.channel) {
           this.channel.nack(msg, false, true);
         }
       }
     });
-    
+
     logger.info(`Started consuming from queue ${this.config.mainQueue}`);
   }
 
@@ -175,7 +177,7 @@ export class QueueConsumer {
     if (!this.channel) {
       throw new Error('Channel not initialized');
     }
-    
+
     await this.channel.sendToQueue(
       this.config.retryQueue,
       Buffer.from(JSON.stringify(task)),
@@ -184,9 +186,9 @@ export class QueueConsumer {
         expiration: Math.floor(delayMs).toString() // TTL como string
       }
     );
-    
-    logger.debug(`Scheduled retry for task`, { 
-      id: task.id, 
+
+    logger.debug(`Scheduled retry for task`, {
+      id: task.id,
       delayMs,
       retryCount: task.retryCount
     });
@@ -201,7 +203,7 @@ export class QueueConsumer {
     if (!this.channel) {
       throw new Error('Channel not initialized');
     }
-    
+
     await this.channel.sendToQueue(
       this.config.deadLetterQueue,
       Buffer.from(JSON.stringify({
@@ -211,9 +213,9 @@ export class QueueConsumer {
       })),
       { persistent: true }
     );
-    
-    logger.debug(`Sent task to dead letter queue`, { 
-      id: task.id, 
+
+    logger.debug(`Sent task to dead letter queue`, {
+      id: task.id,
       error: errorMessage
     });
   }
@@ -227,16 +229,16 @@ export class QueueConsumer {
         await this.channel.close();
         this.channel = null;
       }
-      
+
       if (this.connection) {
         // Usar casting para el método close
         await (this.connection as any).close();
         this.connection = null;
       }
-      
+
       logger.info('RabbitMQ connection closed');
     } catch (error) {
-      logger.error('Error closing RabbitMQ connection', { 
+      logger.error('Error closing RabbitMQ connection', {
         error: error instanceof Error ? error.message : String(error)
       });
     }

@@ -1,4 +1,4 @@
-export * from './lib/types';
+export * from './lib/interfaces';
 export * from './lib/utils/logger';
 export * from './lib/retry-manager';
 export * from './lib/queue-consumer';

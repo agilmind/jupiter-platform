@@ -1,28 +1,43 @@
+import { WorkerTask, WorkerConfig } from '@jupiter/worker-framework';
+
 /**
- * Configuración de colas
+ * Método de scraping a utilizar
  */
-export interface QueueConfig {
-  url: string;
-  mainQueue: string;
-  retryQueue: string;
-  deadLetterQueue: string;
-  resultQueue: string;
-  prefetch: number;
+export enum ScraperMethod {
+  AUTO = 'auto',
+  BROWSER = 'browser',
+  LIGHT = 'light'
 }
 
 /**
- * Configuración de reintentos
+ * Configuración de proxy
  */
-export interface RetryConfig {
-  maxRetries: number;
-  backoffMultiplier: number;
+export interface ProxySettings {
+  server: string;
+  username?: string;
+  password?: string;
 }
 
 /**
- * Configuración de GraphQL
+ * Configuración del worker de scraping
  */
-export interface GraphQLConfig {
-  url: string;
+export interface ScraperWorkerConfig extends WorkerConfig {
+  browser?: BrowserConfig;
+  scraper?: ScraperConfig;
+}
+
+/**
+ * Tarea de scraping
+ */
+export interface ScraperTask extends WorkerTask {
+  url?: string;
+  selector?: string;
+  data?: {
+    url?: string;
+    text?: string;
+    options?: ScraperOptions;
+    [key: string]: any;
+  };
 }
 
 /**
@@ -35,52 +50,12 @@ export interface BrowserConfig {
 }
 
 /**
- * Configuración completa del worker
- */
-export interface WorkerConfig {
-  queue: QueueConfig;
-  retry: RetryConfig;
-  graphql: GraphQLConfig;
-  browser?: BrowserConfig;
-  scraper?: ScraperConfig;
-}
-
-/**
  * Configuración específica para scrapers
  */
 export interface ScraperConfig {
   maxConcurrentBrowsers: number;
   defaultMethod: ScraperMethod;
   userAgent?: string;
-}
-
-/**
- * Método de scraping a utilizar
- */
-export enum ScraperMethod {
-  AUTO = 'auto',        // Decide automáticamente
-  BROWSER = 'browser',  // Usa navegador (Playwright)
-  LIGHT = 'light'       // Usa método ligero (Got+Cheerio)
-}
-
-/**
- * Estados posibles de una tarea
- */
-export enum TaskStatus {
-  PENDING = 'PENDING',
-  PROCESSING = 'PROCESSING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  RETRY_SCHEDULED = 'RETRY_SCHEDULED',
-}
-
-/**
- * Interfaz base para todas las tareas
- */
-export interface WorkerTask {
-  id: string;
-  retryCount?: number;
-  [key: string]: any;
 }
 
 /**
@@ -116,7 +91,7 @@ export interface FormDataEntry {
  */
 export interface ClickAction {
   selector: string;
-  waitAfter?: number; // ms a esperar después del clic
+  waitAfter?: number;
 }
 
 /**
@@ -161,45 +136,6 @@ export interface ScraperResult {
   error?: string;
   screenshot?: string; // Base64
 }
-
-/**
- * Registro de log para una tarea
- */
-export interface TaskLog {
-  timestamp: Date;
-  level: 'info' | 'warning' | 'error' | 'debug';
-  message: string;
-  data?: Record<string, any>;
-}
-
-/**
- * Contexto de ejecución para una tarea
- */
-export interface TaskContext {
-  id: string;
-  attempt: number;
-  startedAt: Date;
-  logs: TaskLog[];
-}
-
-/**
- * Actualización de progreso para una tarea
- */
-export interface ProgressUpdate {
-  status: TaskStatus;
-  progress?: number;
-  currentStep?: string;
-  result?: string | any;
-  errorMessage?: string;
-  retryCount?: number;
-  nextRetry?: string;
-  lastAttempt?: string;
-  completedAt?: string;
-  failedAt?: string;
-  logs?: TaskLog[];
-}
-
-// Añade estas interfaces a tu archivo types.ts
 
 /**
  * Configuración de proxy

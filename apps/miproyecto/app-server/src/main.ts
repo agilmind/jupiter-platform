@@ -130,7 +130,7 @@ async function setupRabbitMQ() {
 // Función para actualizar el resultado de un check
 async function updateCheckResult(result) {
   try {
-    const { id, url, text, timestamp } = result;
+    const { id, data, text, processedText, html, stats, error, timestamp, screenshot } = result;
 
     // Buscar el check existente
     const check = await prisma.check.findUnique({ where: { id } });
@@ -140,25 +140,51 @@ async function updateCheckResult(result) {
       return;
     }
 
+    // Determinar el estado final
+    const finalStatus = error ? 'failed' : 'completed';
+
+    // Construir el resultado a guardar
+    // Incluir todos los campos relevantes del resultado
+    const resultToSave = {
+      text,
+      processedText,
+      html: html?.substring(0, 5000), // Limitar tamaño del HTML
+      stats,
+      error,
+      method: data?.options?.method || 'auto',
+      executionTime: stats?.executionTimeMs || 0
+    };
+
+    // Si hay screenshot, incluirla (puede ser grande, considerar límites de tamaño)
+    if (screenshot) {
+      resultToSave.hasScreenshot = true;
+      // Aquí podrías guardar la screenshot en un sistema de almacenamiento
+      // separado o en un campo BLOB específico si la base de datos lo soporta
+    }
+
     // Actualizar el check con el resultado
     await prisma.check.update({
       where: { id },
       data: {
-        status: 'completed',
-        result: text,
+        status: finalStatus,
+        result: JSON.stringify(resultToSave),
         flow: [
           ...check.flow,
           {
             service: 'scraper',
-            status: 'completed',
+            status: finalStatus,
             timestamp,
-            data: { url },
+            data: {
+              method: data?.options?.method || 'auto',
+              executionTime: stats?.executionTimeMs || 0,
+              error
+            },
           },
         ],
       },
     });
 
-    console.log(`Check ${id} actualizado con éxito`);
+    console.log(`Check ${id} actualizado con éxito (estado: ${finalStatus})`);
   } catch (error) {
     console.error('Error actualizando check:', error);
   }
@@ -175,8 +201,10 @@ app.post('/api/check', async (req, res) => {
     const checkId = uuidv4();
     const timestamp = new Date().toISOString();
 
-    // Obtener URL del cuerpo de la petición o usar un valor por defecto
-    const { url = 'https://en.wikipedia.org/wiki/Main_Page' } = req.body;
+    // Obtener los datos de la petición
+    const { data = { url: 'https://es.wikipedia.org/wiki/Tabla_(informaci%C3%B3n)' }, selector = '.wikitable.col3cen' } = req.body;
+
+    console.log('Recibida solicitud de scraping:', { data, selector });
 
     // Crear un nuevo registro de check en la base de datos
     await prisma.check.create({
@@ -188,7 +216,7 @@ app.post('/api/check', async (req, res) => {
             service: 'app-server',
             status: 'initiated',
             timestamp,
-            data: { url },
+            data: { data, selector },
           },
         ],
       },
@@ -203,12 +231,17 @@ app.post('/api/check', async (req, res) => {
     );
 
     if (channel && scraperAvailable) {
-      // Enviar mensaje a la cola normalmente
-      const message = { id: checkId, url, selector: 'h1' };
-      channel.sendToQueue(SCRAPER_QUEUE, Buffer.from(JSON.stringify(message)), {
+      // Crear la tarea con formato compatible con la nueva arquitectura
+      const task = {
+        id: checkId,
+        data,
+        selector
+      };
+
+      channel.sendToQueue(SCRAPER_QUEUE, Buffer.from(JSON.stringify(task)), {
         persistent: true,
       });
-      console.log(`Mensaje enviado a la cola: ${SCRAPER_QUEUE}`);
+      console.log(`Mensaje enviado a la cola: ${SCRAPER_QUEUE}`, task);
     } else {
       // Modo fallback - simular resultado después de un tiempo
       console.warn('Usando modo fallback para el scraper');
@@ -216,8 +249,10 @@ app.post('/api/check', async (req, res) => {
         try {
           const fallbackResult = {
             id: checkId,
-            url,
-            text: `[MODO FALLBACK] Texto simulado para la URL: ${url}. El servicio de scraper no está disponible.`,
+            data,
+            text: `[MODO FALLBACK] Servicio de scraper no disponible. Solicitado para URL: ${data.url || 'no especificada'}`,
+            processedText: `Servicio no disponible - El scraper no pudo procesar esta solicitud`,
+            error: `Scraper no disponible (modo fallback)`,
             timestamp: new Date().toISOString(),
           };
 
@@ -232,7 +267,8 @@ app.post('/api/check', async (req, res) => {
     // Devolver el ID del check para seguimiento
     res.json({ id: checkId, status: 'initiated' });
   } catch (error) {
-    // ... manejador de errores
+    console.error('Error creando check:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
@@ -270,6 +306,16 @@ app.get('/api/check/:id', async (req, res) => {
 
     if (!check) {
       return res.status(404).json({ error: 'Check no encontrado' });
+    }
+
+    // Si hay un resultado y no es un error, intentar parsearlo
+    if (check.result && !check.status.includes('failed')) {
+      try {
+        check.result = JSON.parse(check.result);
+      } catch (e) {
+        // Si no es un JSON válido, dejarlo como está
+        console.warn(`No se pudo parsear el resultado para check ${checkId}:`, e);
+      }
     }
 
     // Devolver información del check

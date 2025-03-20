@@ -5,10 +5,13 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
-    "tslib": "^2.3.0",
-    "amqplib": "^0.10.5",
     "@apollo/client": "^3.13.1",
+    "amqplib": "^0.10.5",
     "cross-fetch": "^4.1.0",
+    "tslib": "^2.3.0",
     "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.7"
   }
 }

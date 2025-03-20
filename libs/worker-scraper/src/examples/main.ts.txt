@@ -1,0 +1,41 @@
+import { ScraperWorkerConfig } from '../lib/scraper-interfaces';
+
+async function main() {
+  // Configuración
+  const config: ScraperWorkerConfig = {
+    queue: {
+      connectionUrl: 'amqp://localhost',
+      mainQueue: 'scraper-tasks',
+      deadLetterQueue: 'scraper-failed',
+      retryQueue: 'scraper-retry',
+      prefetchCount: 5
+    },
+    retry: {
+      maxRetries: 3,
+      initialDelay: 5000,
+      backoffFactor: 2,
+      maxDelay: 60000
+    },
+    graphql: {
+      endpoint: 'http://localhost:4000/graphql'
+    },
+    scraper: {
+      defaultMethod: ScraperMethod.AUTO,
+      maxConcurrentBrowsers: 3,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'
+    },
+    browser: {
+      headless: true,
+      timeout: 30000,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    }
+  };
+
+  // Crear worker
+  const worker = createScraperWorker(config);
+
+  // Iniciar worker
+  await worker.start();
+
+  console.log('Scraper worker started and listening for tasks!');
+}

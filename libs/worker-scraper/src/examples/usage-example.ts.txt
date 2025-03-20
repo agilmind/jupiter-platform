@@ -1,0 +1,78 @@
+import { ConsoleLogger } from '@jupiter/worker-framework';
+import { ScraperWorkerConfig } from '../lib/scraper-interfaces';
+
+// Importar implementaciones
+import {
+  PlaywrightBrowserProvider,
+  DefaultTextProcessor,
+  CheerioContentExtractor,
+  PlaywrightPageInteractor,
+  RotatingProxyManager,
+  BrowserScraper,
+  LightScraper,
+  ScraperTaskHandler
+} from './implementations';
+
+import {
+  WorkerManager,
+  DefaultQueueService,
+  DefaultProgressReporter,
+  ExponentialBackoffStrategy
+} from '@jupiter/worker-framework';
+
+// Crear una función de fábrica para configurar todo el worker
+export function createScraperWorker(config: ScraperWorkerConfig) {
+  // Crear logger
+  const logger = new ConsoleLogger('scraper-worker');
+
+  // Crear componentes compartidos
+  const textProcessor = new DefaultTextProcessor();
+  const contentExtractor = new CheerioContentExtractor();
+  const proxyManager = new RotatingProxyManager(logger);
+
+  // Crear componentes para browser scraper
+  const browserProvider = new PlaywrightBrowserProvider(config, logger);
+  const pageInteractor = new PlaywrightPageInteractor(logger);
+
+  // Crear los scrapers
+  const browserScraper = new BrowserScraper(
+    browserProvider,
+    textProcessor,
+    pageInteractor,
+    proxyManager,
+    config,
+    logger
+  );
+
+  const lightScraper = new LightScraper(
+    textProcessor,
+    contentExtractor,
+    config,
+    logger
+  );
+
+  // Inicializar los scrapers
+  browserScraper.initialize();
+  lightScraper.initialize();
+
+  // Crear el manejador de tareas
+  const taskHandler = new ScraperTaskHandler(
+    [browserScraper, lightScraper],
+    config,
+    logger
+  );
+
+  // Crear los servicios del framework
+  const queueService = new DefaultQueueService(config.queue, logger);
+  const progressReporter = new DefaultProgressReporter(config.graphql, logger);
+  const retryStrategy = new ExponentialBackoffStrategy(config.retry);
+
+  // Crear y retornar el worker manager
+  return new WorkerManager(
+    taskHandler,
+    queueService,
+    progressReporter,
+    retryStrategy,
+    logger
+  );
+}
