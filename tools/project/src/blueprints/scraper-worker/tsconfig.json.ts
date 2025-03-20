@@ -13,8 +13,15 @@ export function tsConfig(options: GeneratorOptions): string {
     "skipLibCheck": true,
     "outDir": "./dist",
     "rootDir": "./src"
+    "typeRoots": ["./node_modules/@types", "./src/types"], // Añadir carpeta de tipos personalizados
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["node_modules/*", "src/types/*"]
+    }
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/types/**/*.d.ts"],
   "exclude": ["node_modules"]
 }`;
 }
