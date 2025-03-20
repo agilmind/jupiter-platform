@@ -6,6 +6,9 @@ import {
   TaskLog,
 } from './types';
 
+// Añadir esta importación
+import * as amqp from 'amqplib';
+
 /**
  * Simulación de QueueConsumer, RetryManager y ProgressReporter
  * En una implementación real, estos se conectarían con RabbitMQ y GraphQL
@@ -147,6 +150,58 @@ export abstract class BaseWorker<T extends WorkerTask, R = any> {
    * Procesa una tarea individual
    * Implementa el flujo común con puntos de extensión
    */
+  // Añadir este método que faltaba
+  protected async processTask(task: T, channel: any): Promise<boolean> {
+    // Crear contexto de tarea
+    const context: TaskContext = {
+      id: task.id,
+      attempt: task.retryCount || 0,
+      startedAt: new Date(),
+      logs: [],
+    };
+
+    try {
+      // Registrar inicio
+      this.log(context, 'info', this.getInitialStep(task));
+
+      // Actualizar estado
+      await this.progressReporter.reportProgress(task.id, {
+        status: TaskStatus.PROCESSING,
+        startedAt: context.startedAt.toISOString(),
+      });
+
+      // Ejecutar lógica de procesamiento específica
+      const result = await this.executeTask(task, context);
+
+      // Actualizar estado
+      await this.progressReporter.reportProgress(task.id, {
+        status: TaskStatus.COMPLETED,
+        completedAt: new Date().toISOString(),
+        logs: context.logs,
+        result,
+      });
+
+      return true;
+    } catch (error) {
+      // Determinar si es un error permanente o transitorio
+      if (this.isPermanentError(error, task)) {
+        await this.handlePermanentFailure(task, error, channel, context);
+      } else {
+        // Reintentar si no hemos excedido el máximo
+        const maxRetries = this.config.retry.maxRetries;
+        const retryCount = task.retryCount || 0;
+
+        if (retryCount < maxRetries) {
+          task.retryCount = retryCount + 1;
+          await this.scheduleRetry(task, error, channel, context);
+        } else {
+          // Máximo de reintentos alcanzado, marcar como fallo permanente
+          await this.handlePermanentFailure(task, error, channel, context);
+        }
+      }
+      return false;
+    }
+  }
 
   /**
    * Registra un log en el contexto de la tarea
