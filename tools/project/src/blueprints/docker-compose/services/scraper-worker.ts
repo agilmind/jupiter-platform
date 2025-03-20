@@ -17,15 +17,18 @@ export function scraperWorkerService(options: GeneratorOptions): string {
       - BACKOFF_MULTIPLIER=2000
       - GRAPHQL_URL=http://app-server:3000/graphql
       - DEBUG=true
+    volumes:
+      - ./scraper-worker/src:/app/src
+      - ./scraper-worker/tsconfig.json:/app/tsconfig.json
     networks:
       - app-network
     depends_on:
       - rabbitmq
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
     restart: unless-stopped
 `;
 }
