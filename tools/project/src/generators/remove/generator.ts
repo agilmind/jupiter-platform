@@ -12,7 +12,7 @@ export default async function (tree: Tree, options: RemoveGeneratorSchema) {
   const projectName = names(options.projectName).fileName;
   const appServerProjectName = `${projectName}-app-server`;
   const webAppProjectName = `${projectName}-web-app`;
-  const stackProjectName = `${projectName}-stack`;
+  const stackProjectName = `${projectName}-scraper-worker`;
 
   // Eliminar configuraciones de proyectos
   try {
