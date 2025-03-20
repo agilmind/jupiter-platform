@@ -27,6 +27,13 @@ export interface ScraperResult {
   timestamp: string;
 }
 
+// Extendemos la interfaz Connection para asegurarnos de que TypeScript reconozca createChannel
+declare module 'amqplib' {
+  interface Connection {
+    createChannel(): Promise<Channel>;
+  }
+}
+
 /**
  * Worker para realizar scraping de sitios web
  */
@@ -42,6 +49,26 @@ export class ScraperWorker extends BaseWorker<ScraperTask, ScraperResult> {
   }
 
   /**
+   * Método para detener el worker (para solucionar error en main.ts)
+  */
+  public async stop(): Promise<void> {
+    try {
+      if (this.channel) {
+        await this.channel.close();
+      }
+
+      if (this.connection) {
+        await this.connection.close();
+      }
+
+      console.log('Worker detenido correctamente');
+    } catch (error) {
+      console.error('Error al detener el worker:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Inicializa recursos específicos del worker
    */
   protected async initialize(): Promise<void> {
@@ -51,10 +78,15 @@ export class ScraperWorker extends BaseWorker<ScraperTask, ScraperResult> {
       // Primero intentamos conectar a RabbitMQ, ya que es menos intensivo
       console.log('Conectando a RabbitMQ...');
       try {
+        // Usamos aserciones de tipo para evitar errores
         this.connection = await amqp.connect(this.config.queue.url);
-        this.channel = await this.connection.createChannel();
-        await this.channel.assertQueue(this.resultQueue, { durable: true });
-        console.log('Conexión a RabbitMQ establecida correctamente');
+
+        // Aseguramos que TypeScript reconozca el método createChannel
+        if (this.connection) {
+          this.channel = await this.connection.createChannel();
+          await this.channel.assertQueue(this.resultQueue, { durable: true });
+          console.log('Conexión a RabbitMQ establecida correctamente');
+        }
       } catch (error: any) {
         console.error('Error conectando a RabbitMQ:', error.message);
         throw error;
