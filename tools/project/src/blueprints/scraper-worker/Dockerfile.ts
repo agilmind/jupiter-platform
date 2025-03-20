@@ -1,7 +1,7 @@
 import { GeneratorOptions } from '../types';
 
 export function dockerfile(options: GeneratorOptions): string {
-  return `FROM mcr.microsoft.com/playwright:v1.40.0-jammy
+  return `FROM mcr.microsoft.com/playwright:v1.51.1-jammy
 
 WORKDIR /app
 
@@ -23,6 +23,5 @@ RUN npx tsc --skipLibCheck
 
 EXPOSE 9229
 
-# Ejecutar el script de depuración simple
-CMD ["node", "src-js/debug.js"]`;
+CMD ["node", "dist/main.js"]`;
 }

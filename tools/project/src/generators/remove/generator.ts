@@ -7,33 +7,26 @@ import {
 } from "@nx/devkit";
 import * as path from 'path';
 import { RemoveGeneratorSchema } from "./schema";
+import { getProjects } from 'nx/src/generators/utils/project-configuration';
 
 export default async function (tree: Tree, options: RemoveGeneratorSchema) {
   const projectName = names(options.projectName).fileName;
-  const appServerProjectName = `${projectName}-app-server`;
-  const webAppProjectName = `${projectName}-web-app`;
-  const stackProjectName = `${projectName}-scraper-worker`;
+  const allProjects = getProjects(tree);
+  const projectNames: string[] = [];
+  for (const [name, configuration] of allProjects) {
+    if (name.startsWith(`${projectName}-`)) {
+      projectNames.push(name);
+    }
+  }
 
   // Eliminar configuraciones de proyectos
-  try {
-    removeProjectConfiguration(tree, appServerProjectName);
-    console.log(`Eliminada configuración de ${appServerProjectName}`);
-  } catch (e) {
-    console.log(`No se encontró configuración para ${appServerProjectName}`);
-  }
-
-  try {
-    removeProjectConfiguration(tree, webAppProjectName);
-    console.log(`Eliminada configuración de ${webAppProjectName}`);
-  } catch (e) {
-    console.log(`No se encontró configuración para ${webAppProjectName}`);
-  }
-
-  try {
-    removeProjectConfiguration(tree, stackProjectName);
-    console.log(`Eliminada configuración de ${stackProjectName}`);
-  } catch (e) {
-    console.log(`No se encontró configuración para ${stackProjectName}`);
+  for (const project of projectNames) {
+    try {
+      removeProjectConfiguration(tree, project);
+      console.log(`Eliminada configuración de ${project}`);
+    } catch (e) {
+      console.log(`No se encontró configuración para ${project}`);
+    }
   }
 
   // Eliminar directorios físicos
