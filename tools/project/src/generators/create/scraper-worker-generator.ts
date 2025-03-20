@@ -7,11 +7,6 @@ export function generateScraperWorker(tree: Tree, options: GeneratorOptions): vo
   const { projectRoot } = options;
   const scraperWorkerDir = path.join(projectRoot, 'scraper-worker');
 
-  tree.write(
-    path.join(scraperWorkerDir, 'src-js', 'debug.js'),
-    scraperWorker.debugJs(options)
-  );
-
   // Crear package.json
   tree.write(
     path.join(scraperWorkerDir, 'package.json'),
@@ -66,6 +61,12 @@ export function generateScraperWorker(tree: Tree, options: GeneratorOptions): vo
   tree.write(
     path.join(scraperWorkerDir, 'src', 'utils', 'playwright-utils.ts'),
     scraperWorker.playwrightUtilsTs(options)
+  );
+
+  // Crear utilidades
+  tree.write(
+    path.join(scraperWorkerDir, 'src', 'types', 'ampqlib.d.ts'),
+    scraperWorker.ampqlibTs(options)
   );
 
   // Crear .env.example
