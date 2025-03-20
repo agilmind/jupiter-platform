@@ -2,7 +2,6 @@ import { GeneratorOptions } from '../../../types';
 
 export function ampqlibTs(options: GeneratorOptions): string {
   return `declare module 'amqplib' {
-declare module 'amqplib' {
   export interface Connection {
     createChannel(): Promise<Channel>;
     close(): Promise<void>;
@@ -46,6 +45,5 @@ declare module 'amqplib' {
   }
 
   export function connect(url: string | Options): Promise<Connection>;
-}
 }`;
 }
