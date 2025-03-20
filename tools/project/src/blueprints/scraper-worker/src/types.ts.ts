@@ -70,8 +70,9 @@ export interface TaskLog {
  * Contexto de ejecución para una tarea
  */
 export interface TaskContext {
+  id: string;
   attempt: number;
-  startTime: Date;
+  startedAt: Date;
   logs: TaskLog[];
 }
 
