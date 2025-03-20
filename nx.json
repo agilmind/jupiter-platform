@@ -63,14 +63,6 @@
     }
   },
   "projects": {
-    "miproyecto-app-server-1742336471867": {
-      "tags": [],
-      "root": "apps/miproyecto/app-server"
-    },
-    "miproyecto-web-app-1742336471867": {
-      "tags": [],
-      "root": "apps/miproyecto/web-app"
-    },
     "miproyecto-app-server": {
       "tags": [],
       "root": "apps/miproyecto/app-server"

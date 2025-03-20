@@ -32,13 +32,11 @@ async function bootstrap() {
     // Manejo de señales de cierre
     process.on('SIGTERM', async () => {
       console.log('Recibida señal SIGTERM');
-      // Eliminar la llamada a stop() que causa el error
       process.exit(0);
     });
 
     process.on('SIGINT', async () => {
       console.log('Recibida señal SIGINT');
-      // Eliminar la llamada a stop() que causa el error
       process.exit(0);
     });
   } catch (error) {

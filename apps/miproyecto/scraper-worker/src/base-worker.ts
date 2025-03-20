@@ -5,8 +5,6 @@ import {
   TaskContext,
   TaskLog,
 } from './types';
-
-// Añadir esta importación
 import * as amqp from 'amqplib';
 
 /**
@@ -150,7 +148,6 @@ export abstract class BaseWorker<T extends WorkerTask, R = any> {
    * Procesa una tarea individual
    * Implementa el flujo común con puntos de extensión
    */
-  // Añadir este método que faltaba
   protected async processTask(task: T, channel: any): Promise<boolean> {
     // Crear contexto de tarea
     const context: TaskContext = {

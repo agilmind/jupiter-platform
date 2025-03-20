@@ -12,7 +12,7 @@ export function tsConfig(options: GeneratorOptions): string {
     "strictNullChecks": false,    // Desactivar chequeo de nulos
     "skipLibCheck": true,
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
     "typeRoots": ["./node_modules/@types", "./src/types"], // Añadir carpeta de tipos personalizados
     "resolveJsonModule": true,
     "moduleResolution": "node",

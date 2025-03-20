@@ -23,7 +23,9 @@ export async function extractTextFromPage(
         return text.trim();
       } catch (selectorError: any) {
         // Si el selector falla, lo registramos y continuamos con el body
-        console.warn(`No se pudo encontrar el selector "${selector}": ${selectorError.message}`);
+        console.warn(
+          `No se pudo encontrar el selector "${selector}": ${selectorError.message}`
+        );
         console.warn('Fallback: extrayendo texto del body completo');
       }
     }

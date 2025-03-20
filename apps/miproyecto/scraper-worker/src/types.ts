@@ -67,9 +67,9 @@ export interface TaskLog {
  * Contexto de ejecución para una tarea
  */
 export interface TaskContext {
-  id: string;         // Añadir esta propiedad que faltaba
+  id: string;
   attempt: number;
-  startedAt: Date;    // Cambiar startTime a startedAt para que coincida con el código
+  startedAt: Date;
   logs: TaskLog[];
 }
 

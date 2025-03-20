@@ -2,7 +2,7 @@ FROM mcr.microsoft.com/playwright:v1.40.0-jammy
 
 WORKDIR /app
 
-# Copiar package.json y package-lock.json
+# Copiar package.json
 COPY package*.json ./
 RUN npm install
 
@@ -20,5 +20,5 @@ RUN npx tsc --skipLibCheck
 
 EXPOSE 9229
 
-# Ejecutar la versión compilada
-CMD ["node", "dist/main.js"]
+# Ejecutar el script de depuración simple
+CMD ["node", "src-js/debug.js"]
