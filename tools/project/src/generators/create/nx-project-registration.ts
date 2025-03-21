@@ -306,6 +306,10 @@ export function registerNxProjects(tree: Tree, options: GeneratorOptions): void 
         executor: "nx:run-commands",
         options: {
           commands: [
+            "nx build worker-framework",
+            "nx build worker-scraper",
+            "nx build miproyecto-scraper-worker",
+
             `cd apps/${projectName} && docker compose -f docker-compose.dev.yml build --quiet`,
             `cd apps/${projectName} && docker compose -f docker-compose.dev.yml up -d postgres rabbitmq`,
             `sleep 10`,

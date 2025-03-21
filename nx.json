@@ -82,8 +82,10 @@
       "root": "apps/miproyecto/web-app"
     },
     "miproyecto-scraper-worker": {
-      "tags": [],
-      "root": "apps/miproyecto/scraper-worker"
+      "root": "apps/miproyecto/scraper-worker",
+      "sourceRoot": "apps/miproyecto/scraper-worker/src",
+      "projectType": "application",
+      "targets": {}
     }
   }
 }

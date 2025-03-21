@@ -1,8 +1,12 @@
-import express from 'express';
+import express, { Request, Response, RequestHandler } from 'express';
 import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaClient } from '@prisma/client';
 import * as amqp from 'amqplib';
+
+interface CheckParams {
+  id: string;
+}
 
 // Inicializar Prisma
 const prisma = new PrismaClient();
@@ -47,10 +51,10 @@ console.log(`Modo de ejecución: ${isLocalDev ? 'Desarrollo Local' : 'Docker'}`)
 console.log(`Usando RabbitMQ URL: ${RABBITMQ_URL}`);
 
 // Configuración de Express
-const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+const app = express();
 app.use(cors());
 app.use(express.json());
 
@@ -152,7 +156,8 @@ async function updateCheckResult(result) {
       stats,
       error,
       method: data?.options?.method || 'auto',
-      executionTime: stats?.executionTimeMs || 0
+      executionTime: stats?.executionTimeMs || 0,
+      hasScreenshot: false
     };
 
     // Si hay screenshot, incluirla (puede ser grande, considerar límites de tamaño)
@@ -294,8 +299,8 @@ async function checkScraperAvailability() {
   }
 }
 
-// Endpoint para obtener el estado de un check
-app.get('/api/check/:id', async (req, res) => {
+// Usamos un tipo más específico compatible con Express
+const getCheckById = async (req: Request<CheckParams>, res: Response): Promise<void> => {
   try {
     const checkId = req.params.id;
 
@@ -305,7 +310,8 @@ app.get('/api/check/:id', async (req, res) => {
     });
 
     if (!check) {
-      return res.status(404).json({ error: 'Check no encontrado' });
+      res.status(404).json({ error: 'Check no encontrado' });
+      return;
     }
 
     // Si hay un resultado y no es un error, intentar parsearlo
@@ -320,11 +326,16 @@ app.get('/api/check/:id', async (req, res) => {
 
     // Devolver información del check
     res.json(check);
+    return;
   } catch (error) {
     console.error(`Error obteniendo check ${req.params.id}:`, error);
     res.status(500).json({ error: 'Error interno del servidor' });
+    return;
   }
-});
+};
+
+// Usar el controlador en la ruta
+app.get('/api/check/:id', getCheckById);
 
 // Health check
 app.get('/health', (req, res) => {

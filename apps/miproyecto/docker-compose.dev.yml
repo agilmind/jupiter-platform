@@ -1,21 +1,26 @@
 services:
   app-server:
     build:
-      context: ./app-server
-      dockerfile: Dockerfile.dev
+      context: ../../  # Apunta a la raíz del monorepo
+      dockerfile: apps/miproyecto/app-server/Dockerfile.dev
     ports:
       - '3000:3000'
+      - '9229:9229'  # Puerto para debugging
     environment:
       - NODE_ENV=development
       - PORT=3000
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/miproyecto
     volumes:
-      - ./app-server:/app
-      - /app/node_modules
+      - ../../node_modules:/app/node_modules
+      - ../../libs:/app/libs
+      - ../../apps/miproyecto/app-server:/app/apps/miproyecto/app-server
+      - ../../tsconfig.base.json:/app/tsconfig.base.json
+      - ../../nx.json:/app/nx.json
     networks:
       - app-network
     depends_on:
       - postgres
+    command: npx nx serve miproyecto-app-server --watch
     logging:
       driver: 'json-file'
       options:
@@ -119,8 +124,16 @@ services:
 
   scraper-worker:
     build:
-      context: ./scraper-worker
-      dockerfile: Dockerfile
+      context: ../../  # Apunta a la raíz del monorepo
+      dockerfile: apps/miproyecto/scraper-worker/Dockerfile.dev
+    volumes:
+      - ../../node_modules:/app/node_modules
+      - ../../libs:/app/libs
+      - ../../apps/miproyecto/scraper-worker:/app/apps/miproyecto/scraper-worker
+      - ../../tsconfig.base.json:/app/tsconfig.base.json
+      - ../../nx.json:/app/nx.json
+    ports:
+      - '9230:9229'  # Puerto para debugging del worker (diferente al app-server)
     environment:
       - NODE_ENV=development
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
@@ -133,13 +146,11 @@ services:
       - BACKOFF_MULTIPLIER=2000
       - GRAPHQL_URL=http://app-server:3000/graphql
       - DEBUG=true
-    volumes:
-      - ./scraper-worker/src:/app/src
-      - ./scraper-worker/tsconfig.json:/app/tsconfig.json
     networks:
       - app-network
     depends_on:
       - rabbitmq
+    command: npx nx serve miproyecto-scraper-worker --watch
     logging:
       driver: 'json-file'
       options:

@@ -8,4 +8,4 @@ RUN apk add --no-cache git
 # Para debugging:
 ENV NODE_OPTIONS="--inspect=0.0.0.0:9229"
 
-CMD ["npx", "nx", "serve", "miproyecto-app-server"]
+CMD ["npx", "nx", "serve", "miproyecto-scraper-worker"]

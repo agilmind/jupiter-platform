@@ -151,11 +151,25 @@
       "executor": "nx:run-commands",
       "options": {
         "commands": [
-          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build --quiet",
+          "# Asegurarse de que node_modules está actualizado",
+          "npm install",
+
+          "# Crear directorios necesarios",
+          "mkdir -p apps/miproyecto/app-server",
+          "mkdir -p apps/miproyecto/scraper-worker",
+
+          "# Crear Dockerfile simple para app-server",
+          "cat > apps/miproyecto/app-server/Dockerfile.dev << 'EOL'\nFROM node:22-alpine\n\nWORKDIR /app\n\n# Instalar git para compatibilidad\nRUN apk add --no-cache git\n\n# Para debugging:\nENV NODE_OPTIONS=\"--inspect=0.0.0.0:9229\"\n\nCMD [\"npx\", \"nx\", \"serve\", \"miproyecto-app-server\"]\nEOL",
+
+          "# Crear Dockerfile simple para scraper-worker",
+          "cat > apps/miproyecto/scraper-worker/Dockerfile.dev << 'EOL'\nFROM node:22-alpine\n\nWORKDIR /app\n\n# Instalar git para compatibilidad\nRUN apk add --no-cache git\n\n# Para debugging:\nENV NODE_OPTIONS=\"--inspect=0.0.0.0:9229\"\n\nCMD [\"npx\", \"nx\", \"serve\", \"miproyecto-scraper-worker\"]\nEOL",
+
+          "# Construir y arrancar servicios",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build",
           "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d postgres rabbitmq",
           "sleep 10",
-          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d web-app scraper-worker",
-          "sleep 5 && LOCAL_DEV=true DATABASE_URL=postgresql://postgres:postgres@localhost:5433/miproyecto npx tsx --watch apps/miproyecto/app-server/src/main.ts"
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d app-server scraper-worker web-app",
+          "echo '🚀 Servicios iniciados - Conecta tu debugger a los puertos 9229 (app-server) y 9230 (scraper-worker)'"
         ],
         "parallel": false
       }

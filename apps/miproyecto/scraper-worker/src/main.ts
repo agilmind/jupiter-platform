@@ -1,19 +1,14 @@
 import {
   ConsoleLogger,
+  WorkerManager,
   DefaultQueueService,
   DefaultProgressReporter,
-  ExponentialBackoffStrategy,
-  WorkerManager
+  ExponentialBackoffStrategy
 } from '@jupiter/worker-framework';
 
-// Importar desde worker-scraper
 import {
   ScraperMethod,
-  ScraperWorkerConfig
-} from '@jupiter/worker-scraper';
-
-// Importar implementaciones específicas
-import {
+  ScraperWorkerConfig,
   PlaywrightBrowserProvider,
   DefaultTextProcessor,
   CheerioContentExtractor,
@@ -23,6 +18,22 @@ import {
   LightScraper,
   TextScraperHandler
 } from '@jupiter/worker-scraper';
+
+// import { ConsoleLogger } from '../../../../libs/worker-framework/src/lib/logger';
+// import { WorkerManager } from '../../../../libs/worker-framework/src/lib/worker-manager';
+// import { DefaultQueueService } from '../../../../libs/worker-framework/src/lib/queue-service';
+// import { DefaultProgressReporter } from '../../../../libs/worker-framework/src/lib/progress-reporter';
+// import { ExponentialBackoffStrategy } from '../../../../libs/worker-framework/src/lib/retry-strategy';
+//
+// import { ScraperMethod, ScraperWorkerConfig } from '../../../../libs/worker-scraper/src/lib/scraper-interfaces';
+// import { PlaywrightBrowserProvider } from '../../../../libs/worker-scraper/src/lib/implementations/browser-provider';
+// import { DefaultTextProcessor } from '../../../../libs/worker-scraper/src/lib/implementations/text-processor';
+// import { CheerioContentExtractor } from '../../../../libs/worker-scraper/src/lib/implementations/content-extractor';
+// import { PlaywrightPageInteractor } from '../../../../libs/worker-scraper/src/lib/implementations/page-interactor';
+// import { RotatingProxyManager } from '../../../../libs/worker-scraper/src/lib/implementations/proxy-manager';
+// import { BrowserScraper } from '../../../../libs/worker-scraper/src/lib/implementations/browser-scraper';
+// import { LightScraper } from '../../../../libs/worker-scraper/src/lib/implementations/light-scraper';
+// import { TextScraperHandler } from '../../../../libs/worker-scraper/src/lib/text-scraper-handler';
 
 async function bootstrap() {
   console.log('Iniciando Scraper Worker...');
