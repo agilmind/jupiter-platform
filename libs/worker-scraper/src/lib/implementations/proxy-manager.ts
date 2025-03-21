@@ -1,4 +1,4 @@
-import { ProxyManager, ProxySettings, ScraperOptions } from './scraper-interfaces';
+import { ProxyManager, ProxySettings, ScraperOptions } from '../scraper-interfaces';
 import {Logger, TaskContext} from '@jupiter/worker-framework';
 
 

@@ -1,5 +1,5 @@
 import { Page } from 'playwright';
-import { PageInteractor, FormDataEntry, ClickAction } from './scraper-interfaces';
+import { PageInteractor, FormDataEntry, ClickAction } from '../scraper-interfaces';
 import {Logger, TaskContext} from '@jupiter/worker-framework';
 
 export class PlaywrightPageInteractor implements PageInteractor {

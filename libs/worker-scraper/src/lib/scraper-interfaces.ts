@@ -1,16 +1,53 @@
+// scraper-interfaces.ts (corrección en ScraperWorkerConfig)
 import { Page, Browser } from 'playwright';
-import { TaskContext } from '@jupiter/worker-framework';
-import { WorkerTask, TaskResult, WorkerConfig } from '@jupiter/worker-framework';
+import { TaskContext, WorkerTask, TaskResult, WorkerConfig, Logger } from '@jupiter/worker-framework';
 
+/**
+ * Método de scraping
+ */
+export enum ScraperMethod {
+  AUTO = 'auto',
+  BROWSER = 'browser',
+  LIGHT = 'light'
+}
+
+/**
+ * Configuración específica para scrapers
+ */
+export interface ScraperWorkerConfig extends WorkerConfig {
+  // queue debe ser requerido porque lo es en WorkerConfig
+  queue: WorkerConfig['queue'] & {
+    resultQueue?: string;
+  };
+  scraper?: {
+    defaultMethod?: ScraperMethod;
+    maxConcurrentBrowsers?: number;
+    userAgent?: string;
+  };
+  browser?: {
+    headless?: boolean;
+    timeout?: number;
+    args?: string[];
+  };
+}
+
+/**
+ * Tarea de scraping
+ */
 export interface ScraperTask extends WorkerTask {
   url?: string;
   selector?: string;
   data?: {
     url?: string;
+    text?: string;
     options?: ScraperOptions;
+    [key: string]: any;
   };
 }
 
+/**
+ * Resultado de una tarea de scraping
+ */
 export interface ScraperResult extends TaskResult {
   id: string;
   url: string;
@@ -33,12 +70,46 @@ export interface ScraperResult extends TaskResult {
   screenshot?: string;
 }
 
-export enum ScraperMethod {
-  AUTO = 'auto',
-  BROWSER = 'browser',
-  LIGHT = 'light'
+/**
+ * Configuración de proxy
+ */
+export interface ProxySettings {
+  server: string;
+  username?: string;
+  password?: string;
 }
 
+/**
+ * Acción de clic
+ */
+export interface ClickAction {
+  selector: string;
+  waitAfter?: number;
+}
+
+/**
+ * Configuración para completar un formulario
+ */
+export interface FormDataEntry {
+  selector: string;
+  value: string;
+  type?: 'text' | 'checkbox' | 'select' | 'radio';
+}
+
+/**
+ * Opciones del contexto del navegador
+ */
+export interface BrowserContextOptions {
+  viewport?: {
+    width: number;
+    height: number;
+  };
+  userAgent?: string;
+}
+
+/**
+ * Opciones de configuración para una tarea de scraping
+ */
 export interface ScraperOptions {
   method?: ScraperMethod;
   timeout?: number;
@@ -63,44 +134,6 @@ export interface ScraperOptions {
     randomizeUserAgent?: boolean;
     usePlugins?: boolean;
     evasionTechniques?: string[];
-  };
-}
-
-export interface ProxySettings {
-  server: string;
-  username?: string;
-  password?: string;
-}
-
-export interface BrowserContextOptions {
-  viewport?: {
-    width: number;
-    height: number;
-  };
-  userAgent?: string;
-}
-
-export interface FormDataEntry {
-  selector: string;
-  value: string;
-  type?: 'text' | 'checkbox' | 'select' | 'radio';
-}
-
-export interface ClickAction {
-  selector: string;
-  waitAfter?: number;
-}
-
-export interface ScraperWorkerConfig extends WorkerConfig {
-  scraper?: {
-    defaultMethod?: ScraperMethod;
-    maxConcurrentBrowsers?: number;
-    userAgent?: string;
-  };
-  browser?: {
-    headless?: boolean;
-    timeout?: number;
-    args?: string[];
   };
 }
 

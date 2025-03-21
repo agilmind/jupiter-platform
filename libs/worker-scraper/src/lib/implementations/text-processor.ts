@@ -1,4 +1,4 @@
-import { TextProcessor, ScraperOptions } from './scraper-interfaces';
+import { TextProcessor, ScraperOptions } from '../scraper-interfaces';
 
 export class DefaultTextProcessor implements TextProcessor {
   processText(text: string, options?: ScraperOptions): string {

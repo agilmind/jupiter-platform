@@ -3,7 +3,7 @@ import {
   BrowserProvider,
   BrowserContextOptions,
   ScraperWorkerConfig,
-} from './scraper-interfaces';
+} from '../scraper-interfaces';
 import { Logger } from '@jupiter/worker-framework';
 
 export class PlaywrightBrowserProvider implements BrowserProvider {

@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { ContentExtractor } from './scraper-interfaces';
+import { ContentExtractor } from '../scraper-interfaces';
 
 export class CheerioContentExtractor implements ContentExtractor {
   extract(html: string, selector?: string): { text: string, extractedHtml: string } {

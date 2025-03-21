@@ -10,7 +10,7 @@ import {
   ScraperMethod,
   ScraperOptions,
   ScraperWorkerConfig,
-} from './scraper-interfaces';
+} from '../scraper-interfaces';
 import {Logger, TaskContext} from '@jupiter/worker-framework';
 
 export class BrowserScraper implements Scraper {

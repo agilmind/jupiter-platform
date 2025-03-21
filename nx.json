@@ -63,6 +63,16 @@
     }
   },
   "projects": {
+    "worker-framework": {
+      "root": "libs/worker-framework",
+      "sourceRoot": "libs/worker-framework/src",
+      "projectType": "library"
+    },
+    "worker-scraper": {
+      "root": "libs/worker-scraper",
+      "sourceRoot": "libs/worker-scraper/src",
+      "projectType": "library"
+    },
     "miproyecto-app-server": {
       "tags": [],
       "root": "apps/miproyecto/app-server"
@@ -70,10 +80,6 @@
     "miproyecto-web-app": {
       "tags": [],
       "root": "apps/miproyecto/web-app"
-    },
-    "miproyecto-scraper-worker": {
-      "tags": [],
-      "root": "apps/miproyecto/scraper-worker"
     }
   }
 }
