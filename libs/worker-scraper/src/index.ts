@@ -1,5 +1,9 @@
+// Exportar interfaces y tipos
 export * from './lib/scraper-interfaces';
-export * from './lib/scraper-factory';
-export * from './lib/text-scraper-handler';
-export * from './lib/worker-scraper';
-export * from './lib/utils/playwright-utils';
+
+// Exportar todas las implementaciones
+export * from './lib/implementations';
+
+// Exportar handler y factory
+export { TextScraperHandler } from './lib/text-scraper-handler';
+export { ScraperFactory } from './lib/scraper-factory';
