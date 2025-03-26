@@ -5,7 +5,5 @@ WORKDIR /app
 # Instalar git para compatibilidad
 RUN apk add --no-cache git
 
-# Para debugging:
-ENV NODE_OPTIONS="--inspect=0.0.0.0:9229"
-
+# Comando simple para iniciar
 CMD ["npx", "nx", "serve", "miproyecto-scraper-worker"]

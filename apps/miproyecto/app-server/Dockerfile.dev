@@ -2,10 +2,38 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Instalar git para compatibilidad
-RUN apk add --no-cache git
+# Instalar herramientas necesarias
+RUN apk add --no-cache git curl
 
-# Para debugging:
-ENV NODE_OPTIONS="--inspect=0.0.0.0:9229"
+# Copiar archivos de proyecto y dependencias
+COPY package.json package-lock.json nx.json ./
+COPY tsconfig*.json ./
+COPY apps/miproyecto/app-server/package.json apps/miproyecto/app-server/
+COPY apps/miproyecto/app-server/tsconfig*.json apps/miproyecto/app-server/
 
-CMD ["npx", "nx", "serve", "miproyecto-app-server"]
+# Instalar dependencias globales necesarias
+RUN npm install -g typescript ts-node
+
+# Instalar dependencias del proyecto
+RUN npm install
+
+# Copiar código fuente
+COPY apps/miproyecto/app-server/src apps/miproyecto/app-server/src
+COPY libs/ libs/
+
+# Crear script de inicio directo
+RUN echo '#!/bin/sh \n\
+echo "Iniciando servidor Express directamente..." \n\
+cd /app \n\
+export HOST=0.0.0.0 \n\
+export PORT=3000 \n\
+echo "Ejecutando app-server en $HOST:$PORT" \n\
+cd /app/apps/miproyecto/app-server \n\
+NODE_ENV=development npx ts-node src/main.ts \n\
+' > /app/start-direct.sh && chmod +x /app/start-direct.sh
+
+# Exponer puerto
+EXPOSE 3000
+
+# Comando para iniciar la aplicación directamente, sin NX
+CMD ["/app/start-direct.sh"]

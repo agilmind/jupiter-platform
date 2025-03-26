@@ -52,6 +52,7 @@ console.log(`Usando RabbitMQ URL: ${RABBITMQ_URL}`);
 
 // Configuración de Express
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // Middleware
 const app = express();
@@ -197,6 +198,7 @@ async function updateCheckResult(result) {
 
 // API Routes
 app.get('/api/hello', (req, res) => {
+  console.log('Recibida petición en /api/hello');
   res.json({ message: 'Hola desde el servidor de miproyecto!' });
 });
 
@@ -383,9 +385,18 @@ async function bootstrap() {
       console.warn('Continuando sin conexión a RabbitMQ:', error.message);
     }
 
+    // Obtener host y puerto de las variables de entorno
+    const HOST = process.env.HOST || '0.0.0.0'; // Importante: escuchar en todas las interfaces
+    const PORT = parseInt(process.env.PORT || '3000', 10);
+
+    console.log(`Configurando servidor para escuchar en ${HOST}:${PORT}`);
+
     // Iniciar el servidor Express
-    const server = app.listen(PORT, () => {
-      console.log(`Servidor ejecutándose en http://localhost:${PORT}`);
+    const server = app.listen(PORT, HOST, () => {
+      console.log(`Servidor ejecutándose en http://${HOST}:${PORT}`);
+      console.log(`Para acceder localmente: http://localhost:${PORT}`);
+      console.log(`Estado CORS: ${app.use ? 'Habilitado' : 'Desconocido'}`);
+      console.log(`Entorno: ${process.env.NODE_ENV || 'no especificado'}`);
     });
 
     return server;
@@ -395,10 +406,12 @@ async function bootstrap() {
   }
 }
 
-// Ejecutar la aplicación
+// IMPORTANTE: Llamar a bootstrap directamente para asegurar que el servidor se inicie
+// Esto es crítico - NX podría no estar llamando a bootstrap automáticamente
 bootstrap().catch((err) => {
   console.error('Error no capturado:', err);
   process.exit(1);
 });
 
+// Exportamos app y bootstrap para compatibilidad con NX
 export { app, bootstrap };

@@ -1,0 +1,36 @@
+/**
+ * Metro configuration
+ * https://facebook.github.io/metro/docs/configuration
+ *
+ * @type {import('metro-config').MetroConfig}
+ */
+const { getMetroConfig } = require('@nrwl/react-native');
+const { resolve, join } = require('path');
+
+module.exports = (async () => {
+  const config = await getMetroConfig();
+  const monorepoRoot = resolve(__dirname, '../../..');
+  const projectRoot = __dirname;
+
+  return {
+    ...config,
+    projectRoot,
+    watchFolders: [monorepoRoot],
+    resolver: {
+      ...config.resolver,
+      extraNodeModules: {
+        '@__projectName__/api-interfaces': join(monorepoRoot, 'libs/__projectName__/api-interfaces'),
+        '@__projectName__/shared': join(monorepoRoot, 'libs/__projectName__/shared')
+      },
+    },
+    transformer: {
+      ...config.transformer,
+      getTransformOptions: async () => ({
+        transform: {
+          experimentalImportSupport: false,
+          inlineRequires: true,
+        },
+      }),
+    },
+  };
+})();

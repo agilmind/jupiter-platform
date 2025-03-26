@@ -1,0 +1,56 @@
+{
+  "name": "__projectName__-monorepo",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "start": "nx serve",
+    "build": "nx build",
+    "test": "nx test",
+    "lint": "nx workspace-lint && nx lint",
+    "e2e": "nx e2e",
+    "affected:apps": "nx affected:apps",
+    "affected:libs": "nx affected:libs",
+    "affected:build": "nx affected:build",
+    "affected:e2e": "nx affected:e2e",
+    "affected:test": "nx affected:test",
+    "affected:lint": "nx affected:lint",
+    "affected:dep-graph": "nx affected:dep-graph",
+    "affected": "nx affected",
+    "format": "nx format:write",
+    "format:write": "nx format:write",
+    "format:check": "nx format:check",
+    "update": "nx migrate latest",
+    "workspace-generator": "nx workspace-generator",
+    "dep-graph": "nx dep-graph",
+    "help": "nx help"
+  },
+  "private": true,
+  "devDependencies": {
+    "@nrwl/cli": "^17.0.0",
+    "@nrwl/eslint-plugin-nx": "^17.0.0",
+    "@nrwl/jest": "^17.0.0",
+    "@nrwl/linter": "^17.0.0",
+    "@nrwl/nx-cloud": "^17.0.0",
+    "@nrwl/react": "^17.0.0",
+    "@nrwl/web": "^17.0.0",
+    "@nrwl/workspace": "^17.0.0",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.50.0",
+    "eslint-config-prettier": "^9.0.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.7.2",
+    "nx": "^17.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "libs/*"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

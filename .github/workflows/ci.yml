@@ -8,33 +8,37 @@ on:
 
 jobs:
   main:
-    name: Nx Cloud - Main Job
+    name: NX - Verificación de Código
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      # Actualizamos a Node.js 18.18.0 que es el mínimo requerido por Prisma
+      # Actualizamos a Node.js 22.13.1 para coincidir con nuestras dependencias
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18.18.0'
+          node-version: '22.13.1'
           cache: 'npm'
 
-      # Instalación de dependencias con caché
+      # Instalación de dependencias con caché mejorado
       - name: Cache node modules
         id: cache-nodemodules
         uses: actions/cache@v3
         with:
-          path: node_modules
-          key: ${{ runner.os }}-node18-${{ hashFiles('**/package-lock.json') }}
+          path: |
+            node_modules
+            ~/.npm
+            ~/.cache/nx
+          key: ${{ runner.os }}-node22-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('nx.json') }}
           restore-keys: |
-            ${{ runner.os }}-node18-
+            ${{ runner.os }}-node22-${{ hashFiles('**/package-lock.json') }}
+            ${{ runner.os }}-node22-
 
       - name: Install dependencies
         if: steps.cache-nodemodules.outputs.cache-hit != 'true'
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       # Verificación del formato de código
       - name: Check format
@@ -45,19 +49,25 @@ jobs:
       # Análisis estático
       - name: Lint
         id: lint
-        run: npx nx affected --target=lint
+        run: npx nx affected --target=lint --parallel=3
+        continue-on-error: true
+
+      # Verificación de tipos TypeScript
+      - name: Type Check
+        id: type-check
+        run: npx nx affected --target=type-check --parallel=3
         continue-on-error: true
 
       # Tests
       - name: Test
         id: test
-        run: npx nx affected --target=test --passWithNoTests
+        run: npx nx affected --target=test --passWithNoTests --parallel=3 --ci
         continue-on-error: true
 
       # Build
       - name: Build
         id: build
-        run: npx nx affected --target=build
+        run: npx nx affected --target=build --parallel=3
         continue-on-error: true
 
       # Resumen final
@@ -70,5 +80,34 @@ jobs:
           echo "| ------------ | ------ |" >> $GITHUB_STEP_SUMMARY
           echo "| Formato | ${{ steps.format.outcome == 'success' && '✅ Pasó' || '⚠️ No cumple con estándares' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Lint | ${{ steps.lint.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeScript | ${{ steps.type-check.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Test | ${{ steps.test.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ${{ steps.build.outcome == 'success' && '✅ Pasó' || '❌ Falló' }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Añadir lista de proyectos afectados
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Proyectos afectados:" >> $GITHUB_STEP_SUMMARY
+          affected=$(npx nx affected:apps --plain)
+          if [ -z "$affected" ]; then
+            echo "Ningún proyecto fue afectado por los cambios" >> $GITHUB_STEP_SUMMARY
+          else
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$affected" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # Guardar información para el deploy
+      - name: Create Artifact Info
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        run: |
+          mkdir -p ./ci-info
+          npx nx affected:apps --plain > ./ci-info/affected-apps.txt
+          echo ${{ github.sha }} > ./ci-info/commit-sha.txt
+
+      - name: Upload Artifact Info
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        uses: actions/upload-artifact@v3
+        with:
+          name: ci-info
+          path: ./ci-info
+          retention-days: 1

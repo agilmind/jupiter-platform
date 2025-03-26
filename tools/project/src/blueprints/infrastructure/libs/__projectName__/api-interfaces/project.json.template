@@ -1,0 +1,27 @@
+{
+  "name": "api-interfaces",
+  "root": "libs/__projectName__/api-interfaces",
+  "sourceRoot": "libs/__projectName__/api-interfaces/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nrwl/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/__projectName__/api-interfaces",
+        "tsConfig": "libs/__projectName__/api-interfaces/tsconfig.lib.json",
+        "packageJson": "libs/__projectName__/api-interfaces/package.json",
+        "main": "libs/__projectName__/api-interfaces/src/index.ts",
+        "assets": ["libs/__projectName__/api-interfaces/*.md"]
+      }
+    },
+    "lint": {
+      "executor": "@nrwl/linter:eslint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/__projectName__/api-interfaces/**/*.ts"]
+      }
+    }
+  },
+  "tags": ["type:lib", "scope:api"]
+}

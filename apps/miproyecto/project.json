@@ -147,6 +147,91 @@
         "parallel": false
       }
     },
+    "test-network": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "echo '🔍 Diagnóstico de red entre contenedores'",
+          "echo '-------------------------------------'",
+          "echo '✅ Verificando que app-server esté activo...'",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml ps app-server",
+
+          "echo '✅ Verificando logs de app-server...'",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml logs app-server | tail -n 20",
+
+          "echo '✅ Verificando estado de escucha en app-server...'",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml exec app-server sh -c 'netstat -tlpn | grep 3000 || echo \"No hay proceso escuchando en puerto 3000\"'",
+
+          "echo '✅ Verificando disponibilidad de la API en app-server...'",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml exec app-server sh -c 'wget -O- http://localhost:3000/api/hello || curl -s http://localhost:3000/api/hello || echo \"No se pudo conectar a la API local\"'",
+
+          "echo '✅ Verificando resolución DNS entre contenedores...'",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml exec web-app sh -c 'nslookup app-server || ping -c 2 app-server || echo \"No se pudo resolver app-server\"'",
+
+          "echo '✅ Verificando conectividad desde web-app a app-server...'",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml exec web-app sh -c 'wget -O- http://app-server:3000/api/hello || curl -s http://app-server:3000/api/hello || echo \"No se pudo conectar a app-server:3000/api/hello\"'",
+
+          "echo '✅ Verificando configuración de nginx en web-app...'",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml exec web-app sh -c 'cat /etc/nginx/conf.d/default.conf | grep -A 10 \"location /api/\"'",
+
+          "echo '✅ Verificando que nginx esté ejecutándose correctamente...'",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml exec web-app sh -c 'nginx -t && ps aux | grep nginx'",
+
+          "echo '-------------------------------------'",
+          "echo '✅ Prueba directa desde el host a app-server:'",
+          "curl -v http://localhost:3000/api/hello || echo 'No se pudo conectar a app-server desde el host'",
+
+          "echo '✅ Prueba directa desde el host a web-app:'",
+          "curl -v http://localhost:8080/api/hello || echo 'No se pudo conectar a web-app desde el host'",
+
+          "echo '-------------------------------------'",
+          "echo '🔧 Si persisten los problemas, prueba reiniciar los servicios:'",
+          "echo 'cd apps/miproyecto && docker compose -f docker-compose.dev.yml restart app-server web-app'"
+        ],
+        "parallel": false
+      }
+    },
+    "test-minimal": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "# Ejecutar diagnóstico avanzado",
+          "chmod +x check-server.sh && ./check-server.sh > diagnostico.log",
+          "echo '📋 Diagnóstico completo guardado en diagnostico.log'",
+
+          "# Crear directorio para prueba mínima",
+          "mkdir -p apps/miproyecto/test-minimal",
+
+          "# Crear package.json simple",
+          "cat > apps/miproyecto/test-minimal/package.json << 'EOL'\n{\n  \"name\": \"express-test\",\n  \"version\": \"1.0.0\",\n  \"main\": \"server.js\",\n  \"dependencies\": {\n    \"express\": \"^4.17.1\",\n    \"cors\": \"^2.8.5\"\n  }\n}\nEOL",
+
+          "# Crear server.js simple",
+          "cat > apps/miproyecto/test-minimal/server.js << 'EOL'\n// Script simple de Express para probar conectividad\nconst express = require('express');\nconst cors = require('cors');\nconst app = express();\n\n// Habilitar CORS para todas las peticiones\napp.use(cors());\n\n// Escuchar en todas las interfaces\nconst HOST = '0.0.0.0';\nconst PORT = 3000;\n\n// Endpoint simple para probar\napp.get('/api/hello', (req, res) => {\n  console.log('Petición recibida en /api/hello');\n  res.json({ message: 'Hola desde el servidor Express independiente' });\n});\n\n// Endpoint de health check\napp.get('/health', (req, res) => {\n  res.status(200).send('OK');\n});\n\n// Iniciar el servidor\napp.listen(PORT, HOST, () => {\n  console.log(`Servidor Express ejecutándose en http://${HOST}:${PORT}`);\n  console.log('Endpoints disponibles:');\n  console.log('  - GET /api/hello');\n  console.log('  - GET /health');\n});\nEOL",
+
+          "# Crear nginx.conf simple",
+          "cat > apps/miproyecto/test-minimal/nginx.conf << 'EOL'\nserver {\n    listen 80;\n    server_name localhost;\n\n    location / {\n        return 200 \"Nginx funcionando correctamente\";\n    }\n\n    location /api {\n        proxy_pass http://express-test:3000;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n    }\n}\nEOL",
+
+          "# Crear docker-compose.minimal.yml",
+          "cat > apps/miproyecto/test-minimal/docker-compose.minimal.yml << 'EOL'\nversion: \"3.8\"\n\nservices:\n  express-test:\n    image: node:22-alpine\n    working_dir: /app\n    ports:\n      - \"3000:3000\"\n    volumes:\n      - ./server.js:/app/server.js\n      - ./package.json:/app/package.json\n    command: >\n      sh -c \"npm install express cors &&\n             node server.js\"\n    networks:\n      - test-network\n\n  nginx-test:\n    image: nginx:alpine\n    ports:\n      - \"8080:80\"\n    volumes:\n      - ./nginx.conf:/etc/nginx/conf.d/default.conf\n    depends_on:\n      - express-test\n    networks:\n      - test-network\n\nnetworks:\n  test-network:\n    driver: bridge\nEOL",
+
+          "# Ejecutar la prueba mínima",
+          "cd apps/miproyecto/test-minimal && docker compose -f docker-compose.minimal.yml down",
+          "cd apps/miproyecto/test-minimal && docker compose -f docker-compose.minimal.yml up -d",
+          "sleep 5",
+
+          "echo '🔍 Verificando prueba mínima:'",
+          "echo 'Logs de express-test:'",
+          "cd apps/miproyecto/test-minimal && docker compose -f docker-compose.minimal.yml logs express-test",
+
+          "echo 'Verificando acceso directo a la API mínima:'",
+          "curl -s http://localhost:3000/api/hello || echo 'No se pudo conectar directamente a la API mínima'",
+
+          "echo 'Verificando acceso a través de nginx mínimo:'",
+          "curl -s http://localhost:8080/api/hello || echo 'No se pudo conectar a través de nginx mínimo'"
+        ],
+        "parallel": false
+      }
+    },
     "debug": {
       "executor": "nx:run-commands",
       "options": {
@@ -154,22 +239,47 @@
           "# Asegurarse de que node_modules está actualizado",
           "npm install",
 
+          "# Liberar el puerto 3000 si está en uso",
+          "echo '🔍 Verificando si el puerto 3000 está en uso...'",
+          "lsof -ti:3000 | xargs kill -9 || echo 'Puerto 3000 está libre'",
+
           "# Crear directorios necesarios",
           "mkdir -p apps/miproyecto/app-server",
           "mkdir -p apps/miproyecto/scraper-worker",
 
-          "# Crear Dockerfile simple para app-server",
-          "cat > apps/miproyecto/app-server/Dockerfile.dev << 'EOL'\nFROM node:22-alpine\n\nWORKDIR /app\n\n# Instalar git para compatibilidad\nRUN apk add --no-cache git\n\n# Para debugging:\nENV NODE_OPTIONS=\"--inspect=0.0.0.0:9229\"\n\nCMD [\"npx\", \"nx\", \"serve\", \"miproyecto-app-server\"]\nEOL",
+          "# Crear Dockerfile para app-server con comando NX modificado para escuchar en todas las interfaces",
+          "cat > apps/miproyecto/app-server/Dockerfile.dev << 'EOL'\nFROM node:22-alpine\n\nWORKDIR /app\n\n# Instalar git y herramientas básicas\nRUN apk add --no-cache git curl\n\n# Configurar para escuchar en todas las interfaces\nENV HOST=0.0.0.0\nENV PORT=3000\n\n# La clave está en pasar correctamente --host al comando nx serve\nCMD [\"sh\", \"-c\", \"echo 'Iniciando app-server en '$HOST':'$PORT' con interfaces públicas' && npx nx serve miproyecto-app-server --host=0.0.0.0 --port=3000\"]\nEOL",
 
           "# Crear Dockerfile simple para scraper-worker",
-          "cat > apps/miproyecto/scraper-worker/Dockerfile.dev << 'EOL'\nFROM node:22-alpine\n\nWORKDIR /app\n\n# Instalar git para compatibilidad\nRUN apk add --no-cache git\n\n# Para debugging:\nENV NODE_OPTIONS=\"--inspect=0.0.0.0:9229\"\n\nCMD [\"npx\", \"nx\", \"serve\", \"miproyecto-scraper-worker\"]\nEOL",
+          "cat > apps/miproyecto/scraper-worker/Dockerfile.dev << 'EOL'\nFROM node:22-alpine\n\nWORKDIR /app\n\n# Instalar git para compatibilidad\nRUN apk add --no-cache git\n\n# Comando simple para iniciar\nCMD [\"npx\", \"nx\", \"serve\", \"miproyecto-scraper-worker\"]\nEOL",
+
+          "# Crear la configuración de nginx que funcionaba antes",
+          "mkdir -p apps/miproyecto/web-app",
+          "cat > apps/miproyecto/web-app/nginx.conf << 'EOL'\nserver {\n    listen 80;\n    server_name localhost;\n\n    location / {\n        root /usr/share/nginx/html;\n        index index.html;\n        try_files $uri $uri/ /index.html;\n    }\n\n    # Redirigir /dashboard a la raíz (para corregir el problema)\n    location /dashboard {\n        return 301 /;\n    }\n\n    # Para solicitudes API, proxy al backend\n    location /api {\n        proxy_pass http://app-server:3000;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n    }\n\n    # Health check\n    location /health {\n        access_log off;\n        return 200 \"healthy\\n\";\n    }\n}\nEOL",
+
+          "# Detener todos los contenedores del proyecto",
+          "docker ps -a | grep miproyecto | awk '{print $1}' | xargs docker stop || true",
+          "docker ps -a | grep miproyecto | awk '{print $1}' | xargs docker rm || true",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml down --remove-orphans",
+
+          "# Asegurarse de eliminar la red si existe para recrearla limpia",
+          "docker network rm miproyecto-network || true",
 
           "# Construir y arrancar servicios",
           "cd apps/miproyecto && docker compose -f docker-compose.dev.yml build",
           "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d postgres rabbitmq",
           "sleep 10",
-          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d app-server scraper-worker web-app",
-          "echo '🚀 Servicios iniciados - Conecta tu debugger a los puertos 9229 (app-server) y 9230 (scraper-worker)'"
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d app-server",
+          "sleep 15",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml up -d scraper-worker web-app",
+          "sleep 5",
+          "echo '🚀 Servicios iniciados'",
+          "echo 'Verificando logs de app-server:'",
+          "cd apps/miproyecto && docker compose -f docker-compose.dev.yml logs app-server | tail -n 20",
+          "echo 'Verificando acceso directo a API:'",
+          "curl -s http://localhost:3000/api/hello || echo 'No se pudo conectar directamente a la API'",
+          "echo 'Verificando acceso a través de web-app:'",
+          "curl -s http://localhost:8080/api/hello || echo 'No se pudo conectar a través de web-app'"
         ],
         "parallel": false
       }

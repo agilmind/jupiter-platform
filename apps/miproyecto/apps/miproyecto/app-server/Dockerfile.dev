@@ -1,0 +1,19 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Instalar git, ssh y otras herramientas necesarias
+RUN apk add --no-cache git openssh-client bash
+
+# Configurar SSH para GitHub
+RUN mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    echo "Host github.com\n\tStrictHostKeyChecking no\n\tUser git\n" > /root/.ssh/config && \
+    chmod 600 /root/.ssh/config
+
+# Copiar package.json y configuración NX
+COPY package.json package-lock.json nx.json ./
+COPY tsconfig*.json ./
+
+# La clave está en pasar correctamente --host al comando nx serve
+CMD ["sh", "-c", "echo 'Iniciando app-server en '$HOST':'$PORT' con interfaces públicas' && npx nx serve miproyecto-app-server --host=0.0.0.0 --port=3000"]

@@ -1,0 +1,22 @@
+# Base stage for React Native build
+FROM node:22-alpine AS build
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json ./
+COPY apps/__projectName__/__nativeAppName__/package.json ./apps/__projectName__/__nativeAppName__/
+COPY libs/__projectName__/shared/package.json ./libs/__projectName__/shared/
+COPY libs/__projectName__/api-interfaces/package.json ./libs/__projectName__/api-interfaces/
+RUN npm ci --production=false
+
+# Copy source code
+COPY . .
+
+# Build for Android
+RUN npx nx build-android __nativeAppName__ --prod
+
+# Output: /app/apps/__projectName__/__nativeAppName__/android/app/build/outputs/apk/release/app-release.apk
+
+# This Dockerfile is mainly for CI/CD purposes
+# For actual device deployment, you'll need platform-specific workflows
+# and might need more specialized Docker images with Android SDK or iOS tools

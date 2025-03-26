@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  __appServerName__:
+    build:
+      context: ../../
+      dockerfile: apps/__projectName__/__appServerName__/Dockerfile
+      args:
+        NODE_ENV: development
+    environment:
+      - NODE_ENV=development
+      - PORT=${SERVER_PORT}
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    volumes:
+      - ../../apps/__projectName__/__appServerName__:/app/apps/__projectName__/__appServerName__
+      - ../../libs:/app/libs
+      - node_modules:/app/node_modules
+    depends_on:
+      - postgres
+      - rabbitmq
+    command: sh -c "npx prisma migrate dev && nx serve __appServerName__ --watch"
+
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  node_modules:
+  worker_node_modules:

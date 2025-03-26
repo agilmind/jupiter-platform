@@ -18,9 +18,14 @@ import { generateNativeApp } from './native-app-generator';
 import { generateScraperWorker } from './scraper-worker-generator';
 import { generateReportWorker } from './report-worker-generator';
 import { generateEmailWorker } from './email-worker-generator';
+import { generateInfrastructure } from './generate-infrastructure';
 
 export default async function (tree: Tree, options: CreateGeneratorSchema) {
   const normalizedOptions = normalizeOptions(tree, options);
+
+   // Llamar a la nueva función para generar la infraestructura
+  await generateInfrastructure(tree, options);
+
 
   // Crear README.md principal
   tree.write(

@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  express-test:
+    image: node:22-alpine
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./server.js:/app/server.js
+      - ./package.json:/app/package.json
+    command: >
+      sh -c "npm install express cors &&
+             node server.js"
+    networks:
+      - test-network
+
+  nginx-test:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - express-test
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
