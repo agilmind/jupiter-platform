@@ -1,9 +1,7 @@
-// src/main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ApolloClient, InMemoryCache, ApolloProvider } from '@apollo/client';
-import App from './App.tsx.template';
-import './index.css';
+import App from './App';
 
 // Configurar cliente Apollo
 const client = new ApolloClient({

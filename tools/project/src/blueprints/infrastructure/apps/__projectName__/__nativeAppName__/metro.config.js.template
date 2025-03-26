@@ -4,7 +4,7 @@
  *
  * @type {import('metro-config').MetroConfig}
  */
-const { getMetroConfig } = require('@nrwl/react-native');
+const { getMetroConfig } = require('@nx/react-native');
 const { resolve, join } = require('path');
 
 module.exports = (async () => {

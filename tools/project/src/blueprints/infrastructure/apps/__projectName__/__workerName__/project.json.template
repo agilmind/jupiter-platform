@@ -5,7 +5,7 @@
   "projectType": "application",
   "targets": {
     "build": {
-      "executor": "@nrwl/node:webpack",
+      "executor": "@nx/js:tsc",
       "outputs": ["{options.outputPath}"],
       "options": {
         "outputPath": "dist/apps/<%=projectName%>/<%=workerName%>",
@@ -28,19 +28,19 @@
       }
     },
     "serve": {
-      "executor": "@nrwl/node:node",
+      "executor": "@nx/js:node",
       "options": {
         "buildTarget": "<%=workerName%>:build"
       }
     },
     "lint": {
-      "executor": "@nrwl/linter:eslint",
+      "executor": "@nx/linter:eslint",
       "options": {
         "lintFilePatterns": ["apps/<%=projectName%>/<%=workerName%>/**/*.ts"]
       }
     },
     "test": {
-      "executor": "@nrwl/jest:jest",
+      "executor": "@nx/jest:jest",
       "outputs": ["coverage/apps/<%=projectName%>/<%=workerName%>"],
       "options": {
         "jestConfig": "apps/<%=projectName%>/<%=workerName%>/jest.config.js",
