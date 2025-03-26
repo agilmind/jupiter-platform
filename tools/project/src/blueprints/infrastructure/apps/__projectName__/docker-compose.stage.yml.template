@@ -1,10 +1,10 @@
 version: '3.8'
 
 services:
-  __appServerName__:
+  <%=appServerName%>:
     build:
       context: ../../
-      dockerfile: apps/__projectName__/__appServerName__/Dockerfile
+      dockerfile: apps/<%=projectName%>/<%=appServerName%>/Dockerfile
       args:
         NODE_ENV: staging
     environment:

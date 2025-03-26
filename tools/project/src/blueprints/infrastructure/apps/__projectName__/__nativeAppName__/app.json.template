@@ -1,4 +1,4 @@
 {
-  "name": "__nativeAppName__",
-  "displayName": "__projectName__ __nativeAppName__"
+  "name": "<%=nativeAppName%>",
+  "displayName": "<%=projectName%> <%=nativeAppName%>"
 }

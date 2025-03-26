@@ -1,6 +1,6 @@
 {
-  "name": "__projectName__",
-  "root": "apps/__projectName__",
+  "name": "<%=projectName%>",
+  "root": "apps/<%=projectName%>",
   "projectType": "application",
-  "tags": ["scope:__projectName__"]
+  "tags": ["scope:<%=projectName%>"]
 }

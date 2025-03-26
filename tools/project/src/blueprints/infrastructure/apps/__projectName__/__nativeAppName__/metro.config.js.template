@@ -19,8 +19,8 @@ module.exports = (async () => {
     resolver: {
       ...config.resolver,
       extraNodeModules: {
-        '@__projectName__/api-interfaces': join(monorepoRoot, 'libs/__projectName__/api-interfaces'),
-        '@__projectName__/shared': join(monorepoRoot, 'libs/__projectName__/shared')
+        '@<%=projectName%>/api-interfaces': join(monorepoRoot, 'libs/<%=projectName%>/api-interfaces'),
+        '@<%=projectName%>/shared': join(monorepoRoot, 'libs/<%=projectName%>/shared')
       },
     },
     transformer: {

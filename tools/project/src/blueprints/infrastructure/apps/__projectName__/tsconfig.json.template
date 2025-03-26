@@ -12,7 +12,7 @@
   "include": [],
   "references": [
     {
-      "path": "./__appServerName__/tsconfig.json"
+      "path": "./<%=appServerName%>/tsconfig.json"
     }
   ]
 }

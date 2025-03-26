@@ -4,8 +4,10 @@ import {
   generateFiles,
   names,
   joinPathFragments,
+  visitNotIgnoredFiles
 } from '@nx/devkit';
 import * as path from 'path';
+import * as fs from 'fs';
 import { CreateGeneratorSchema } from './schema';
 
 /**
@@ -22,57 +24,64 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
 
   // Objeto de sustituciones para los templates
   const substitutions = {
-    __projectName__: projectNameDashed,
-    __appServerName__: names(appServerName).fileName,
+    projectName: projectNameDashed,
+    appServerName: names(appServerName).fileName,
+    tmpl: ''
   };
 
-  // Archivos a nivel de monorepo (si aún no existen)
-  const monorepoFiles = [
-    'nx.json',
-    'package.json',
-    'tsconfig.base.json',
-    'jest.config.js',
-    '.eslintrc.json',
-    '.prettierrc',
-  ];
+// 1. Generar archivos a nivel de proyecto (excluyendo directorios específicos)
+const projectTemplateDir = joinPathFragments(templatesDir, 'apps', '__projectName__');
+const projectTargetDir = joinPathFragments('apps', projectNameDashed);
 
-  // Generar archivos a nivel de monorepo si no existen
-  monorepoFiles.forEach(file => {
-    const filePath = file;
-    if (!tree.exists(filePath)) {
-      generateFiles(
-        tree,
-        path.join(templatesDir),
-        '/',
-        { ...substitutions, tmpl: '' },
-        [`${file}.template`]
-      );
+// Asegurarse de que el directorio de destino existe
+if (!tree.exists(projectTargetDir)) {
+  tree.write(joinPathFragments(projectTargetDir, '.gitkeep'), '');
+}
+
+// Leer directamente los archivos del directorio de templates del proyecto
+const projectFiles = fs.readdirSync(projectTemplateDir);
+
+  // Procesar solo los archivos, excluyendo directorios que empiezan con __
+  projectFiles.forEach(file => {
+    const filePath = path.join(projectTemplateDir, file);
+    const stats = fs.statSync(filePath);
+
+    // Si es un archivo
+    if (stats.isFile()) {
+      // Leer el contenido del archivo
+      let content = fs.readFileSync(filePath, 'utf8');
+
+      // Reemplazar variables
+      Object.entries(substitutions).forEach(([key, value]) => {
+        content = content.replace(new RegExp(key, 'g'), value);
+      });
+
+      // Escribir en el árbol
+      const targetFilePath = joinPathFragments(projectTargetDir, file.replace('.template', ''));
+      tree.write(targetFilePath, content);
+    }
+    // Si es un directorio que no empieza con __
+    else if (stats.isDirectory() && !file.startsWith('__')) {
+      // Procesar directorio recursivamente (si es necesario)
+      // Aquí podrías implementar una función recursiva para subdirectorios
     }
   });
-
-  // Generar estructura de directorios y archivos para el proyecto
-  generateFiles(
-    tree,
-    path.join(templatesDir, 'apps', '__projectName__'),
-    `apps/${projectNameDashed}`,
-    { ...substitutions, tmpl: '' }
-  );
 
   // Generar estructura para el servidor de aplicación
   generateFiles(
     tree,
-    path.join(templatesDir, 'apps', '__projectName__', '__appServerName__'),
-    `apps/${projectNameDashed}/${names(appServerName).fileName}`,
-    { ...substitutions, tmpl: '' }
+    joinPathFragments(templatesDir, 'apps', '__projectName__', '__appServerName__'),
+    joinPathFragments('apps', projectNameDashed, names(appServerName).fileName),
+    substitutions
   );
 
   // Generar estructura para cada aplicación web
   webAppNames.forEach(webAppName => {
     generateFiles(
       tree,
-      path.join(templatesDir, 'apps', '__projectName__', '__webAppName__'),
-      `apps/${projectNameDashed}/${names(webAppName).fileName}`,
-      { ...substitutions, __webAppName__: names(webAppName).fileName, tmpl: '' }
+      joinPathFragments(templatesDir, 'apps', '__projectName__', '__webAppName__'),
+      joinPathFragments('apps', projectNameDashed, names(webAppName).fileName),
+      { ...substitutions, webAppName: names(webAppName).fileName }
     );
   });
 
@@ -80,9 +89,9 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
   nativeAppNames.forEach(nativeAppName => {
     generateFiles(
       tree,
-      path.join(templatesDir, 'apps', '__projectName__', '__nativeAppName__'),
-      `apps/${projectNameDashed}/${names(nativeAppName).fileName}`,
-      { ...substitutions, __nativeAppName__: names(nativeAppName).fileName, tmpl: '' }
+      joinPathFragments(templatesDir, 'apps', '__projectName__', '__nativeAppName__'),
+      joinPathFragments('apps', projectNameDashed, names(nativeAppName).fileName),
+      { ...substitutions, nativeAppName: names(nativeAppName).fileName }
     );
   });
 
@@ -90,30 +99,101 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
   workerNames.forEach(workerName => {
     generateFiles(
       tree,
-      path.join(templatesDir, 'apps', '__projectName__', '__workerName__'),
-      `apps/${projectNameDashed}/${names(workerName).fileName}`,
-      { ...substitutions, __workerName__: names(workerName).fileName, tmpl: '' }
+      joinPathFragments(templatesDir, 'apps', '__projectName__', '__workerName__'),
+      joinPathFragments('apps', projectNameDashed, names(workerName).fileName),
+      { ...substitutions, workerName: names(workerName).fileName }
     );
   });
 
   // Generar estructura para las librerías compartidas
   generateFiles(
     tree,
-    path.join(templatesDir, 'libs', '__projectName__', 'shared'),
-    `libs/${projectNameDashed}/shared`,
-    { ...substitutions, tmpl: '' }
+    joinPathFragments(templatesDir, 'libs', '__projectName__', 'shared'),
+    joinPathFragments('libs', projectNameDashed, 'shared'),
+    substitutions
   );
 
   // Generar estructura para las interfaces de API
   generateFiles(
     tree,
-    path.join(templatesDir, 'libs', '__projectName__', 'api-interfaces'),
-    `libs/${projectNameDashed}/api-interfaces`,
-    { ...substitutions, tmpl: '' }
+    joinPathFragments(templatesDir, 'libs', '__projectName__', 'api-interfaces'),
+    joinPathFragments('libs', projectNameDashed, 'api-interfaces'),
+    substitutions
   );
 
   // Formatear todos los archivos generados
   await formatFiles(tree);
 
   return tree;
+}
+
+// En tu archivo generate-infrastructure.ts, añade esta función
+export async function setupGitHubActions(tree: Tree, options: CreateGeneratorSchema) {
+  const { projectName } = options;
+  const projectNameDashed = names(projectName).fileName;
+
+  // Crear directorio para GitHub Actions
+  if (!tree.exists('.github/workflows')) {
+    tree.write('.github/workflows/.gitkeep', '');
+  }
+
+  // Generar o actualizar CI workflow
+  if (!tree.exists('.github/workflows/ci.yml')) {
+    generateFiles(
+      tree,
+      path.join(__dirname, '..', '..', 'blueprints', 'github'),
+      '.github/workflows',
+      { projectName: projectNameDashed, tmpl: '' },
+      ['ci.yml.template']
+    );
+  }
+
+  // Generar o actualizar Deploy workflow
+  if (!tree.exists('.github/workflows/deploy.yml')) {
+    generateFiles(
+      tree,
+      path.join(__dirname, '..', '..', 'blueprints', 'github'),
+      '.github/workflows',
+      { projectName: projectNameDashed, tmpl: '' },
+      ['deploy.yml.template']
+    );
+  }
+
+  // Generar instrucciones para configurar GitHub
+  const secretsInstructions = `
+# Configuración de GitHub Secrets para ${projectNameDashed}
+
+Para configurar el despliegue automático, añade estos secretos en GitHub:
+
+- SSH_HOST: jupiter.ar
+- SSH_USER: fido
+- SSH_PRIVATE_KEY: [Tu clave SSH privada]
+- SERVER_PORT: 4000
+- POSTGRES_USER: postgres
+- POSTGRES_PASSWORD: postgres
+- POSTGRES_DB: jupiter
+- DATABASE_URL: postgresql://postgres:postgres@postgres:5432/jupiter?schema=public&connection_limit=10&pool_timeout=10&idle_timeout=10
+- RABBITMQ_DEFAULT_USER: guest
+- RABBITMQ_DEFAULT_PASS: guest
+- RABBITMQ_HOST: rabbitmq
+- RABBITMQ_PORT: 5672
+- RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+- API_URL: https://webapp.jupiter.ar
+  `;
+
+  // Guardar estas instrucciones en un archivo
+  tree.write(`apps/${projectNameDashed}/GITHUB_SETUP.md`, secretsInstructions);
+
+  return tree;
+}
+
+// Y en tu generator.ts principal:
+export default async function (tree: Tree, options: CreateGeneratorSchema) {
+  // Generar infraestructura
+  await generateInfrastructure(tree, options);
+
+  // Configurar GitHub Actions
+  await setupGitHubActions(tree, options);
+
+  // Resto de tu código...
 }

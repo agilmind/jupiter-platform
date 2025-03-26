@@ -1,0 +1,108 @@
+// src/App.tsx
+import React, { useState } from 'react';
+import { gql, useMutation, useQuery } from '@apollo/client';
+import './App.css';
+
+// GraphQL queries
+const CREATE_PROCESS = gql`
+  mutation CreateProcess($content: String!) {
+    createProcess(content: $content) {
+      id
+      content
+      completed
+    }
+  }
+`;
+
+const GET_PROCESS = gql`
+  query GetProcess($id: ID!) {
+    getProcess(id: $id) {
+      id
+      content
+      completed
+      result
+    }
+  }
+`;
+
+const HEALTH_CHECK = gql`
+  query HealthCheck {
+    healthCheck
+  }
+`;
+
+function App() {
+  const [input, setInput] = useState('');
+  const [processId, setProcessId] = useState('');
+
+  // Mutations y queries
+  const [createProcess, { loading: createLoading }] = useMutation(CREATE_PROCESS);
+  const { data: processData, loading: processLoading, refetch } = useQuery(GET_PROCESS, {
+    variables: { id: processId },
+    skip: !processId,
+    pollInterval: 1000
+  });
+  const { data: healthData } = useQuery(HEALTH_CHECK);
+
+  // Enviar mensaje
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    try {
+      const result = await createProcess({ variables: { content: input } });
+      setProcessId(result.data.createProcess.id);
+      setInput('');
+    } catch (error) {
+      console.error('Error al crear proceso:', error);
+    }
+  };
+
+  return (
+    <div className="container">
+      <header>
+        <h1>Sistema de Procesamiento</h1>
+        {healthData && <p className="health-status">Estado: {healthData.healthCheck}</p>}
+      </header>
+
+      <section className="card">
+        <h2>Enviar mensaje al procesador</h2>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Escribe un mensaje para procesar"
+          />
+          <button type="submit" disabled={createLoading}>
+            {createLoading ? 'Enviando...' : 'Enviar'}
+          </button>
+        </form>
+      </section>
+
+      {processId && (
+        <section className="card result-card">
+          <h2>Estado del Proceso</h2>
+          <p>ID del proceso: {processId}</p>
+
+          {processLoading ? (
+            <p>Cargando estado...</p>
+          ) : processData ? (
+            <div>
+              <p>Mensaje original: {processData.getProcess.content}</p>
+              <p>Estado: {processData.getProcess.completed ? 'Completado' : 'En proceso'}</p>
+              {processData.getProcess.completed && (
+                <p>Resultado: {processData.getProcess.result}</p>
+              )}
+              <button onClick={() => refetch()}>Actualizar</button>
+            </div>
+          ) : (
+            <p>No se encontró información del proceso</p>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+export default App;

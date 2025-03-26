@@ -1,7 +1,7 @@
 {
-  "name": "__nativeAppName__",
-  "root": "apps/__projectName__/__nativeAppName__",
-  "sourceRoot": "apps/__projectName__/__nativeAppName__/src",
+  "name": "<%=nativeAppName%>",
+  "root": "apps/<%=projectName%>/<%=nativeAppName%>",
+  "sourceRoot": "apps/<%=projectName%>/<%=nativeAppName%>/src",
   "projectType": "application",
   "targets": {
     "start": {
@@ -13,7 +13,7 @@
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "nx start __nativeAppName__"
+        "command": "nx start <%=nativeAppName%>"
       }
     },
     "run-ios": {
@@ -22,11 +22,11 @@
     },
     "bundle-ios": {
       "executor": "@nrwl/react-native:bundle",
-      "outputs": ["apps/__projectName__/__nativeAppName__/build"],
+      "outputs": ["apps/<%=projectName%>/<%=nativeAppName%>/build"],
       "options": {
         "entryFile": "src/main.tsx",
         "platform": "ios",
-        "bundleOutput": "dist/apps/__projectName__/__nativeAppName__/ios/main.jsbundle"
+        "bundleOutput": "dist/apps/<%=projectName%>/<%=nativeAppName%>/ios/main.jsbundle"
       }
     },
     "run-android": {
@@ -36,8 +36,8 @@
     "build-android": {
       "executor": "@nrwl/react-native:build-android",
       "outputs": [
-        "apps/__projectName__/__nativeAppName__/android/app/build/outputs/bundle",
-        "apps/__projectName__/__nativeAppName__/android/app/build/outputs/apk"
+        "apps/<%=projectName%>/<%=nativeAppName%>/android/app/build/outputs/bundle",
+        "apps/<%=projectName%>/<%=nativeAppName%>/android/app/build/outputs/apk"
       ],
       "options": {}
     },
@@ -46,24 +46,24 @@
       "options": {
         "entryFile": "src/main.tsx",
         "platform": "android",
-        "bundleOutput": "dist/apps/__projectName__/__nativeAppName__/android/main.jsbundle"
+        "bundleOutput": "dist/apps/<%=projectName%>/<%=nativeAppName%>/android/main.jsbundle"
       }
     },
     "lint": {
       "executor": "@nrwl/linter:eslint",
       "outputs": ["{options.outputFile}"],
       "options": {
-        "lintFilePatterns": ["apps/__projectName__/__nativeAppName__/**/*.{ts,tsx,js,jsx}"]
+        "lintFilePatterns": ["apps/<%=projectName%>/<%=nativeAppName%>/**/*.{ts,tsx,js,jsx}"]
       }
     },
     "test": {
       "executor": "@nrwl/jest:jest",
-      "outputs": ["coverage/apps/__projectName__/__nativeAppName__"],
+      "outputs": ["coverage/apps/<%=projectName%>/<%=nativeAppName%>"],
       "options": {
-        "jestConfig": "apps/__projectName__/__nativeAppName__/jest.config.js",
+        "jestConfig": "apps/<%=projectName%>/<%=nativeAppName%>/jest.config.js",
         "passWithNoTests": true
       }
     }
   },
-  "tags": ["type:app", "scope:__projectName__", "platform:mobile"]
+  "tags": ["type:app", "scope:<%=projectName%>", "platform:mobile"]
 }

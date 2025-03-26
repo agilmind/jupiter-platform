@@ -1,5 +1,5 @@
 {
-  "name": "@__projectName__/__appServerName__",
+  "name": "@<%=projectName%>/<%=appServerName%>",
   "version": "0.0.1",
   "dependencies": {
     "@apollo/server": "^4.11.3",

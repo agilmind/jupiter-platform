@@ -1,5 +1,5 @@
 {
-  "name": "@__projectName__/__webAppName__",
+  "name": "@<%=projectName%>/<%=webAppName%>",
   "version": "0.0.1",
   "dependencies": {
     "react": "^18.3.1",

@@ -8,4 +8,8 @@ export interface CreateGeneratorSchema {
   includeEmailWorker?: boolean;
   includePgBouncer?: boolean;
   includeRabbitMQ?: boolean;
+  appServerName?: string;
+  webAppNames?: string[];
+  nativeAppNames?: string[];
+  workerNames?: string[];
 }

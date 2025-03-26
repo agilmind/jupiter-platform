@@ -1,5 +1,5 @@
 {
-  "name": "@__projectName__/__workerName__",
+  "name": "@<%=projectName%>/<%=workerName%>",
   "version": "0.0.1",
   "dependencies": {
     "amqplib": "^0.10.3",

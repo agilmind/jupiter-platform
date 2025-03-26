@@ -6,21 +6,21 @@ ENV NODE_ENV=production
 # Dependencies stage
 FROM base AS dependencies
 COPY package.json package-lock.json ./
-COPY apps/__projectName__/__appServerName__/package.json ./apps/__projectName__/__appServerName__/
-COPY libs/__projectName__/shared/package.json ./libs/__projectName__/shared/
-COPY libs/__projectName__/api-interfaces/package.json ./libs/__projectName__/api-interfaces/
+COPY apps/<%=projectName%>/<%=appServerName%>/package.json ./apps/<%=projectName%>/<%=appServerName%>/
+COPY libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
+COPY libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 RUN npm ci --production=false
 
 # Build stage
 FROM dependencies AS build
 COPY . .
-RUN npx nx build __appServerName__ --prod
+RUN npx nx build <%=appServerName%> --prod
 
 # Runtime stage
 FROM base AS runtime
 COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=build /app/dist/apps/__projectName__/__appServerName__ ./
-COPY apps/__projectName__/__appServerName__/prisma ./prisma
+COPY --from=build /app/dist/apps/<%=projectName%>/<%=appServerName%> ./
+COPY apps/<%=projectName%>/<%=appServerName%>/prisma ./prisma
 
 # Install only production dependencies
 RUN npm ci --only=production

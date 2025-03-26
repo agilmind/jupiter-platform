@@ -1,5 +1,5 @@
 {
-  "npmScope": "__projectName__",
+  "npmScope": "<%=projectName%>",
   "affected": {
     "defaultBase": "main"
   },

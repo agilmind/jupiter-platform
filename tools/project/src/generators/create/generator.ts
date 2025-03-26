@@ -18,58 +18,65 @@ import { generateNativeApp } from './native-app-generator';
 import { generateScraperWorker } from './scraper-worker-generator';
 import { generateReportWorker } from './report-worker-generator';
 import { generateEmailWorker } from './email-worker-generator';
-import { generateInfrastructure } from './generate-infrastructure';
+import { generateInfrastructure, setupGitHubActions } from './generate-infrastructure';
 
 export default async function (tree: Tree, options: CreateGeneratorSchema) {
   const normalizedOptions = normalizeOptions(tree, options);
 
+  options.appServerName = 'app-server';
+  options.webAppNames = ['web-app'];
+  options.nativeAppNames = ['native-app'];
+  options.workerNames = ['worker-sample'];
+
    // Llamar a la nueva función para generar la infraestructura
   await generateInfrastructure(tree, options);
 
+  // // Configurar GitHub Actions
+  // await setupGitHubActions(tree, options);
 
-  // Crear README.md principal
-  tree.write(
-    path.join(normalizedOptions.projectRoot, 'README.md'),
-    `# ${normalizedOptions.projectName}\n\nProyecto generado automáticamente.\n`
-  );
-
-  // Generar componentes según las opciones seleccionadas
-  if (normalizedOptions.includeApolloPrisma) {
-    generateApolloPrisma(tree, normalizedOptions);
-  }
-
-  if (normalizedOptions.includeWebApp) {
-    generateWebApp(tree, normalizedOptions);
-  }
-
-  if (normalizedOptions.includeNativeApp) {
-    generateNativeApp(tree, normalizedOptions);
-  }
-
-  // Habilitar RabbitMQ automáticamente si hay algún worker
-  if (normalizedOptions.includeScraperWorker ||
-      normalizedOptions.includeReportWorker ||
-      normalizedOptions.includeEmailWorker) {
-    normalizedOptions.includeRabbitMQ = true;
-  }
-
-  if (normalizedOptions.includeScraperWorker) {
-    generateScraperWorker(tree, normalizedOptions);
-  }
-
-  if (normalizedOptions.includeReportWorker) {
-    generateReportWorker(tree, normalizedOptions);
-  }
-
-  if (normalizedOptions.includeEmailWorker) {
-    generateEmailWorker(tree, normalizedOptions);
-  }
-
-  // Generar docker-compose con todos los servicios seleccionados
-  generateDockerCompose(tree, normalizedOptions);
-
-  // Registrar proyectos en NX
-  registerNxProjects(tree, normalizedOptions);
+  // // Crear README.md principal
+  // tree.write(
+  //   path.join(normalizedOptions.projectRoot, 'README.md'),
+  //   `# ${normalizedOptions.projectName}\n\nProyecto generado automáticamente.\n`
+  // );
+  //
+  // // Generar componentes según las opciones seleccionadas
+  // if (normalizedOptions.includeApolloPrisma) {
+  //   generateApolloPrisma(tree, normalizedOptions);
+  // }
+  //
+  // if (normalizedOptions.includeWebApp) {
+  //   generateWebApp(tree, normalizedOptions);
+  // }
+  //
+  // if (normalizedOptions.includeNativeApp) {
+  //   generateNativeApp(tree, normalizedOptions);
+  // }
+  //
+  // // Habilitar RabbitMQ automáticamente si hay algún worker
+  // if (normalizedOptions.includeScraperWorker ||
+  //     normalizedOptions.includeReportWorker ||
+  //     normalizedOptions.includeEmailWorker) {
+  //   normalizedOptions.includeRabbitMQ = true;
+  // }
+  //
+  // if (normalizedOptions.includeScraperWorker) {
+  //   generateScraperWorker(tree, normalizedOptions);
+  // }
+  //
+  // if (normalizedOptions.includeReportWorker) {
+  //   generateReportWorker(tree, normalizedOptions);
+  // }
+  //
+  // if (normalizedOptions.includeEmailWorker) {
+  //   generateEmailWorker(tree, normalizedOptions);
+  // }
+  //
+  // // Generar docker-compose con todos los servicios seleccionados
+  // generateDockerCompose(tree, normalizedOptions);
+  //
+  // // Registrar proyectos en NX
+  // registerNxProjects(tree, normalizedOptions);
 
   await formatFiles(tree);
 

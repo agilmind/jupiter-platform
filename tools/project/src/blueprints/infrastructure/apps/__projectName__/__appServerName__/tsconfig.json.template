@@ -3,7 +3,7 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "es2022",
-    "outDir": "../../../dist/apps/__projectName__/__appServerName__",
+    "outDir": "../../../dist/apps/<%=projectName%>/<%=appServerName%>",
     "types": ["node", "jest"]
   },
   "exclude": ["node_modules", "tmp", "**/*.spec.ts"],

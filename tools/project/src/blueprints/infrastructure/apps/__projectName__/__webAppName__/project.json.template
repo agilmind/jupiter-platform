@@ -1,7 +1,7 @@
 {
-  "name": "__webAppName__",
-  "root": "apps/__projectName__/__webAppName__",
-  "sourceRoot": "apps/__projectName__/__webAppName__/src",
+  "name": "<%=webAppName%>",
+  "root": "apps/<%=projectName%>/<%=webAppName%>",
+  "sourceRoot": "apps/<%=projectName%>/<%=webAppName%>/src",
   "projectType": "application",
   "targets": {
     "build": {
@@ -9,7 +9,7 @@
       "outputs": ["{options.outputPath}"],
       "defaultConfiguration": "production",
       "options": {
-        "outputPath": "dist/apps/__projectName__/__webAppName__"
+        "outputPath": "dist/apps/<%=projectName%>/<%=webAppName%>"
       },
       "configurations": {
         "development": {
@@ -24,15 +24,15 @@
       "executor": "@nrwl/vite:dev-server",
       "defaultConfiguration": "development",
       "options": {
-        "buildTarget": "__webAppName__:build"
+        "buildTarget": "<%=webAppName%>:build"
       },
       "configurations": {
         "development": {
-          "buildTarget": "__webAppName__:build:development",
+          "buildTarget": "<%=webAppName%>:build:development",
           "hmr": true
         },
         "production": {
-          "buildTarget": "__webAppName__:build:production",
+          "buildTarget": "<%=webAppName%>:build:production",
           "hmr": false
         }
       }
@@ -41,16 +41,16 @@
       "executor": "@nrwl/linter:eslint",
       "outputs": ["{options.outputFile}"],
       "options": {
-        "lintFilePatterns": ["apps/__projectName__/__webAppName__/**/*.{ts,tsx,js,jsx}"]
+        "lintFilePatterns": ["apps/<%=projectName%>/<%=webAppName%>/**/*.{ts,tsx,js,jsx}"]
       }
     },
     "test": {
       "executor": "@nrwl/vite:test",
-      "outputs": ["coverage/apps/__projectName__/__webAppName__"],
+      "outputs": ["coverage/apps/<%=projectName%>/<%=webAppName%>"],
       "options": {
         "passWithNoTests": true
       }
     }
   },
-  "tags": ["type:app", "scope:__projectName__"]
+  "tags": ["type:app", "scope:<%=projectName%>"]
 }

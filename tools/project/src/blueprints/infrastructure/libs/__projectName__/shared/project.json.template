@@ -1,32 +1,32 @@
 {
   "name": "shared",
-  "root": "libs/__projectName__/shared",
-  "sourceRoot": "libs/__projectName__/shared/src",
+  "root": "libs/<%=projectName%>/shared",
+  "sourceRoot": "libs/<%=projectName%>/shared/src",
   "projectType": "library",
   "targets": {
     "build": {
       "executor": "@nrwl/js:tsc",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "outputPath": "dist/libs/__projectName__/shared",
-        "tsConfig": "libs/__projectName__/shared/tsconfig.lib.json",
-        "packageJson": "libs/__projectName__/shared/package.json",
-        "main": "libs/__projectName__/shared/src/index.ts",
-        "assets": ["libs/__projectName__/shared/*.md"]
+        "outputPath": "dist/libs/<%=projectName%>/shared",
+        "tsConfig": "libs/<%=projectName%>/shared/tsconfig.lib.json",
+        "packageJson": "libs/<%=projectName%>/shared/package.json",
+        "main": "libs/<%=projectName%>/shared/src/index.ts",
+        "assets": ["libs/<%=projectName%>/shared/*.md"]
       }
     },
     "lint": {
       "executor": "@nrwl/linter:eslint",
       "outputs": ["{options.outputFile}"],
       "options": {
-        "lintFilePatterns": ["libs/__projectName__/shared/**/*.ts"]
+        "lintFilePatterns": ["libs/<%=projectName%>/shared/**/*.ts"]
       }
     },
     "test": {
       "executor": "@nrwl/jest:jest",
-      "outputs": ["coverage/libs/__projectName__/shared"],
+      "outputs": ["coverage/libs/<%=projectName%>/shared"],
       "options": {
-        "jestConfig": "libs/__projectName__/shared/jest.config.js",
+        "jestConfig": "libs/<%=projectName%>/shared/jest.config.js",
         "passWithNoTests": true
       }
     }

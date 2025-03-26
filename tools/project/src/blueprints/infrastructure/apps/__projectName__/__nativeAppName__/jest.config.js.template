@@ -1,5 +1,5 @@
 module.exports = {
-  displayName: '__nativeAppName__',
+  displayName: '<%=nativeAppName%>',
   preset: 'react-native',
   resolver: '@nrwl/jest/plugins/resolver',
   moduleFileExtensions: ['ts', 'js', 'html', 'tsx', 'jsx'],

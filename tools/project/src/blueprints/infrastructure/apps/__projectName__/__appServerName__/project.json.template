@@ -1,17 +1,17 @@
 {
-  "name": "__appServerName__",
-  "root": "apps/__projectName__/__appServerName__",
-  "sourceRoot": "apps/__projectName__/__appServerName__/src",
+  "name": "<%=appServerName%>",
+  "root": "apps/<%=projectName%>/<%=appServerName%>",
+  "sourceRoot": "apps/<%=projectName%>/<%=appServerName%>/src",
   "projectType": "application",
   "targets": {
     "build": {
       "executor": "@nrwl/node:webpack",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "outputPath": "dist/apps/__projectName__/__appServerName__",
-        "main": "apps/__projectName__/__appServerName__/src/main.ts",
-        "tsConfig": "apps/__projectName__/__appServerName__/tsconfig.app.json",
-        "assets": ["apps/__projectName__/__appServerName__/src/assets"]
+        "outputPath": "dist/apps/<%=projectName%>/<%=appServerName%>",
+        "main": "apps/<%=projectName%>/<%=appServerName%>/src/main.ts",
+        "tsConfig": "apps/<%=projectName%>/<%=appServerName%>/tsconfig.app.json",
+        "assets": ["apps/<%=projectName%>/<%=appServerName%>/src/assets"]
       },
       "configurations": {
         "production": {
@@ -20,8 +20,8 @@
           "inspect": false,
           "fileReplacements": [
             {
-              "replace": "apps/__projectName__/__appServerName__/src/environments/environment.ts",
-              "with": "apps/__projectName__/__appServerName__/src/environments/environment.prod.ts"
+              "replace": "apps/<%=projectName%>/<%=appServerName%>/src/environments/environment.ts",
+              "with": "apps/<%=projectName%>/<%=appServerName%>/src/environments/environment.prod.ts"
             }
           ]
         }
@@ -30,23 +30,23 @@
     "serve": {
       "executor": "@nrwl/node:node",
       "options": {
-        "buildTarget": "__appServerName__:build"
+        "buildTarget": "<%=appServerName%>:build"
       }
     },
     "lint": {
       "executor": "@nrwl/linter:eslint",
       "options": {
-        "lintFilePatterns": ["apps/__projectName__/__appServerName__/**/*.ts"]
+        "lintFilePatterns": ["apps/<%=projectName%>/<%=appServerName%>/**/*.ts"]
       }
     },
     "test": {
       "executor": "@nrwl/jest:jest",
-      "outputs": ["coverage/apps/__projectName__/__appServerName__"],
+      "outputs": ["coverage/apps/<%=projectName%>/<%=appServerName%>"],
       "options": {
-        "jestConfig": "apps/__projectName__/__appServerName__/jest.config.js",
+        "jestConfig": "apps/<%=projectName%>/<%=appServerName%>/jest.config.js",
         "passWithNoTests": true
       }
     }
   },
-  "tags": ["type:app", "scope:__projectName__"]
+  "tags": ["type:app", "scope:<%=projectName%>"]
 }

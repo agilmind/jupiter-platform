@@ -4,18 +4,18 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json ./
-COPY apps/__projectName__/__nativeAppName__/package.json ./apps/__projectName__/__nativeAppName__/
-COPY libs/__projectName__/shared/package.json ./libs/__projectName__/shared/
-COPY libs/__projectName__/api-interfaces/package.json ./libs/__projectName__/api-interfaces/
+COPY apps/<%=projectName%>/<%=nativeAppName%>/package.json ./apps/<%=projectName%>/<%=nativeAppName%>/
+COPY libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
+COPY libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 RUN npm ci --production=false
 
 # Copy source code
 COPY . .
 
 # Build for Android
-RUN npx nx build-android __nativeAppName__ --prod
+RUN npx nx build-android <%=nativeAppName%> --prod
 
-# Output: /app/apps/__projectName__/__nativeAppName__/android/app/build/outputs/apk/release/app-release.apk
+# Output: /app/apps/<%=projectName%>/<%=nativeAppName%>/android/app/build/outputs/apk/release/app-release.apk
 
 # This Dockerfile is mainly for CI/CD purposes
 # For actual device deployment, you'll need platform-specific workflows

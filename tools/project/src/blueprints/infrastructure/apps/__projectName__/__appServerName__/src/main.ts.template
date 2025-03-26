@@ -1,0 +1,143 @@
+import express from 'express';
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@apollo/server/express4';
+import { v4 as uuidv4 } from 'uuid';
+import cors from 'cors';
+import http from 'http';
+import amqp from 'amqplib';
+import { json } from 'body-parser';
+import { makeExecutableSchema } from '@graphql-tools/schema';
+
+// Memoria para almacenar nuestros procesos pendientes
+const processes = new Map<string, {
+  id: string,
+  content: string,
+  completed: boolean,
+  result?: string
+}>();
+
+// Definición del esquema GraphQL
+const typeDefs = `#graphql
+  type Process {
+    id: ID!
+    content: String!
+    completed: Boolean!
+    result: String
+  }
+
+  type Query {
+    getProcess(id: ID!): Process
+    healthCheck: String!
+  }
+
+  type Mutation {
+    createProcess(content: String!): Process!
+  }
+`;
+
+// Implementación de resolvers
+const resolvers = {
+  Query: {
+    healthCheck: () => "¡El servidor está funcionando correctamente!",
+    getProcess: (_: any, { id }: { id: string }) => {
+      if (!processes.has(id)) {
+        throw new Error(`Proceso con ID ${id} no encontrado`);
+      }
+      return processes.get(id);
+    }
+  },
+  Mutation: {
+    createProcess: async (_: any, { content }: { content: string }) => {
+      const id = uuidv4();
+      const process = {
+        id,
+        content,
+        completed: false
+      };
+
+      processes.set(id, process);
+
+      // Enviar a RabbitMQ
+      try {
+        const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672');
+        const channel = await connection.createChannel();
+
+        const queue = 'worker-queue';
+        await channel.assertQueue(queue, { durable: true });
+
+        channel.sendToQueue(queue, Buffer.from(JSON.stringify({ id, content })));
+        console.log(`[x] Enviado ${id}`);
+
+        await channel.close();
+        await connection.close();
+      } catch (error) {
+        console.error('Error al enviar a RabbitMQ:', error);
+      }
+
+      return process;
+    }
+  }
+};
+
+// Configuración para recibir mensajes de RabbitMQ
+async function setupRabbitMQConsumer() {
+  try {
+    const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672');
+    const channel = await connection.createChannel();
+
+    const queue = 'server-queue';
+    await channel.assertQueue(queue, { durable: true });
+
+    console.log(`[*] Esperando mensajes en ${queue}`);
+
+    channel.consume(queue, (msg) => {
+      if (msg) {
+        const content = JSON.parse(msg.content.toString());
+        console.log(`[x] Recibido ${content.id}`);
+
+        if (processes.has(content.id)) {
+          const process = processes.get(content.id)!;
+          process.completed = true;
+          process.result = content.result;
+          processes.set(content.id, process);
+        }
+
+        channel.ack(msg);
+      }
+    });
+  } catch (error) {
+    console.error('Error al configurar el consumidor RabbitMQ:', error);
+  }
+}
+
+// Inicialización del servidor
+async function startServer() {
+  const app = express();
+  const httpServer = http.createServer(app);
+
+  // Endpoint para health check (REST)
+  app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // Servidor Apollo/GraphQL
+  const schema = makeExecutableSchema({ typeDefs, resolvers });
+  const server = new ApolloServer({ schema });
+  await server.start();
+
+  app.use('/graphql', cors(), json(), expressMiddleware(server));
+
+  // Iniciar servidor
+  const PORT = process.env.PORT || 4000;
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 Servidor listo en http://localhost:${PORT}`);
+    console.log(`📊 GraphQL disponible en http://localhost:${PORT}/graphql`);
+  });
+
+  // Configurar receptor de RabbitMQ
+  await setupRabbitMQConsumer();
+}
+
+startServer().catch(err => {
+  console.error('Error al iniciar el servidor:', err);
+});

@@ -11,5 +11,5 @@ module.exports = {
     '^.+\.[tj]s$': 'ts-jest',
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: '../../../coverage/libs/__projectName__/shared',
+  coverageDirectory: '../../../coverage/libs/<%=projectName%>/shared',
 };
