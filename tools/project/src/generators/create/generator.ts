@@ -75,8 +75,8 @@ export default async function (tree: Tree, options: CreateGeneratorSchema) {
   // // Generar docker-compose con todos los servicios seleccionados
   // generateDockerCompose(tree, normalizedOptions);
   //
-  // // Registrar proyectos en NX
-  // registerNxProjects(tree, normalizedOptions);
+  // Registrar proyectos en NX
+  registerNxProjects(tree, normalizedOptions);
 
   await formatFiles(tree);
 

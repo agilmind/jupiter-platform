@@ -2,5 +2,35 @@
   "name": "<%=projectName%>",
   "root": "apps/<%=projectName%>",
   "projectType": "application",
+  "targets": {
+    "build-all": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "nx build <%=appServerName%>",
+          {
+            "command": "nx build <%=webAppName%>",
+            "forwardAllArgs": true
+          },
+          "nx build <%=workerName%>"
+        ],
+        "parallel": false
+      }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/<%=projectName%>",
+        "command": "docker compose -f docker-compose.dev.yml up --build"
+      }
+    },
+    "dev:down": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/<%=projectName%>",
+        "command": "docker compose -f docker-compose.dev.yml down"
+      }
+    }
+  },
   "tags": ["scope:<%=projectName%>"]
 }

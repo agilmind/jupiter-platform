@@ -26,20 +26,22 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
   const substitutions = {
     projectName: projectNameDashed,
     appServerName: names(appServerName).fileName,
+    webAppName: webAppNames[0] || 'web-app',
+    workerName: workerNames[0] || 'worker-sample',
     tmpl: ''
   };
 
-// 1. Generar archivos a nivel de proyecto (excluyendo directorios específicos)
-const projectTemplateDir = joinPathFragments(templatesDir, 'apps', '__projectName__');
-const projectTargetDir = joinPathFragments('apps', projectNameDashed);
+  // 1. Generar archivos a nivel de proyecto (excluyendo directorios específicos)
+  const projectTemplateDir = joinPathFragments(templatesDir, 'apps', '__projectName__');
+  const projectTargetDir = joinPathFragments('apps', projectNameDashed);
 
-// Asegurarse de que el directorio de destino existe
-if (!tree.exists(projectTargetDir)) {
-  tree.write(joinPathFragments(projectTargetDir, '.gitkeep'), '');
-}
+  // Asegurarse de que el directorio de destino existe
+  if (!tree.exists(projectTargetDir)) {
+    tree.write(joinPathFragments(projectTargetDir, '.gitkeep'), '');
+  }
 
-// Leer directamente los archivos del directorio de templates del proyecto
-const projectFiles = fs.readdirSync(projectTemplateDir);
+  // Leer directamente los archivos del directorio de templates del proyecto
+  const projectFiles = fs.readdirSync(projectTemplateDir);
 
   // Procesar solo los archivos, excluyendo directorios que empiezan con __
   projectFiles.forEach(file => {
@@ -53,7 +55,8 @@ const projectFiles = fs.readdirSync(projectTemplateDir);
 
       // Reemplazar variables
       Object.entries(substitutions).forEach(([key, value]) => {
-        content = content.replace(new RegExp(key, 'g'), value);
+        const regex = new RegExp(`<%=\\s*${key}\\s*%>`, 'g');
+        content = content.replace(regex, value);
       });
 
       // Escribir en el árbol

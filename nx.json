@@ -86,6 +86,10 @@
       "sourceRoot": "apps/miproyecto/scraper-worker/src",
       "projectType": "application",
       "targets": {}
+    },
+    "mi-proyecto": {
+      "tags": [],
+      "root": "apps/mi-proyecto"
     }
   }
 }

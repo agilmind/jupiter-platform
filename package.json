@@ -38,6 +38,7 @@
   "devDependencies": {
     "@eslint/js": "^9.8.0",
     "@nrwl/node": "^19.8.4",
+    "@nrwl/webpack": "^19.8.4",
     "@nx/esbuild": "20.6.1",
     "@nx/eslint": "20.6.1",
     "@nx/eslint-plugin": "20.6.1",
