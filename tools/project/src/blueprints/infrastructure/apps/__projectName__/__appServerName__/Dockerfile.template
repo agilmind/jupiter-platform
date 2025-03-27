@@ -4,7 +4,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Copia el script helper al contenedor
-COPY apps/mi-proyecto/copy_if_exists.sh /usr/local/bin/
+COPY apps/<%=projectName%>/copy_if_exists.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/copy_if_exists.sh
 
 # Stage for building the specific app - only copy what we need
@@ -18,9 +18,12 @@ RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/package.json .
 RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
 RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
-
-
 # Install dependencies - skipping development dependencies
+RUN node -e "const fs=require('fs'); \
+    const pkg=JSON.parse(fs.readFileSync('./package.json')); \
+    if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; \
+    if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; \
+    fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
 RUN npm install --omit=dev
 
 # Now copy the source code needed for building this specific app
@@ -44,13 +47,14 @@ WORKDIR /app
 COPY --from=builder /app/dist ./
 # Copy necessary runtime files
 COPY --from=builder /app/node_modules ./node_modules
+
+# Crear directorio prisma
 RUN mkdir -p ./prisma
-RUN /usr/local/bin/copy_if_exists.sh apps/<%=projectName%>/<%=appServerName%>/prisma/* ./prisma
 
+COPY apps/<%=projectName%>/<%=appServerName%>/prisma/schema.prisma ./prisma/schema.prisma
 
-
-# Generate Prisma client if needed
-RUN if [ -d ./prisma ]; then npx prisma generate; fi
+# Generate Prisma client
+RUN npx prisma generate
 
 # Expose the server port
 EXPOSE 4000

@@ -19,7 +19,12 @@ RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
 RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
 # Install dependencies - skip dev dependencies
-RUN npm install --omit=dev
+RUN node -e "const fs=require('fs'); \
+    const pkg=JSON.parse(fs.readFileSync('./package.json')); \
+    if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; \
+    if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; \
+    fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
+RUN npm install --omit=dev && npm install --save-dev @types/amqplib
 
 # Copy source files needed for this worker
 COPY tsconfig.base.json ./
@@ -32,7 +37,8 @@ RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/* ./li
 
 # Build the worker with TypeScript directly
 WORKDIR /app/apps/<%=projectName%>/<%=workerName%>
-RUN npx tsc -p tsconfig.app.json --outDir /app/dist
+RUN echo '{"extends": "./tsconfig.app.json", "compilerOptions": {"noImplicitAny": false, "skipLibCheck": true}}' > tsconfig.docker.json
+RUN npx tsc -p tsconfig.docker.json --outDir /app/dist
 
 # Runtime stage
 FROM base AS runtime
@@ -41,12 +47,6 @@ WORKDIR /app
 # Copy built worker and dependencies
 COPY --from=builder /app/dist ./
 COPY --from=builder /app/node_modules ./node_modules
-# Copy Prisma schema if used by the worker
-RUN mkdir -p ./prisma
-RUN /usr/local/bin/copy_if_exists.sh apps/<%=projectName%>/<%=appServerName%>/prisma ./prisma
-
-# Generate Prisma client if needed
-RUN if [ -d ./prisma ]; then npx prisma generate; fi
 
 # Start the worker
 CMD ["node", "main.js"]

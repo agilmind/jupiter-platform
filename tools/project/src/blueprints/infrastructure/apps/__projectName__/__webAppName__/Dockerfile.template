@@ -18,7 +18,13 @@ RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
 RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
 # Install ALL dependencies (including dev dependencies needed for building)
+RUN node -e "const fs=require('fs'); \
+    const pkg=JSON.parse(fs.readFileSync('./package.json')); \
+    if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; \
+    if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; \
+    fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
 RUN npm install
+
 
 # Copy source files needed for build
 COPY tsconfig.base.json ./
