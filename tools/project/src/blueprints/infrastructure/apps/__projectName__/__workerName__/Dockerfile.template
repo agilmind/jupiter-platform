@@ -44,8 +44,8 @@ RUN npx tsc -p tsconfig.docker.json --outDir /app/dist
 FROM base AS runtime
 WORKDIR /app
 
-# Copy built worker and dependencies
-COPY --from=builder /app/dist ./
+# Copiar los archivos compilados desde la ubicación correcta
+COPY --from=builder /app/dist/apps/<%=projectName%>/<%=workerName%>/* ./
 COPY --from=builder /app/node_modules ./node_modules
 
 # Start the worker

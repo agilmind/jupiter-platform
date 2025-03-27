@@ -43,9 +43,8 @@ RUN npx tsc -p tsconfig.app.json --outDir /app/dist
 FROM base AS runtime
 WORKDIR /app
 
-# Copy built app from builder stage
-COPY --from=builder /app/dist ./
-# Copy necessary runtime files
+# Copiar los archivos compilados desde la ubicación correcta
+COPY --from=builder /app/dist/apps/<%=projectName%>/<%=appServerName%>/* ./
 COPY --from=builder /app/node_modules ./node_modules
 
 # Crear directorio prisma
