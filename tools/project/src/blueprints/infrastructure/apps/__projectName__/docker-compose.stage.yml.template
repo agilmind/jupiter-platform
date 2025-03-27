@@ -1,12 +1,12 @@
-version: '3.8'
-
 services:
+  # App Server
   <%=appServerName%>:
     build:
       context: ../../
       dockerfile: apps/<%=projectName%>/<%=appServerName%>/Dockerfile
       args:
         NODE_ENV: staging
+    container_name: <%=projectName%>-<%=appServerName%>
     environment:
       - NODE_ENV=staging
       - PORT=${SERVER_PORT}
@@ -18,9 +18,55 @@ services:
     depends_on:
       - postgres
       - rabbitmq
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 500M
 
+  # Web App
+  <%=webAppName%>:
+    build:
+      context: ../../
+      dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile
+    container_name: <%=projectName%>-<%=webAppName%>
+    ports:
+      - "80:80"
+    restart: always
+    depends_on:
+      - <%=appServerName%>
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 200M
+
+  # Worker Service
+  <%=workerName%>:
+    build:
+      context: ../../
+      dockerfile: apps/<%=projectName%>/<%=workerName%>/Dockerfile
+      args:
+        NODE_ENV: staging
+    container_name: <%=projectName%>-<%=workerName%>
+    environment:
+      - NODE_ENV=staging
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - DATABASE_URL=${DATABASE_URL}
+    restart: always
+    depends_on:
+      - rabbitmq
+      - <%=appServerName%>
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 300M
+
+  # Database
   postgres:
     image: postgres:14
+    container_name: <%=projectName%>-postgres
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -28,15 +74,37 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 500M
 
+  # Message Queue
   rabbitmq:
     image: rabbitmq:3-management
+    container_name: <%=projectName%>-rabbitmq
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 300M
 
 volumes:
   postgres_data:

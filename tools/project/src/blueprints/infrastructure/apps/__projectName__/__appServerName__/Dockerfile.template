@@ -1,32 +1,56 @@
-# Base stage
+# Base stage - common for all stages
 FROM node:22-alpine AS base
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Dependencies stage
-FROM base AS dependencies
+# Copia el script helper al contenedor
+COPY apps/mi-proyecto/copy_if_exists.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/copy_if_exists.sh
+
+# Stage for building the specific app - only copy what we need
+FROM base AS builder
+# Copy only the package files needed for this specific app
 COPY package.json package-lock.json ./
 COPY apps/<%=projectName%>/<%=appServerName%>/package.json ./apps/<%=projectName%>/<%=appServerName%>/
-COPY libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
-COPY libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
-RUN npm ci --production=false
+# If the app depends on shared libs, copy their package.json too
+RUN mkdir -p ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
+RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
-# Build stage
-FROM dependencies AS build
-COPY . .
-RUN npx nx build <%=appServerName%> --prod
 
-# Runtime stage
+
+# Install dependencies - skipping development dependencies
+RUN npm install --omit=dev
+
+# Now copy the source code needed for building this specific app
+COPY tsconfig.base.json ./
+COPY apps/<%=projectName%>/tsconfig.json ./apps/<%=projectName%>/
+COPY apps/<%=projectName%>/<%=appServerName%> ./apps/<%=projectName%>/<%=appServerName%>/
+RUN mkdir -p ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/* ./libs/<%=projectName%>/shared/
+RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/* ./libs/<%=projectName%>/api-interfaces/
+
+# Build the app with TypeScript directly (avoiding NX to reduce complexity)
+WORKDIR /app/apps/<%=projectName%>/<%=appServerName%>
+RUN npx tsc -p tsconfig.app.json --outDir /app/dist
+
+# Runtime stage - minimal image with just what we need to run
 FROM base AS runtime
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=build /app/dist/apps/<%=projectName%>/<%=appServerName%> ./
-COPY apps/<%=projectName%>/<%=appServerName%>/prisma ./prisma
+WORKDIR /app
 
-# Install only production dependencies
-RUN npm ci --only=production
+# Copy built app from builder stage
+COPY --from=builder /app/dist ./
+# Copy necessary runtime files
+COPY --from=builder /app/node_modules ./node_modules
+RUN mkdir -p ./prisma
+RUN /usr/local/bin/copy_if_exists.sh apps/<%=projectName%>/<%=appServerName%>/prisma/* ./prisma
 
-# Generate Prisma client
-RUN npx prisma generate
+
+
+# Generate Prisma client if needed
+RUN if [ -d ./prisma ]; then npx prisma generate; fi
 
 # Expose the server port
 EXPOSE 4000

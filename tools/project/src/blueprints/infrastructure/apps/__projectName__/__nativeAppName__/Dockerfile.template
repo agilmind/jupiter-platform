@@ -1,22 +1,37 @@
-# Base stage for React Native build
-FROM node:22-alpine AS build
+# Base stage with Node.js and Android SDK for building
+FROM reactnativecommunity/react-native-android:latest AS builder
 WORKDIR /app
+
+# Copia el script helper al contenedor
+COPY apps/mi-proyecto/copy_if_exists.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/copy_if_exists.sh
 
 # Install dependencies
 COPY package.json package-lock.json ./
 COPY apps/<%=projectName%>/<%=nativeAppName%>/package.json ./apps/<%=projectName%>/<%=nativeAppName%>/
-COPY libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
-COPY libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
-RUN npm ci --production=false
+RUN mkdir -p ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
+RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
+
+# Install dependencies (including dev dependencies needed for building)
+RUN npm install
 
 # Copy source code
-COPY . .
+COPY tsconfig.base.json ./
+COPY apps/<%=projectName%>/tsconfig.json ./apps/<%=projectName%>/
+COPY apps/<%=projectName%>/<%=nativeAppName%> ./apps/<%=projectName%>/<%=nativeAppName%>/
+RUN mkdir -p ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/* ./libs/<%=projectName%>/shared/
+RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/* ./libs/<%=projectName%>/api-interfaces/
 
-# Build for Android
-RUN npx nx build-android <%=nativeAppName%> --prod
+# For CI/CD purposes - build the Android app
+WORKDIR /app/apps/<%=projectName%>/<%=nativeAppName%>
+RUN cd android && ./gradlew assembleRelease
 
-# Output: /app/apps/<%=projectName%>/<%=nativeAppName%>/android/app/build/outputs/apk/release/app-release.apk
+# Outputs will be in /app/apps/<%=projectName%>/<%=nativeAppName%>/android/app/build/outputs/apk/release/app-release.apk
+# You can use a storage stage to save this artifact for deployment
 
-# This Dockerfile is mainly for CI/CD purposes
-# For actual device deployment, you'll need platform-specific workflows
-# and might need more specialized Docker images with Android SDK or iOS tools
+# Note: For iOS builds, you typically need to build on macOS outside of Docker
+# This Dockerfile is primarily for CI testing and Android builds

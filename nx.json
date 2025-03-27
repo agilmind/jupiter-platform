@@ -51,9 +51,6 @@
       "options": {
         "targetName": "test"
       }
-    },
-    {
-      "plugin": "./dist/tools/haijin"
     }
   ],
   "generators": {

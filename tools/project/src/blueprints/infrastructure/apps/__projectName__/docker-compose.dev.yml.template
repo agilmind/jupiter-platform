@@ -1,12 +1,12 @@
-version: '3.8'
-
 services:
+  # App Server
   <%=appServerName%>:
     build:
       context: ../../
       dockerfile: apps/<%=projectName%>/<%=appServerName%>/Dockerfile
       args:
         NODE_ENV: development
+    container_name: <%=projectName%>-<%=appServerName%>
     environment:
       - NODE_ENV=development
       - PORT=${SERVER_PORT}
@@ -15,16 +15,46 @@ services:
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     volumes:
-      - ../../apps/<%=projectName%>/<%=appServerName%>:/app/apps/<%=projectName%>/<%=appServerName%>
+      - ../../apps/<%=projectName%>/<%=appServerName%>/src:/app/apps/<%=projectName%>/<%=appServerName%>/src
       - ../../libs:/app/libs
-      - node_modules:/app/node_modules
     depends_on:
       - postgres
       - rabbitmq
-    command: sh -c "npx prisma migrate dev && nx serve <%=appServerName%> --watch"
 
+  # Web App
+  <%=webAppName%>:
+    build:
+      context: ../../
+      dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile
+    container_name: <%=projectName%>-<%=webAppName%>
+    ports:
+      - "3000:80"
+    depends_on:
+      - <%=appServerName%>
+
+  # Worker Service
+  <%=workerName%>:
+    build:
+      context: ../../
+      dockerfile: apps/<%=projectName%>/<%=workerName%>/Dockerfile
+      args:
+        NODE_ENV: development
+    container_name: <%=projectName%>-<%=workerName%>
+    environment:
+      - NODE_ENV=development
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ../../apps/<%=projectName%>/<%=workerName%>/src:/app/apps/<%=projectName%>/<%=workerName%>/src
+      - ../../libs:/app/libs
+    depends_on:
+      - rabbitmq
+      - <%=appServerName%>
+
+  # Database
   postgres:
     image: postgres:14
+    container_name: <%=projectName%>-postgres
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -39,8 +69,10 @@ services:
       timeout: 5s
       retries: 5
 
+  # Message Queue
   rabbitmq:
     image: rabbitmq:3-management
+    container_name: <%=projectName%>-rabbitmq
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
@@ -58,5 +90,3 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
-  node_modules:
-  worker_node_modules:
