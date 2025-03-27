@@ -1,20 +1,55 @@
-:root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-#root {
-  max-width: 1280px;
+.container {
+  max-width: 800px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 20px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+header {
+  margin-bottom: 30px;
   text-align: center;
+}
+
+.card {
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.result-card {
+  background: #f0f8ff;
+}
+
+input {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+button {
+  background: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #cccccc;
+}
+
+.health-status {
+  color: green;
+  font-weight: bold;
+}
+
+.error-status {
+  color: red;
+  font-weight: bold;
 }

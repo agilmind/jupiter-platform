@@ -1,56 +1,70 @@
 import amqp from 'amqplib';
 
 async function startWorker() {
-  try {
-    console.log('Iniciando worker...');
+  let retries = 5;
 
-    // Conectar a RabbitMQ
-    const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672');
-    const channel = await connection.createChannel();
+  while (retries > 0) {
+    try {
+      console.log('Iniciando worker...');
 
-    // Definir colas
-    const incomingQueue = 'worker-queue';
-    const responseQueue = 'server-queue';
+      // Conectar a RabbitMQ con la URL correcta
+      const connection = await amqp.connect(
+        process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672'
+      );
+      const channel = await connection.createChannel();
 
-    await channel.assertQueue(incomingQueue, { durable: true });
-    await channel.assertQueue(responseQueue, { durable: true });
+      // Definir colas
+      const incomingQueue = 'worker-queue';
+      const responseQueue = 'server-queue';
 
-    console.log(`[*] Esperando mensajes en ${incomingQueue}`);
+      await channel.assertQueue(incomingQueue, { durable: true });
+      await channel.assertQueue(responseQueue, { durable: true });
 
-    // Procesar mensajes
-    channel.consume(incomingQueue, async (msg) => {
-      if (msg) {
-        // Procesar el mensaje
-        const content = JSON.parse(msg.content.toString());
-        console.log(`[x] Recibido ${content.id}`);
+      console.log(`[*] Esperando mensajes en ${incomingQueue}`);
 
-        // Simular procesamiento (aquí podrías realizar cualquier tarea)
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      // Procesar mensajes
+      channel.consume(incomingQueue, async (msg) => {
+        if (msg) {
+          // Procesar el mensaje
+          const content = JSON.parse(msg.content.toString());
+          console.log(`[x] Recibido ${content.id}`);
 
-        // Invertir el string como ejemplo de procesamiento
-        const result = content.content.split('').reverse().join('');
+          // Simular procesamiento (aquí podrías realizar cualquier tarea)
+          await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Enviar respuesta
-        channel.sendToQueue(responseQueue, Buffer.from(JSON.stringify({
-          id: content.id,
-          result
-        })));
+          // Invertir el string como ejemplo de procesamiento
+          const result = content.content.split('').reverse().join('');
 
-        console.log(`[x] Procesado y devuelto ${content.id}`);
+          // Enviar respuesta
+          channel.sendToQueue(responseQueue, Buffer.from(JSON.stringify({
+            id: content.id,
+            result
+          })));
 
-        // Confirmar procesamiento
-        channel.ack(msg);
+          console.log(`[x] Procesado y devuelto ${content.id}`);
+
+          // Confirmar procesamiento
+          channel.ack(msg);
+        }
+      });
+
+      // Gestión de cierre
+      process.on('SIGINT', async () => {
+        await channel.close();
+        await connection.close();
+        process.exit(0);
+      });
+    break
+    } catch (error) {
+      retries--;
+      console.error(`Error en el worker (intentos restantes: ${retries}):`, error);
+      if (retries <= 0) {
+        console.error('Se agotaron los intentos de conexión.');
+        throw error;
       }
-    });
-
-    // Gestión de cierre
-    process.on('SIGINT', async () => {
-      await channel.close();
-      await connection.close();
-      process.exit(0);
-    });
-  } catch (error) {
-    console.error('Error en el worker:', error);
+      // Esperar antes de reintentar
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
   }
 }
 

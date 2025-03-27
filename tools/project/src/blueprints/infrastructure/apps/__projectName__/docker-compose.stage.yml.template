@@ -23,6 +23,8 @@ services:
         limits:
           cpus: '0.5'
           memory: 500M
+    networks:
+      - app-network
 
   # Web App
   <%=webAppName%>:
@@ -40,6 +42,8 @@ services:
         limits:
           cpus: '0.2'
           memory: 200M
+    networks:
+      - app-network
 
   # Worker Service
   <%=workerName%>:
@@ -62,6 +66,8 @@ services:
         limits:
           cpus: '0.3'
           memory: 300M
+    networks:
+      - app-network
 
   # Database
   postgres:
@@ -84,6 +90,8 @@ services:
         limits:
           cpus: '0.5'
           memory: 500M
+    networks:
+      - app-network
 
   # Message Queue
   rabbitmq:
@@ -105,6 +113,12 @@ services:
         limits:
           cpus: '0.3'
           memory: 300M
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   postgres_data:

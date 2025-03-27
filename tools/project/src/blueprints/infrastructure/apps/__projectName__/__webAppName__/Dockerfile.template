@@ -52,5 +52,4 @@ COPY apps/<%=projectName%>/<%=webAppName%>/nginx.conf /etc/nginx/conf.d/default.
 # Expose port
 EXPOSE 80
 
-# Start nginx
 CMD ["nginx", "-g", "daemon off;"]
