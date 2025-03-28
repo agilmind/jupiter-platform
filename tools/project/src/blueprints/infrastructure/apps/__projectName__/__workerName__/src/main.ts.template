@@ -5,48 +5,104 @@ async function startWorker() {
 
   while (retries > 0) {
     try {
-      console.log('Iniciando worker...');
+      console.log('Iniciando worker con diagnóstico mejorado...');
+      console.log('RABBITMQ_URL:', process.env.RABBITMQ_URL);
 
       // Conectar a RabbitMQ con la URL correcta
       const connection = await amqp.connect(
         process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672'
       );
-      const channel = await connection.createChannel();
+      console.log('✅ Conexión a RabbitMQ establecida');
 
-      // Definir colas
+      const channel = await connection.createChannel();
+      console.log('✅ Canal creado');
+
+      // Definir colas con diagnóstico
       const incomingQueue = 'worker-queue';
       const responseQueue = 'server-queue';
 
-      await channel.assertQueue(incomingQueue, { durable: true });
-      await channel.assertQueue(responseQueue, { durable: true });
+      console.log(`Asegurando cola de entrada: ${incomingQueue}`);
+      const inQueueStatus = await channel.assertQueue(incomingQueue, { durable: true });
+      console.log('Estado de cola de entrada:', inQueueStatus);
+
+      console.log(`Asegurando cola de respuesta: ${responseQueue}`);
+      const outQueueStatus = await channel.assertQueue(responseQueue, { durable: true });
+      console.log('Estado de cola de respuesta:', outQueueStatus);
+
+      // Verificar estado de las colas
+      console.log('Verificando colas en RabbitMQ:');
+      await checkQueue(channel, incomingQueue);
+      await checkQueue(channel, responseQueue);
 
       console.log(`[*] Esperando mensajes en ${incomingQueue}`);
 
       // Procesar mensajes
       channel.consume(incomingQueue, async (msg) => {
         if (msg) {
-          // Procesar el mensaje
-          const content = JSON.parse(msg.content.toString());
-          console.log(`[x] Recibido ${content.id}`);
+          try {
+            // Procesar el mensaje
+            const content = JSON.parse(msg.content.toString());
+            console.log(`[x] Recibido mensaje:`, content);
 
-          // Simular procesamiento (aquí podrías realizar cualquier tarea)
-          await new Promise(resolve => setTimeout(resolve, 1000));
+            // Simular procesamiento (aquí podrías realizar cualquier tarea)
+            console.log(`Iniciando procesamiento para ID: ${content.id}`);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
 
-          // Invertir el string como ejemplo de procesamiento
-          const result = content.content.split('').reverse().join('');
+            // Invertir el string como ejemplo de procesamiento
+            const result = content.content.split('').reverse().join('');
+            console.log(`Procesamiento completado. Resultado: ${result}`);
 
-          // Enviar respuesta
-          channel.sendToQueue(responseQueue, Buffer.from(JSON.stringify({
-            id: content.id,
-            result
-          })));
+            // Preparar mensaje de respuesta
+            const responseMsg = {
+              id: content.id,
+              result
+            };
+            console.log(`Enviando respuesta a ${responseQueue}:`, responseMsg);
 
-          console.log(`[x] Procesado y devuelto ${content.id}`);
+            // Enviar respuesta
+            const sent = channel.sendToQueue(
+              responseQueue,
+              Buffer.from(JSON.stringify(responseMsg)),
+              { persistent: true } // Asegurar que los mensajes sean persistentes
+            );
 
-          // Confirmar procesamiento
-          channel.ack(msg);
+            if (sent) {
+              console.log(`✅ Mensaje enviado correctamente a ${responseQueue}`);
+            } else {
+              console.log(`❌ Error al enviar mensaje a ${responseQueue} - canal lleno`);
+            }
+
+            // Verificar cola después de enviar
+            await checkQueue(channel, responseQueue);
+
+            // Confirmar procesamiento
+            channel.ack(msg);
+            console.log(`✅ Mensaje ${content.id} procesado y confirmado`);
+          } catch (error) {
+            console.error('Error procesando mensaje:', error);
+            // Decidir si rechazar o confirmar el mensaje en caso de error
+            channel.nack(msg, false, true); // Volver a encolar en caso de error
+          }
         }
       });
+
+      // Configurar un consumidor temporal para verificar si app-server está recibiendo
+      console.log(`Configurando un consumidor de prueba para ${responseQueue} (verificación)`);
+      const checkConsumer = await channel.consume(responseQueue, (msg) => {
+        if (msg) {
+          console.log(`⚠️ ALERTA: Encontrado mensaje en cola ${responseQueue} que no ha sido procesado por app-server:`,
+            JSON.parse(msg.content.toString()));
+          // No hacer ack para que permanezca en la cola para el app-server
+          channel.nack(msg, false, true);
+        }
+      }, { noAck: false });
+
+      // Cancelar el consumidor de prueba después de 5 segundos
+      setTimeout(() => {
+        channel.cancel(checkConsumer.consumerTag)
+          .then(() => console.log('✅ Consumidor de prueba cancelado'))
+          .catch(err => console.error('Error al cancelar consumidor de prueba:', err));
+      }, 5000);
 
       // Gestión de cierre
       process.on('SIGINT', async () => {
@@ -54,7 +110,7 @@ async function startWorker() {
         await connection.close();
         process.exit(0);
       });
-    break
+      break;
     } catch (error) {
       retries--;
       console.error(`Error en el worker (intentos restantes: ${retries}):`, error);
@@ -63,12 +119,24 @@ async function startWorker() {
         throw error;
       }
       // Esperar antes de reintentar
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
 }
 
+// Función para verificar el estado de una cola
+async function checkQueue(channel, queueName) {
+  try {
+    const queueInfo = await channel.checkQueue(queueName);
+    console.log(`Cola ${queueName} - mensajes: ${queueInfo.messageCount}, consumidores: ${queueInfo.consumerCount}`);
+    return queueInfo;
+  } catch (error) {
+    console.error(`Error al verificar cola ${queueName}:`, error);
+    return null;
+  }
+}
+
 // Iniciar el worker
-startWorker().catch(err => {
+startWorker().catch((err) => {
   console.error('Error al iniciar el worker:', err);
 });

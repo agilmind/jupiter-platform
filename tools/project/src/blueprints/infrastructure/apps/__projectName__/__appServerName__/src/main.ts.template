@@ -57,24 +57,42 @@ const resolvers = {
       };
 
       processes.set(id, taskProcess);
+      console.log(`📝 Creado nuevo proceso: ${id}`);
 
-      const rabbitmqUrl = process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
+      // Usar la misma URL que en el consumidor
+      const rabbitmqUrl = process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672';
 
       // Enviar a RabbitMQ
       try {
+        console.log(`🔄 Conectando a RabbitMQ para enviar tarea: ${rabbitmqUrl}`);
         const connection = await amqp.connect(rabbitmqUrl);
         const channel = await connection.createChannel();
 
         const queue = 'worker-queue';
         await channel.assertQueue(queue, { durable: true });
 
-        channel.sendToQueue(queue, Buffer.from(JSON.stringify({ id, content })));
-        console.log(`[x] Enviado ${id}`);
+        // Verificar estado de la cola
+        const queueInfo = await channel.checkQueue(queue);
+        console.log(`Cola ${queue} - mensajes: ${queueInfo.messageCount}, consumidores: ${queueInfo.consumerCount}`);
+
+        // Enviar con persistencia
+        const sent = channel.sendToQueue(
+          queue,
+          Buffer.from(JSON.stringify({ id, content })),
+          { persistent: true }
+        );
+
+        if (sent) {
+          console.log(`✅ Mensaje enviado a cola ${queue} con ID: ${id}`);
+        } else {
+          console.warn(`⚠️ Canal lleno, no se pudo enviar mensaje inmediatamente`);
+        }
 
         await channel.close();
         await connection.close();
       } catch (error) {
-        console.error('Error al enviar a RabbitMQ:', error);
+        console.error('❌ Error al enviar a RabbitMQ:', error);
+        // Podríamos marcar el proceso como fallido si es necesario
       }
 
       return taskProcess;
@@ -84,33 +102,106 @@ const resolvers = {
 
 // Configuración para recibir mensajes de RabbitMQ
 async function setupRabbitMQConsumer() {
-  try {
-    const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672');
-    const channel = await connection.createChannel();
+  const MAX_RETRIES = 5;
+  let retries = MAX_RETRIES;
+  let connection = null;
+  let channel = null;
 
-    const queue = 'server-queue';
-    await channel.assertQueue(queue, { durable: true });
+  const connectWithRetry = async () => {
+    while (retries > 0) {
+      try {
+        // Usar la misma URL que en worker (rabbitmq en lugar de localhost)
+        const rabbitmqUrl = process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672';
+        console.log(`Intentando conectar a RabbitMQ: ${rabbitmqUrl}`);
 
-    console.log(`[*] Esperando mensajes en ${queue}`);
+        connection = await amqp.connect(rabbitmqUrl);
+        console.log('✅ Conexión a RabbitMQ establecida');
 
-    channel.consume(queue, (msg) => {
-      if (msg) {
-        const content = JSON.parse(msg.content.toString());
-        console.log(`[x] Recibido ${content.id}`);
+        // Manejar eventos de conexión
+        connection.on('error', (err) => {
+          console.error('❌ Error en la conexión RabbitMQ:', err);
+          // Intentar reconectar después de un error
+          setTimeout(connectWithRetry, 5000);
+        });
 
-        if (processes.has(content.id)) {
-          const process = processes.get(content.id)!;
-          process.completed = true;
-          process.result = content.result;
-          processes.set(content.id, process);
+        connection.on('close', () => {
+          console.warn('⚠️ Conexión RabbitMQ cerrada, intentando reconectar...');
+          // Intentar reconectar si se cierra
+          setTimeout(connectWithRetry, 5000);
+        });
+
+        // Crear canal
+        channel = await connection.createChannel();
+        console.log('✅ Canal RabbitMQ creado');
+
+        // Configurar la cola
+        const queue = 'server-queue';
+        const queueInfo = await channel.assertQueue(queue, { durable: true });
+        console.log(`✅ Cola ${queue} configurada:`, queueInfo);
+
+        // Verificar estado actual de la cola
+        const checkInfo = await channel.checkQueue(queue);
+        console.log(`✅ Estado actual de cola ${queue}:`, {
+          mensajes: checkInfo.messageCount,
+          consumidores: checkInfo.consumerCount
+        });
+
+        console.log(`[*] Esperando mensajes en ${queue}`);
+
+        // Configurar consumidor
+        const consumer = await channel.consume(queue, (msg) => {
+          if (msg) {
+            try {
+              console.log(`📨 Mensaje recibido de RabbitMQ:`, msg.content.toString());
+              const content = JSON.parse(msg.content.toString());
+              console.log(`[x] Procesando respuesta para proceso ${content.id}`);
+
+              if (processes.has(content.id)) {
+                const process = processes.get(content.id)!;
+                console.log(`Estado anterior del proceso ${content.id}:`, process);
+
+                process.completed = true;
+                process.result = content.result;
+                processes.set(content.id, process);
+
+                console.log(`✅ Proceso ${content.id} actualizado a completado`);
+              } else {
+                console.warn(`⚠️ Recibido mensaje para proceso desconocido: ${content.id}`);
+              }
+
+              // Confirmar procesamiento
+              channel.ack(msg);
+              console.log(`✅ Mensaje confirmado`);
+            } catch (error) {
+              console.error('❌ Error procesando mensaje:', error);
+              channel.nack(msg, false, true); // Reintentar en caso de error
+            }
+          }
+        });
+
+        console.log(`✅ Consumidor configurado con tag: ${consumer.consumerTag}`);
+        return true;
+      } catch (error) {
+        retries--;
+        console.error(`❌ Error al configurar RabbitMQ (intentos restantes: ${retries}):`, error);
+
+        // Limpiar conexión y canal si existen
+        if (channel) try { await channel.close(); } catch {}
+        if (connection) try { await connection.close(); } catch {}
+
+        if (retries <= 0) {
+          console.error('❌ Se agotaron los reintentos para conectar a RabbitMQ');
+          throw error;
         }
 
-        channel.ack(msg);
+        // Esperar antes de reintentar
+        console.log(`⏳ Esperando 5 segundos antes de reintentar...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
-    });
-  } catch (error) {
-    console.error('Error al configurar el consumidor RabbitMQ:', error);
-  }
+    }
+  };
+
+  return connectWithRetry();
 }
 
 // Inicialización del servidor

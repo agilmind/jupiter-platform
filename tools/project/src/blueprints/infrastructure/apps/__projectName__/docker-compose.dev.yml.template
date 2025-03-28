@@ -30,7 +30,7 @@ services:
   <%=webAppName%>:
     build:
       context: ../../
-      dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile
+      dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile.dev
     container_name: <%=projectName%>-<%=webAppName%>
     environment:
       - SERVER_PORT=4000
@@ -45,17 +45,21 @@ services:
   <%=workerName%>:
     build:
       context: ../../
-      dockerfile: apps/<%=projectName%>/<%=workerName%>/Dockerfile
+      dockerfile: apps/<%=projectName%>/<%=workerName%>/Dockerfile.dev
       args:
         NODE_ENV: development
     container_name: <%=projectName%>-<%=workerName%>
     environment:
       - NODE_ENV=development
+      - HOST=0.0.0.0
       - RABBITMQ_URL=${RABBITMQ_URL}
       - DATABASE_URL=${DATABASE_URL}
+    ports:
+      - "9230:9230"  # Puerto para debugging del worker
     volumes:
-      - ../../apps/<%=projectName%>/<%=workerName%>/src:/app/apps/<%=projectName%>/<%=workerName%>/src
+      - ../../apps/<%=projectName%>/<%=workerName%>:/app/apps/<%=projectName%>/<%=workerName%>
       - ../../libs:/app/libs
+      - ../../node_modules:/app/node_modules
     depends_on:
       - rabbitmq
       - <%=appServerName%>

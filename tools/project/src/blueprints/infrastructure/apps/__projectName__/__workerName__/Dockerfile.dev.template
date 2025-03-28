@@ -1,0 +1,16 @@
+FROM node:22-alpine
+WORKDIR /app
+RUN apk add --no-cache git openssh
+RUN npm install -g ts-node-dev
+COPY . .
+RUN node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('./package.json')); if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
+RUN npm install
+RUN npm install --save-dev @types/amqplib
+WORKDIR /app/apps/<%=projectName%>/<%=workerName%>
+RUN if [ -d "./prisma" ]; then npx prisma generate; fi
+COPY apps/<%=projectName%>/<%=workerName%>/debug-network.sh /app/
+RUN chmod +x /app/debug-network.sh
+ENV HOST="0.0.0.0"
+ENV DEBUG_PORT="9230"
+EXPOSE ${DEBUG_PORT}
+CMD ["sh", "-c", "echo 'Iniciando worker en modo debugging (debug en puerto 9230)' && npx ts-node-dev --inspect=0.0.0.0:9230 --transpile-only --no-notify --respawn src/main.ts"]
