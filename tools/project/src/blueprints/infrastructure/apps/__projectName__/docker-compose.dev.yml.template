@@ -3,20 +3,23 @@ services:
   <%=appServerName%>:
     build:
       context: ../../
-      dockerfile: apps/<%=projectName%>/<%=appServerName%>/Dockerfile
+      dockerfile: apps/<%=projectName%>/<%=appServerName%>/Dockerfile.dev
       args:
         NODE_ENV: development
     container_name: <%=projectName%>-<%=appServerName%>
     environment:
       - NODE_ENV=development
-      - PORT=${SERVER_PORT}
+      - PORT=4000
+      - HOST=0.0.0.0
       - DATABASE_URL=${DATABASE_URL}
       - RABBITMQ_URL=${RABBITMQ_URL}
     ports:
-      - "${SERVER_PORT}:${SERVER_PORT}"
+      - "4000:4000"
+      - "9229:9229"  # Puerto para debugging
     volumes:
-      - ../../apps/<%=projectName%>/<%=appServerName%>/src:/app/apps/<%=projectName%>/<%=appServerName%>/src
+      - ../../apps/<%=projectName%>/<%=appServerName%>:/app/apps/<%=projectName%>/<%=appServerName%>
       - ../../libs:/app/libs
+      - ../../node_modules:/app/node_modules
     depends_on:
       - postgres
       - rabbitmq
@@ -30,7 +33,7 @@ services:
       dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile
     container_name: <%=projectName%>-<%=webAppName%>
     environment:
-      - SERVER_PORT=${SERVER_PORT}
+      - SERVER_PORT=4000
     ports:
       - "3000:80"
     depends_on:
@@ -110,4 +113,3 @@ networks:
 volumes:
   postgres_data:
   rabbitmq_data:
-

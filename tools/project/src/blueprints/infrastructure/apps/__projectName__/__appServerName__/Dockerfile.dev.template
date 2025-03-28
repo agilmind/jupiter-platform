@@ -1,0 +1,41 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Instalar git y otras dependencias necesarias
+RUN apk add --no-cache git openssh
+
+# Instalar ts-node-dev globalmente para asegurarnos de que esté disponible
+RUN npm install -g ts-node-dev
+
+# Copiar todo el proyecto (para mantener el contexto NX completo)
+COPY . .
+
+# Eliminar haiku-generator de las dependencias antes de instalar
+RUN node -e "const fs=require('fs'); \
+    const pkg=JSON.parse(fs.readFileSync('./package.json')); \
+    if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; \
+    if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; \
+    fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
+
+# Instalar dependencias (incluidas las de desarrollo para debugging)
+RUN npm install
+
+# Configurar prisma si es necesario
+WORKDIR /app/apps/<%=projectName%>/<%=appServerName%>
+RUN if [ -d "./prisma" ]; then npx prisma generate; fi
+
+# Configurar explícitamente el puerto - IMPORTANTE: Valor fijo para evitar problemas con las variables
+ENV HOST="0.0.0.0"
+ENV PORT="4000"
+
+# Exponer el puerto de la aplicación explícitamente
+EXPOSE 4000
+
+# Copiar el script de depuración
+COPY apps/<%=projectName%>/<%=appServerName%>/debug-network.sh /app/
+RUN chmod +x /app/debug-network.sh
+
+# Comando para iniciar la aplicación con soporte de debugging
+WORKDIR /app/apps/<%=projectName%>/<%=appServerName%>
+CMD ["sh", "-c", "echo 'Iniciando app-server en modo debugging en 0.0.0.0:4000 (debug en puerto 9229)' && npx ts-node-dev --inspect=0.0.0.0:9229 --transpile-only --no-notify --respawn src/main.ts"]
