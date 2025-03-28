@@ -29,6 +29,8 @@ services:
       context: ../../
       dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile
     container_name: <%=projectName%>-<%=webAppName%>
+    environment:
+      - SERVER_PORT=${SERVER_PORT}
     ports:
       - "3000:80"
     depends_on:
