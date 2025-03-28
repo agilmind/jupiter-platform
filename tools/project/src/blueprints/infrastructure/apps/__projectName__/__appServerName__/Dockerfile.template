@@ -1,62 +1,82 @@
-# Base stage - common for all stages
-FROM node:22-alpine AS base
-WORKDIR /app
-ENV NODE_ENV=production
+# Base stage - build environment
+FROM node:22-alpine AS builder
 
-# Copia el script helper al contenedor
+WORKDIR /app
+
+# Instalar dependencias del sistema
+RUN apk add --no-cache git openssh curl
+
+# Copiar script helper al contenedor
 COPY apps/<%=projectName%>/copy_if_exists.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/copy_if_exists.sh
 
-# Stage for building the specific app - only copy what we need
-FROM base AS builder
-# Copy only the package files needed for this specific app
+# Copiar package.json y package-lock.json para la caché de Docker
 COPY package.json package-lock.json ./
+
+# Preparar directorios para los package.json de apps y libs
+RUN mkdir -p ./apps/<%=projectName%>/<%=appServerName%> \
+    ./libs/<%=projectName%>/shared \
+    ./libs/<%=projectName%>/api-interfaces
+
+# Copiar solo los package.json para instalar dependencias
 COPY apps/<%=projectName%>/<%=appServerName%>/package.json ./apps/<%=projectName%>/<%=appServerName%>/
-# If the app depends on shared libs, copy their package.json too
-RUN mkdir -p ./libs/<%=projectName%>/shared/
 RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
-RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
 RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
-# Install dependencies - skipping development dependencies
+# Eliminar haiku-generator de las dependencias
 RUN node -e "const fs=require('fs'); \
     const pkg=JSON.parse(fs.readFileSync('./package.json')); \
     if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; \
     if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; \
     fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
-RUN npm install --omit=dev
 
-# Now copy the source code needed for building this specific app
+# Instalar solo las dependencias de producción
+RUN npm install --only=production
+
+# Copiar archivos de configuración y código fuente
 COPY tsconfig.base.json ./
 COPY apps/<%=projectName%>/tsconfig.json ./apps/<%=projectName%>/
 COPY apps/<%=projectName%>/<%=appServerName%> ./apps/<%=projectName%>/<%=appServerName%>/
-RUN mkdir -p ./libs/<%=projectName%>/shared/
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/* ./libs/<%=projectName%>/shared/
-RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/* ./libs/<%=projectName%>/api-interfaces/
 
-# Build the app with TypeScript directly (avoiding NX to reduce complexity)
+# Copiar solo los archivos necesarios de las bibliotecas compartidas
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces ./libs/<%=projectName%>/api-interfaces/
+
+# Configurar y generar Prisma
+RUN cd ./apps/<%=projectName%>/<%=appServerName%> && \
+    if [ -f "./prisma/schema.prisma" ]; then \
+      npx prisma generate; \
+    fi
+
+# Construir la aplicación
 WORKDIR /app/apps/<%=projectName%>/<%=appServerName%>
-RUN npx tsc -p tsconfig.app.json --outDir /app/dist
+RUN mkdir -p /app/dist
+RUN npx tsc -p tsconfig.app.json --outDir /app/dist/apps/<%=projectName%>/<%=appServerName%>
 
-# Runtime stage - minimal image with just what we need to run
-FROM base AS runtime
+# Producción - imagen mínima
+FROM node:22-alpine AS production
+
 WORKDIR /app
 
-# Copiar los archivos compilados desde la ubicación correcta
-COPY --from=builder /app/dist/apps/<%=projectName%>/<%=appServerName%>/* ./
+# Instalar dependencias mínimas necesarias
+RUN apk add --no-cache curl
+
+# Copiar solo el código compilado y dependencias de producción
+COPY --from=builder /app/dist/apps/<%=projectName%>/<%=appServerName%> ./
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/<%=projectName%>/<%=appServerName%>/node_modules/.prisma ./node_modules/.prisma || true
 
-# Crear directorio prisma
-RUN mkdir -p ./prisma
+# Configurar variables de entorno
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=4000
 
-COPY apps/<%=projectName%>/<%=appServerName%>/prisma/schema.prisma ./prisma/schema.prisma
+# Exponer puerto
+EXPOSE ${PORT}
 
-# Generate Prisma client
-RUN npx prisma generate
+# Crear healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Expose the server port
-EXPOSE 4000
-
-# Start the server
+# Iniciar la aplicación
 CMD ["node", "main.js"]

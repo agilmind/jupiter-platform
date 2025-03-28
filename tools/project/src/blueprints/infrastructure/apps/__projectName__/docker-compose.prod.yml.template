@@ -9,20 +9,28 @@ services:
     container_name: <%=projectName%>-<%=appServerName%>
     environment:
       - NODE_ENV=production
-      - PORT=${SERVER_PORT}
+      - PORT=4000
+      - HOST=0.0.0.0
       - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@<%=projectName%>-rabbitmq:5672
     ports:
-      - "${SERVER_PORT}:${SERVER_PORT}"
-    restart: always
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
-      - postgres
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 500M
+          memory: 512M
     networks:
       - app-network
 
@@ -31,19 +39,26 @@ services:
     build:
       context: ../../
       dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile
+      args:
+        NODE_ENV: production
     container_name: <%=projectName%>-<%=webAppName%>
     environment:
-      - SERVER_PORT=${SERVER_PORT}
+      - SERVER_PORT=4000
     ports:
       - "80:80"
-    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     depends_on:
-      - <%=appServerName%>
+      <%=appServerName%>:
+        condition: service_healthy
+    restart: unless-stopped
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: 200M
+          memory: 128M
     networks:
       - app-network
 
@@ -57,23 +72,25 @@ services:
     container_name: <%=projectName%>-<%=workerName%>
     environment:
       - NODE_ENV=production
-      - RABBITMQ_URL=${RABBITMQ_URL}
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@<%=projectName%>-rabbitmq:5672
       - DATABASE_URL=${DATABASE_URL}
-    restart: always
     depends_on:
-      - rabbitmq
-      - <%=appServerName%>
+      rabbitmq:
+        condition: service_healthy
+      <%=appServerName%>:
+        condition: service_healthy
+    restart: unless-stopped
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 300M
+          memory: 256M
+      replicas: 2  # Escalabilidad horizontal para procesamiento de tareas
     networks:
       - app-network
 
   # Database
   postgres:
-    image: postgres:14
+    image: postgres:14-alpine
     container_name: <%=projectName%>-postgres
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
@@ -81,40 +98,40 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 500M
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
     networks:
       - app-network
 
   # Message Queue
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3-management-alpine
     container_name: <%=projectName%>-rabbitmq
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-    restart: always
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
+      start_period: 30s
+    restart: unless-stopped
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 300M
+          memory: 512M
     networks:
       - app-network
 
@@ -124,4 +141,6 @@ networks:
 
 volumes:
   postgres_data:
+    driver: local
   rabbitmq_data:
+    driver: local

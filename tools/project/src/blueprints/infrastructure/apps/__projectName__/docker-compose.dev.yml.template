@@ -12,7 +12,7 @@ services:
       - PORT=4000
       - HOST=0.0.0.0
       - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
+      - RABBITMQ_URL=amqp://guest:guest@<%=projectName%>-rabbitmq:5672
     ports:
       - "4000:4000"
       - "9229:9229"  # Puerto para debugging
@@ -20,9 +20,18 @@ services:
       - ../../apps/<%=projectName%>/<%=appServerName%>:/app/apps/<%=projectName%>/<%=appServerName%>
       - ../../libs:/app/libs
       - ../../node_modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     depends_on:
-      - postgres
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - app-network
 
@@ -37,7 +46,9 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - <%=appServerName%>
+      <%=appServerName%>:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - app-network
 
@@ -52,7 +63,7 @@ services:
     environment:
       - NODE_ENV=development
       - HOST=0.0.0.0
-      - RABBITMQ_URL=${RABBITMQ_URL}
+      - RABBITMQ_URL=amqp://guest:guest@<%=projectName%>-rabbitmq:5672
       - DATABASE_URL=${DATABASE_URL}
     ports:
       - "9230:9230"  # Puerto para debugging del worker
@@ -61,8 +72,11 @@ services:
       - ../../libs:/app/libs
       - ../../node_modules:/app/node_modules
     depends_on:
-      - rabbitmq
-      - <%=appServerName%>
+      rabbitmq:
+        condition: service_healthy
+      <%=appServerName%>:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - app-network
 
@@ -87,6 +101,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
     networks:
       - app-network
 
@@ -107,6 +122,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
     networks:
       - app-network
 

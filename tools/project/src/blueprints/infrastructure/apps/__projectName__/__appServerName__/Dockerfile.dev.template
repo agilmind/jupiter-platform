@@ -2,14 +2,31 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Instalar git y otras dependencias necesarias
-RUN apk add --no-cache git openssh
+# Instalar dependencias del sistema y herramientas de desarrollo
+RUN apk add --no-cache git openssh curl gettext
 
-# Instalar ts-node-dev globalmente para asegurarnos de que esté disponible
+# Instalar dependencias globales de desarrollo
 RUN npm install -g ts-node-dev
 
-# Copiar todo el proyecto (para mantener el contexto NX completo)
-COPY . .
+# Copiar scripts helper al contenedor
+COPY apps/<%=projectName%>/copy_if_exists.sh /usr/local/bin/
+COPY apps/<%=projectName%>/copy-files.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/copy_if_exists.sh /usr/local/bin/copy-files.sh
+
+# Copiar package.json y package-lock.json primero para aprovechar la caché de Docker
+COPY package.json package-lock.json ./
+
+# Preparar directorios para los package.json de apps y libs
+RUN mkdir -p ./apps/<%=projectName%>/<%=appServerName%> \
+    ./libs/<%=projectName%>/shared \
+    ./libs/<%=projectName%>/api-interfaces
+
+# Copiar package.json de la aplicación - este archivo debe existir
+COPY apps/<%=projectName%>/<%=appServerName%>/package.json ./apps/<%=projectName%>/<%=appServerName%>/
+
+# Copiar package.json de las libs usando copy_if_exists
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
 # Eliminar haiku-generator de las dependencias antes de instalar
 RUN node -e "const fs=require('fs'); \
@@ -18,24 +35,59 @@ RUN node -e "const fs=require('fs'); \
     if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; \
     fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
 
-# Instalar dependencias (incluidas las de desarrollo para debugging)
+# Instalar dependencias - incluye las de desarrollo para debugging
 RUN npm install
 
-# Configurar prisma si es necesario
-WORKDIR /app/apps/<%=projectName%>/<%=appServerName%>
-RUN if [ -d "./prisma" ]; then npx prisma generate; fi
+# Copiar archivos de configuración TypeScript - estos archivos deben existir
+COPY tsconfig.base.json ./
+COPY apps/<%=projectName%>/tsconfig.json ./apps/<%=projectName%>/
 
-# Configurar explícitamente el puerto - IMPORTANTE: Valor fijo para evitar problemas con las variables
+# Copiar el código fuente de la aplicación - debe existir
+COPY apps/<%=projectName%>/<%=appServerName%> ./apps/<%=projectName%>/<%=appServerName%>/
+
+# Copiar libs compartidas usando copy-files para evitar problemas de recursión
+RUN /usr/local/bin/copy-files.sh "libs/<%=projectName%>/shared/*" "./libs/<%=projectName%>/shared/"
+RUN /usr/local/bin/copy-files.sh "libs/<%=projectName%>/api-interfaces/*" "./libs/<%=projectName%>/api-interfaces/"
+
+# Configurar prisma
+RUN cd ./apps/<%=projectName%>/<%=appServerName%> && \
+    if [ -f "./prisma/schema.prisma" ]; then \
+      npx prisma generate; \
+    fi
+
+# Preparar script de diagnóstico - crear directamente
+RUN mkdir -p /app/scripts
+RUN echo "#!/bin/sh\n\
+echo '=== Iniciando diagnóstico de red ==='\n\
+echo 'Hostname: '\$(hostname)\n\
+echo 'Dirección IP: '\$(hostname -i)\n\
+echo 'Variables de entorno:'\n\
+echo 'HOST='\$HOST\n\
+echo 'PORT='\$PORT\n\
+echo 'NODE_ENV='\$NODE_ENV\n\
+\n\
+echo '=== Verificando escucha de puertos ==='\n\
+apk add --no-cache curl netcat-openbsd iputils\n\
+\n\
+echo 'Puertos en escucha:'\n\
+netstat -tulpn | grep LISTEN\n\
+\n\
+echo '=== Verificando conectividad entre contenedores ==='\n\
+ping -c 3 <%=projectName%>-<%=webAppName%> || echo 'No se pudo hacer ping'\n\
+\n\
+echo '=== Comprobando procesos en ejecución ==='\n\
+ps aux\n\
+" > /app/debug-network.sh && chmod +x /app/debug-network.sh
+
+# Configurar variables de entorno
 ENV HOST="0.0.0.0"
 ENV PORT="4000"
+ENV NODE_ENV="development"
 
-# Exponer el puerto de la aplicación explícitamente
-EXPOSE 4000
-
-# Copiar el script de depuración
-COPY apps/<%=projectName%>/<%=appServerName%>/debug-network.sh /app/
-RUN chmod +x /app/debug-network.sh
+# Exponer puertos para la app y debugging
+EXPOSE ${PORT}
+EXPOSE 9229
 
 # Comando para iniciar la aplicación con soporte de debugging
 WORKDIR /app/apps/<%=projectName%>/<%=appServerName%>
-CMD ["sh", "-c", "echo 'Iniciando app-server en modo debugging en 0.0.0.0:4000 (debug en puerto 9229)' && npx ts-node-dev --inspect=0.0.0.0:9229 --transpile-only --no-notify --respawn src/main.ts"]
+CMD ["sh", "-c", "echo 'Iniciando app-server en modo desarrollo en 0.0.0.0:4000 (debug en puerto 9229)' && npx ts-node-dev --inspect=0.0.0.0:9229 --transpile-only --no-notify --respawn src/main.ts"]
