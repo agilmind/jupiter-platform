@@ -1,0 +1,39 @@
+#!/bin/sh
+# Script para manejar la copia de Prisma entre etapas de Docker
+# Uso en etapa builder: ./handle-prisma.sh detect
+# Uso en etapa producción: ./handle-prisma.sh copy
+
+OPERATION=$1
+
+if [ "$OPERATION" = "detect" ]; then
+  # Detectar la ubicación de Prisma y guardarla en un archivo
+  if [ -d "/app/node_modules/.prisma" ]; then
+    echo "/app/node_modules/.prisma" > /app/prisma_path.txt
+    echo "Detectado Prisma en /app/node_modules/.prisma"
+  elif [ -d "/app/apps/$PROJECT_NAME/$APP_NAME/node_modules/.prisma" ]; then
+    echo "/app/apps/$PROJECT_NAME/$APP_NAME/node_modules/.prisma" > /app/prisma_path.txt
+    echo "Detectado Prisma en /app/apps/$PROJECT_NAME/$APP_NAME/node_modules/.prisma"
+  else
+    echo "" > /app/prisma_path.txt
+    echo "No se encontró Prisma"
+  fi
+elif [ "$OPERATION" = "copy" ]; then
+  # Copiar Prisma desde la ubicación detectada
+  mkdir -p /app/node_modules/.prisma
+
+  if [ -f "/tmp/prisma_path.txt" ]; then
+    PRISMA_PATH=$(cat /tmp/prisma_path.txt)
+
+    if [ -n "$PRISMA_PATH" ] && [ -d "$PRISMA_PATH" ]; then
+      echo "Copiando Prisma desde $PRISMA_PATH"
+      cp -r $PRISMA_PATH/* /app/node_modules/.prisma/ 2>/dev/null || echo "Error al copiar, continuando..."
+    else
+      echo "No se encontró Prisma o la ruta está vacía"
+    fi
+  else
+    echo "Archivo de ruta de Prisma no encontrado"
+  fi
+else
+  echo "Operación no reconocida. Uso: handle-prisma.sh [detect|copy]"
+  exit 1
+fi

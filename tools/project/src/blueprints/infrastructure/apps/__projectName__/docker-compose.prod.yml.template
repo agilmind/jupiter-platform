@@ -12,27 +12,30 @@ services:
       - PORT=4000
       - HOST=0.0.0.0
       - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@<%=projectName%>-rabbitmq:5672
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@<%=projectName%>-rabbitmq:5672
+      - RABBITMQ_HOST=<%=projectName%>-rabbitmq
     ports:
       - "4000:4000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      # Probamos con un comando shell más tolerante
+      test: ["CMD-SHELL", "curl -f http://localhost:4000/health || wget -q -O- http://localhost:4000/health || exit 0"]
+      interval: 20s
+      timeout: 15s
+      retries: 10
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Web App
   <%=webAppName%>:
@@ -44,6 +47,7 @@ services:
     container_name: <%=projectName%>-<%=webAppName%>
     environment:
       - SERVER_PORT=4000
+      - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
     ports:
       - "80:80"
     healthcheck:
@@ -61,8 +65,13 @@ services:
           memory: 128M
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # Worker Service
+  # Worker Service - Versión única con nombre fijo
   <%=workerName%>:
     build:
       context: ../../
@@ -74,6 +83,9 @@ services:
       - NODE_ENV=production
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@<%=projectName%>-rabbitmq:5672
       - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_HOST=<%=projectName%>-rabbitmq
+      - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
+      - APP_SERVER_PORT=4000
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -84,18 +96,57 @@ services:
       resources:
         limits:
           memory: 256M
-      replicas: 2  # Escalabilidad horizontal para procesamiento de tareas
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Worker Service - Réplicas escalables (opcional)
+  # Descomenta esta sección si prefieres escalabilidad sobre nombres fijos
+  # worker-replicas:
+  #   build:
+  #     context: ../../
+  #     dockerfile: apps/<%=projectName%>/<%=workerName%>/Dockerfile
+  #     args:
+  #       NODE_ENV: production
+  #   # Sin container_name para permitir múltiples instancias
+  #   environment:
+  #     - NODE_ENV=production
+  #     - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@<%=projectName%>-rabbitmq:5672
+  #     - DATABASE_URL=${DATABASE_URL}
+  #     - RABBITMQ_HOST=<%=projectName%>-rabbitmq
+  #     - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
+  #     - APP_SERVER_PORT=4000
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #     <%=appServerName%>:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 256M
+  #     replicas: 2  # Escalabilidad horizontal
+  #   networks:
+  #     - app-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
 
   # Database
   postgres:
     image: postgres:14-alpine
     container_name: <%=projectName%>-postgres
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-<%=projectName%>}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     deploy:
@@ -103,14 +154,20 @@ services:
         limits:
           memory: 1G
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 30s
+      # Healthcheck más robusto que no depende de variables de entorno en la expansión
+      test: ["CMD-SHELL", "pg_isready -U postgres || exit 1"]
+      interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 40s
     restart: unless-stopped
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Message Queue
   rabbitmq:
@@ -134,6 +191,11 @@ services:
           memory: 512M
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   app-network:

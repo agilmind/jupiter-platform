@@ -30,6 +30,20 @@
         "cwd": "apps/<%=projectName%>",
         "command": "docker compose -f docker-compose.dev.yml down"
       }
+    },
+    "prod": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/<%=projectName%>",
+        "command": "docker compose -f docker-compose.prod.yml up -d --build"
+      }
+    },
+    "prod:down": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/<%=projectName%>",
+        "command": "docker compose -f docker-compose.prod.yml down"
+      }
     }
   },
   "tags": ["scope:<%=projectName%>"]

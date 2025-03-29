@@ -1,0 +1,21 @@
+#!/bin/sh
+# Script para verificar e inicializar PostgreSQL
+
+echo "=== Verificando configuración de PostgreSQL ==="
+echo "POSTGRES_USER: ${POSTGRES_USER:-postgres}"
+echo "POSTGRES_DB: ${POSTGRES_DB:-database}"
+echo "POSTGRES_HOST: <%=projectName%>-postgres"
+
+# Verificar si hay un volumen previo
+if [ -d "/var/lib/postgresql/data/PG_VERSION" ]; then
+  echo "Volumen de PostgreSQL existente detectado"
+else
+  echo "No se detectó volumen existente, se creará uno nuevo"
+fi
+
+# Verificar permisos del directorio de datos
+echo "Permisos del directorio de datos:"
+ls -la /var/lib/postgresql
+
+# Iniciar PostgreSQL y configurarlo para que sea resiliente
+docker-entrypoint.sh postgres

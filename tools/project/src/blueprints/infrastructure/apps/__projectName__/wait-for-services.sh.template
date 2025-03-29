@@ -1,0 +1,36 @@
+#!/bin/sh
+# Script para esperar a que RabbitMQ y app-server estén disponibles antes de iniciar el worker
+
+echo "Esperando que RabbitMQ esté disponible..."
+max_retries=${MAX_RETRIES:-30}
+retries=0
+
+until curl -s http://${RABBITMQ_HOST:-mi-proyecto-rabbitmq}:15672 > /dev/null 2>&1; do
+  retries=$((retries+1))
+
+  if [ $retries -ge $max_retries ]; then
+    echo "Error: RabbitMQ no está disponible después de $max_retries intentos."
+    exit 1
+  fi
+
+  echo "Intento $retries/$max_retries - RabbitMQ no está listo, esperando 5 segundos..."
+  sleep 5
+done
+
+echo "Esperando que app-server esté disponible..."
+retries=0
+
+until curl -s http://${APP_SERVER_HOST:-mi-proyecto-app-server}:${APP_SERVER_PORT:-4000}/health > /dev/null 2>&1; do
+  retries=$((retries+1))
+
+  if [ $retries -ge $max_retries ]; then
+    echo "Error: app-server no está disponible después de $max_retries intentos."
+    exit 1
+  fi
+
+  echo "Intento $retries/$max_retries - app-server no está listo, esperando 5 segundos..."
+  sleep 5
+done
+
+echo "Servicios listos. Iniciando worker..."
+exec "$@"
