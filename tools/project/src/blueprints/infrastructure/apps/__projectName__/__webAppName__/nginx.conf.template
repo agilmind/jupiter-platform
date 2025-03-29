@@ -1,60 +1,52 @@
 server {
     listen 80;
     server_name localhost;
-    root /usr/share/nginx/html;
-    index index.html;
 
-    # Compression
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    # Configuración de logs para depuración
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log debug;
 
-    # Static files
+    # Endpoint para healthcheck
+    location /health {
+        return 200 'OK';
+        add_header Content-Type text/plain;
+    }
+
+    # Servir archivos estáticos
     location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
         try_files $uri $uri/ /index.html;
     }
 
-    # API proxy - Usar el nombre del servicio del docker-compose.yml
+    # Proxy para endpoints de API a app-server
     location /api {
-        proxy_pass http://<%=projectName%>-<%=appServerName%>:4000;
+        rewrite ^/api/(.*) /$1 break;
+        proxy_pass http://${APP_SERVER_HOST}:${APP_SERVER_PORT};
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_cache_bypass $http_upgrade;
-
-        # Aumentar timeouts para operaciones largas
-        proxy_connect_timeout 120s;
-        proxy_send_timeout 120s;
-        proxy_read_timeout 120s;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # GraphQL proxy - Usar el nombre del servicio del docker-compose.yml
+    # Proxy para GraphQL
     location /graphql {
-        proxy_pass http://<%=projectName%>-<%=appServerName%>:4000/graphql;
+        proxy_pass http://${APP_SERVER_HOST}:${APP_SERVER_PORT}/graphql;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Configuración para WebSockets (si los usas)
+    location /socket.io {
+        proxy_pass http://${APP_SERVER_HOST}:${APP_SERVER_PORT}/socket.io;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
-
-        # Aumentar timeouts para operaciones largas
-        proxy_connect_timeout 120s;
-        proxy_send_timeout 120s;
-        proxy_read_timeout 120s;
     }
-
-    # Health check
-    location /health {
-        access_log off;
-        return 200 "healthy\n";
-    }
-
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-XSS-Protection "1; mode=block";
-    add_header X-Content-Type-Options "nosniff";
-    add_header Referrer-Policy "strict-origin-when-cross-origin";
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' http://<%=projectName%>-<%=appServerName%>:4000";
 }
