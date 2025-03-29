@@ -3,16 +3,16 @@ FROM reactnativecommunity/react-native-android:latest AS builder
 WORKDIR /app
 
 # Copia el script helper al contenedor
-COPY apps/mi-proyecto/copy_if_exists.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/copy_if_exists.sh
+COPY apps/mi-proyecto/copy-if-exists.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/copy-if-exists.sh
 
 # Install dependencies
 COPY package.json package-lock.json ./
 COPY apps/<%=projectName%>/<%=nativeAppName%>/package.json ./apps/<%=projectName%>/<%=nativeAppName%>/
 RUN mkdir -p ./libs/<%=projectName%>/shared/
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
 RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
+RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
 # Install dependencies (including dev dependencies needed for building)
 RUN node -e "const fs=require('fs'); \
@@ -27,9 +27,9 @@ COPY tsconfig.base.json ./
 COPY apps/<%=projectName%>/tsconfig.json ./apps/<%=projectName%>/
 COPY apps/<%=projectName%>/<%=nativeAppName%> ./apps/<%=projectName%>/<%=nativeAppName%>/
 RUN mkdir -p ./libs/<%=projectName%>/shared/
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/* ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/shared/* ./libs/<%=projectName%>/shared/
 RUN mkdir -p ./libs/<%=projectName%>/api-interfaces/
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/* ./libs/<%=projectName%>/api-interfaces/
+RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/api-interfaces/* ./libs/<%=projectName%>/api-interfaces/
 
 # For CI/CD purposes - build the Android app
 WORKDIR /app/apps/<%=projectName%>/<%=nativeAppName%>

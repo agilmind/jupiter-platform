@@ -6,9 +6,9 @@ WORKDIR /app
 RUN apk add --no-cache git openssh
 
 # Copiar scripts helper al contenedor
-COPY apps/<%=projectName%>/copy_if_exists.sh /usr/local/bin/
+COPY apps/<%=projectName%>/copy-if-exists.sh /usr/local/bin/
 COPY apps/<%=projectName%>/copy-files.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/copy_if_exists.sh /usr/local/bin/copy-files.sh
+RUN chmod +x /usr/local/bin/copy-if-exists.sh /usr/local/bin/copy-files.sh
 
 # Stage for installing dependencies and building
 FROM base AS builder
@@ -24,9 +24,9 @@ RUN mkdir -p ./apps/<%=projectName%>/<%=webAppName%> \
 # Copiar package.json de la aplicación - este archivo debe existir
 COPY apps/<%=projectName%>/<%=webAppName%>/package.json ./apps/<%=projectName%>/<%=webAppName%>/
 
-# Copiar package.json de las libs usando copy_if_exists
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
+# Copiar package.json de las libs usando copy-if-exists
+RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
 # Eliminar haiku-generator de las dependencias
 RUN node -e "const fs=require('fs'); \

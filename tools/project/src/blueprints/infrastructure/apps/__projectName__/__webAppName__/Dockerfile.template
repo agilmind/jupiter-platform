@@ -7,8 +7,8 @@ WORKDIR /app
 RUN apk add --no-cache git openssh
 
 # Copiar scripts helper al contenedor
-COPY apps/<%=projectName%>/copy_if_exists.sh apps/<%=projectName%>/copy-files.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/copy_if_exists.sh /usr/local/bin/copy-files.sh
+COPY apps/<%=projectName%>/copy-if-exists.sh apps/<%=projectName%>/copy-files.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/copy-if-exists.sh /usr/local/bin/copy-files.sh
 
 # Copiar package.json y package-lock.json para la caché de Docker
 COPY package.json package-lock.json ./
@@ -20,8 +20,8 @@ RUN mkdir -p ./apps/<%=projectName%>/<%=webAppName%> \
 
 # Copiar package.json de la aplicación y las libs
 COPY apps/<%=projectName%>/<%=webAppName%>/package.json ./apps/<%=projectName%>/<%=webAppName%>/
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
-RUN /usr/local/bin/copy_if_exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
+RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
 # Eliminar haiku-generator de las dependencias
 RUN node -e "const fs=require('fs'); \
