@@ -8,6 +8,7 @@
       }
     }
   },
+  "useCloud": false,
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
     "production": [
