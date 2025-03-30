@@ -1,0 +1,222 @@
+#!/bin/bash
+# ==========================================================================
+# Script para configurar un entorno de desarrollo completo
+# ==========================================================================
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Directorio actual del script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_NAME="<%=projectName%>"
+
+echo -e "${BLUE}===========================================================================${NC}"
+echo -e "${BLUE}Configurando entorno de desarrollo para $PROJECT_NAME${NC}"
+echo -e "${BLUE}===========================================================================${NC}"
+
+# 1. Crear directorios necesarios
+echo -e "${YELLOW}Creando directorios de configuración...${NC}"
+mkdir -p "$SCRIPT_DIR/postgres-init"
+mkdir -p "$SCRIPT_DIR/rabbitmq-config"
+
+# 2. Copiar archivos de configuración
+echo -e "${YELLOW}Copiando archivos de configuración...${NC}"
+
+# Configuración de PostgreSQL
+cat > "$SCRIPT_DIR/postgres-init/init.sql" << 'EOF'
+-- Configuración inicial de la base de datos
+-- Este script se ejecutará cuando el contenedor de PostgreSQL inicie por primera vez
+
+-- Habilitar extensiones útiles
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+CREATE EXTENSION IF NOT EXISTS "btree_gin";
+
+-- Establecer configuraciones de rendimiento
+ALTER SYSTEM SET max_connections = '100';
+ALTER SYSTEM SET shared_buffers = '256MB';
+ALTER SYSTEM SET work_mem = '16MB';
+ALTER SYSTEM SET maintenance_work_mem = '128MB';
+ALTER SYSTEM SET effective_cache_size = '1GB';
+
+-- Configuración de búsqueda
+SET search_path TO public;
+
+-- Comentario para verificar la ejecución
+SELECT 'Configuración inicial de base de datos completada' as "INFO";
+EOF
+
+# Configuración de RabbitMQ
+cat > "$SCRIPT_DIR/rabbitmq-config/rabbitmq.conf" << 'EOF'
+# RabbitMQ Configuration
+
+# Listeners and network
+listeners.tcp.default = 5672
+management.tcp.port = 15672
+
+# Memory and disk thresholds
+vm_memory_high_watermark.relative = 0.7
+disk_free_limit.absolute = 2GB
+
+# Performance tuning
+channel_max = 100
+connection_max = 1000
+heartbeat = 60
+
+# Reliable delivery
+queue_master_locator = min-masters
+queue_index_embed_msgs_below = 4096
+
+# Plugins
+management.load_definitions = /etc/rabbitmq/conf.d/definitions.json
+
+# Security
+loopback_users = none
+EOF
+
+cat > "$SCRIPT_DIR/rabbitmq-config/definitions.json" << 'EOF'
+{
+  "rabbit_version": "3.8.9",
+  "users": [
+    {
+      "name": "guest",
+      "password_hash": "guest",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": "administrator"
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "guest",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [],
+  "policies": [],
+  "queues": [
+    {
+      "name": "tasks_queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 86400000,
+        "x-max-length": 100000
+      }
+    },
+    {
+      "name": "notifications_queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 86400000,
+        "x-max-length": 100000
+      }
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "tasks_exchange",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "notifications_exchange",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "tasks_exchange",
+      "vhost": "/",
+      "destination": "tasks_queue",
+      "destination_type": "queue",
+      "routing_key": "tasks",
+      "arguments": {}
+    },
+    {
+      "source": "notifications_exchange",
+      "vhost": "/",
+      "destination": "notifications_queue",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {}
+    }
+  ]
+}
+EOF
+
+# 3. Crear archivo .env si no existe
+if [ ! -f "$SCRIPT_DIR/.env" ]; then
+  echo -e "${YELLOW}Creando archivo .env...${NC}"
+  cat > "$SCRIPT_DIR/.env" << 'EOF'
+# Variables de entorno para el proyecto
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=<%=projectName%>
+DATABASE_URL=postgresql://postgres:postgres@<%=projectName%>-postgres:5432/<%=projectName%>
+
+RABBITMQ_DEFAULT_USER=guest
+RABBITMQ_DEFAULT_PASS=guest
+RABBITMQ_HOST=<%=projectName%>-rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_MGMT_PORT=15672
+RABBITMQ_URL=amqp://guest:guest@<%=projectName%>-rabbitmq:5672
+
+# Health checks
+HEALTH_CHECK_INTERVAL=30s
+HEALTH_CHECK_TIMEOUT=10s
+HEALTH_CHECK_RETRIES=3
+HEALTH_CHECK_START_PERIOD=20s
+
+# Variables para desarrollo
+NODE_ENV=development
+EOF
+else
+  echo -e "${YELLOW}Archivo .env ya existe, omitiendo...${NC}"
+fi
+
+# 4. Construir imágenes base
+echo -e "${YELLOW}Construyendo imágenes base...${NC}"
+cd "$SCRIPT_DIR/bin"
+./build-all-bases.sh
+
+# 5. Iniciar el entorno
+echo -e "${YELLOW}Iniciando entorno de desarrollo...${NC}"
+cd "$SCRIPT_DIR"
+docker-compose -f docker-compose.dev.yml up -d
+
+echo -e "${GREEN}Entorno de desarrollo configurado correctamente!${NC}"
+echo ""
+echo "Servicios disponibles:"
+echo "- API:      http://localhost:4000"
+echo "- Frontend: http://localhost:3000"
+echo "- RabbitMQ: http://localhost:15672 (guest/guest)"
+echo "- Postgres: localhost:5432 (postgres/postgres)"
+echo ""
+echo "Para ver los logs: docker-compose -f docker-compose.dev.yml logs -f"
+echo "Para detener el entorno: docker-compose -f docker-compose.dev.yml down"

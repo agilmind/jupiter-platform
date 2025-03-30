@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # Database
   postgres:
@@ -11,14 +13,17 @@ services:
       - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
     deploy:
       resources:
         limits:
-          memory: 500M
+          memory: 1G
+          cpus: '1'
         reservations:
-          memory: 200M
+          memory: 512M
+          cpus: '0.5'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: ${HEALTH_CHECK_INTERVAL:-10s}
       timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
       retries: ${HEALTH_CHECK_RETRIES:-5}
@@ -26,6 +31,12 @@ services:
     restart: always
     networks:
       - app-network
+    user: postgres
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Message Queue
   rabbitmq:
@@ -38,12 +49,15 @@ services:
       - .env
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq-config:/etc/rabbitmq/conf.d
     deploy:
       resources:
         limits:
-          memory: 500M
+          memory: 1G
+          cpus: '1'
         reservations:
-          memory: 200M
+          memory: 512M
+          cpus: '0.5'
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: ${HEALTH_CHECK_INTERVAL:-10s}
@@ -55,6 +69,11 @@ services:
       - app-network
     ports:
       - "15672:15672"  # Management UI (opcional)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # App Server
   <%=appServerName%>:
@@ -79,9 +98,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 2G
+          cpus: '2'
         reservations:
-          memory: 512M
+          memory: 1G
+          cpus: '1'
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: ${HEALTH_CHECK_INTERVAL:-30s}
@@ -96,6 +122,11 @@ services:
     restart: always
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Web App
   <%=webAppName%>:
@@ -116,9 +147,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 300M
+          memory: 500M
+          cpus: '0.5'
         reservations:
-          memory: 100M
+          memory: 200M
+          cpus: '0.2'
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: ${HEALTH_CHECK_INTERVAL:-30s}
@@ -131,6 +169,11 @@ services:
     restart: always
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Worker Service
   <%=workerName%>:
@@ -145,10 +188,7 @@ services:
       - RABBITMQ_HOST=<%=projectName%>-rabbitmq
       - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
       - APP_SERVER_PORT=4000
-      # Importante: Asegurarse de que esta ruta sea correcta
       - WORKER_JS_PATH=/app/worker/apps/<%=projectName%>/<%=workerName%>/src/main.js
-      # También se puede especificar una ruta específica para este worker
-      - WORKER_JS_PATH_<%=workerName%>=/app/worker/apps/<%=projectName%>/<%=workerName%>/src/main.js
       - SERVICE_TYPE=worker
       - SERVICE_NAME=<%=workerName%>
     env_file:
@@ -156,9 +196,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 500M
+          memory: 1G
+          cpus: '1'
         reservations:
-          memory: 200M
+          memory: 512M
+          cpus: '0.5'
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
     depends_on:
       postgres:
         condition: service_healthy
@@ -169,10 +216,19 @@ services:
     restart: always
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   app-network:
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
 
 volumes:
   postgres_data:
