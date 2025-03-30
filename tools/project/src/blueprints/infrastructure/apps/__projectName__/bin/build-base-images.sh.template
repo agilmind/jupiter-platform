@@ -1,10 +1,9 @@
 #!/bin/bash
 # ===========================================================================
-# Script para construir las imágenes base para el proyecto
-# Las imágenes base incluyen configuraciones y herramientas comunes
+# Script para construir las imágenes base
 # ===========================================================================
 
-# Obtener directorio del script
+# Obtener directorio del script y nombre del proyecto
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_NAME="<%=projectName%>"
 
@@ -16,50 +15,24 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}Construyendo imágenes base para $PROJECT_NAME...${NC}"
 
-# Construir imagen base de Node.js
-echo -e "${YELLOW}Construyendo imagen base de Node.js...${NC}"
-docker build -t $PROJECT_NAME/node-base:latest \
-             -t $PROJECT_NAME/node-base:dev \
-             -t $PROJECT_NAME/node-base:prod \
-             -f "$SCRIPT_DIR/Dockerfile.node.base" \
-             --target node-base \
-             ../..
+# Configurar rutas
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DOCKERFILE_NODE="$SCRIPT_DIR/Dockerfile.node.base"
 
-docker build -t $PROJECT_NAME/node-dev:latest \
-             -f "$SCRIPT_DIR/Dockerfile.node.base" \
+# Construir imágenes base de Node.js - usando nombres sin organización
+echo -e "${YELLOW}Construyendo imagen base node-base:dev...${NC}"
+docker build -t node-base:dev \
+             -f "$DOCKERFILE_NODE" \
              --target node-dev \
-             ../..
+             "$PROJECT_ROOT"
 
-docker build -t $PROJECT_NAME/node-builder:latest \
-             -f "$SCRIPT_DIR/Dockerfile.node.base" \
-             --target deps-builder \
-             ../..
-
-docker build -t $PROJECT_NAME/node-prod:latest \
-             -f "$SCRIPT_DIR/Dockerfile.node.base" \
+echo -e "${YELLOW}Construyendo imagen base node-base:prod...${NC}"
+docker build -t node-base:prod \
+             -f "$DOCKERFILE_NODE" \
              --target node-prod \
-             ../..
-
-# Construir imagen base de Nginx
-echo -e "${YELLOW}Construyendo imagen base de Nginx...${NC}"
-docker build -t $PROJECT_NAME/nginx-base:latest \
-             -t $PROJECT_NAME/nginx-base:dev \
-             -t $PROJECT_NAME/nginx-base:prod \
-             -f "$SCRIPT_DIR/Dockerfile.nginx.base" \
-             --target nginx-base \
-             ../..
-
-docker build -t $PROJECT_NAME/nginx-dev:latest \
-             -f "$SCRIPT_DIR/Dockerfile.nginx.base" \
-             --target nginx-dev \
-             ../..
-
-docker build -t $PROJECT_NAME/nginx-prod:latest \
-             -f "$SCRIPT_DIR/Dockerfile.nginx.base" \
-             --target nginx-prod \
-             ../..
+             "$PROJECT_ROOT"
 
 echo -e "${GREEN}Imágenes base construidas con éxito!${NC}"
 echo ""
 echo "Imágenes disponibles:"
-docker images | grep $PROJECT_NAME
+docker images | grep node-base

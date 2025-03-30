@@ -1,6 +1,7 @@
 services:
   # App Server
   <%=appServerName%>:
+    image: <%=projectName%>/<%=appServerName%>:dev  # Usar imagen pre-construida
     build:
       context: ../../
       dockerfile: apps/<%=projectName%>/<%=appServerName%>/Dockerfile.dev
