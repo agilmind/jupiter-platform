@@ -1,8 +1,7 @@
 # Dockerfile para app-server en desarrollo
-# Usando Dockerfile.base sin necesidad de registry
+# Usando imagen base con nombre correcto
 
-# Desde el contexto ../../
-FROM apps/<%=projectName%>/bin/Dockerfile.node.base:node-dev AS base
+FROM <%=projectName%>-node-base:dev AS base
 
 WORKDIR /app
 

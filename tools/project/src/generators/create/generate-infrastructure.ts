@@ -86,6 +86,20 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
     substitutions
   );
 
+  generateFiles(
+    tree,
+    joinPathFragments(templatesDir, 'apps', '__projectName__', 'postgres-init'),
+    joinPathFragments('apps', projectNameDashed, 'postgres-init'),
+    substitutions
+  );
+
+  generateFiles(
+    tree,
+    joinPathFragments(templatesDir, 'apps', '__projectName__', 'rabbitmq-init'),
+    joinPathFragments('apps', projectNameDashed, 'rabbitmq-init'),
+    substitutions
+  );
+
   // Generar estructura para cada aplicación web
   webAppNames.forEach(webAppName => {
     generateFiles(

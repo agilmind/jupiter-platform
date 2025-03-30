@@ -172,7 +172,9 @@ services:
       - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-      - ./rabbitmq-config:/etc/rabbitmq/conf.d
+      # Eliminar ambos archivos de configuración
+      # - ./rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/conf.d/rabbitmq.conf:ro
+      # - ./rabbitmq-config/definitions.json:/etc/rabbitmq/conf.d/definitions.json:ro
     deploy:
       resources:
         limits:

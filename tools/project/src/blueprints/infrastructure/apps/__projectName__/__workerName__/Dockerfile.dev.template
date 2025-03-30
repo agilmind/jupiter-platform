@@ -1,7 +1,7 @@
 # Dockerfile para worker en desarrollo
-# Versión simplificada sin registro Docker
+# Versión corregida con nombres de imágenes correctos
 
-FROM apps/<%=projectName%>/bin/Dockerfile.node.base:node-dev
+FROM <%=projectName%>-node-base:dev
 
 WORKDIR /app
 

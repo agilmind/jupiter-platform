@@ -47,7 +47,8 @@ services:
       - .env
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-      - ./rabbitmq-config:/etc/rabbitmq/conf.d
+      # Eliminar o comentar la línea que monta la configuración
+      # - ./rabbitmq-config:/etc/rabbitmq/conf.d
     deploy:
       resources:
         limits:

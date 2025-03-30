@@ -16,13 +16,10 @@ heartbeat = 60
 # Reliable delivery
 queue_master_locator = min-masters
 queue_index_embed_msgs_below = 4096
-## Only enable these in production if needed
-# ha_policy = all
-# ha_mode = all
-# ha_sync_mode = automatic
 
-# Plugins
-management.load_definitions = /etc/rabbitmq/definitions.json
+# Load definitions
+# Asegúrate de que esta ruta coincida con la ubicación donde se monta el archivo en docker-compose
+management.load_definitions = /etc/rabbitmq/conf.d/definitions.json
 
 # Security
 loopback_users = none
