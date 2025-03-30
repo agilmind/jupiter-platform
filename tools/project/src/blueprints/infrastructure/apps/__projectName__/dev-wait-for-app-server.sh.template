@@ -1,0 +1,25 @@
+#!/bin/sh
+# Script simplificado para entorno de desarrollo
+
+echo "==============================================="
+echo "Esperando que app-server esté disponible..."
+echo "APP_SERVER_HOST: ${APP_SERVER_HOST:-<%=projectName%>-<%=appServerName%>}"
+echo "APP_SERVER_PORT: ${APP_SERVER_PORT:-4000}"
+echo "==============================================="
+
+# Asegurarnos de que tenemos las variables de entorno necesarias
+export SERVER_PORT=${SERVER_PORT:-4000}
+export APP_SERVER_HOST=${APP_SERVER_HOST:-<%=projectName%>-<%=appServerName%>}
+export APP_SERVER_PORT=${APP_SERVER_PORT:-4000}
+
+# Generar la configuración de Nginx con las variables de entorno
+echo "Aplicando variables de entorno a la configuración de Nginx..."
+envsubst '$SERVER_PORT $APP_SERVER_HOST $APP_SERVER_PORT' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
+
+# Verificar que la configuración de Nginx es válida
+echo "Verificando configuración de Nginx..."
+nginx -t || echo "Error en la configuración de Nginx"
+
+# Iniciar nginx
+echo "Iniciando nginx..."
+exec nginx -g 'daemon off;'
