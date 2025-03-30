@@ -1,17 +1,10 @@
 # Dockerfile para web-app en desarrollo
-# Utiliza un enfoque multi-etapa
+# Utiliza un enfoque multi-etapa con imágenes base
 
 # Etapa de construcción
-FROM node:22-alpine AS builder
+FROM node-base:dev AS builder
 
 WORKDIR /app
-
-# Instalar dependencias del sistema
-RUN apk add --no-cache git openssh bash
-
-# Copiar script de utilidades
-COPY apps/<%=projectName%>/bin/file-utils.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/file-utils.sh
 
 # Preparar directorios para los package.json
 RUN mkdir -p ./apps/<%=projectName%>/<%=webAppName%> \
@@ -52,22 +45,11 @@ WORKDIR /app/apps/<%=projectName%>/<%=webAppName%>
 RUN npx vite build --outDir /app/dist
 
 # Etapa de ejecución con Nginx
-FROM nginx:alpine
-
-# Instalar dependencias necesarias
-RUN apk add --no-cache gettext curl bash
-
-# Copiar scripts de utilidades
-COPY apps/<%=projectName%>/bin/service-base.sh \
-     apps/<%=projectName%>/bin/start-service.sh \
-     /usr/local/bin/
-RUN chmod +x /usr/local/bin/service-base.sh \
-             /usr/local/bin/start-service.sh
+FROM nginx-base:dev
 
 # Identificar el servicio
 ENV SERVICE_TYPE="web-app"
 ENV SERVICE_NAME="<%=webAppName%>"
-ENV NODE_ENV="development"
 
 # Copiar la aplicación construida
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -82,10 +64,6 @@ ENV APP_SERVER_PORT=4000
 
 # Exponer puerto
 EXPOSE 80
-
-# Configurar healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost/health || exit 1
 
 # Usar el script de inicio unificado
 CMD ["/usr/local/bin/start-service.sh"]

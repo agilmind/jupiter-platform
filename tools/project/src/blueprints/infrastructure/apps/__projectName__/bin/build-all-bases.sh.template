@@ -1,0 +1,48 @@
+#!/bin/bash
+# =========================================================================
+# Script para construir todas las imágenes base del proyecto
+# =========================================================================
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}==========================================================================${NC}"
+echo -e "${BLUE}Construyendo imágenes base para el proyecto${NC}"
+echo -e "${BLUE}==========================================================================${NC}"
+
+# 1. Construir imágenes base de Node.js
+echo -e "${YELLOW}Construyendo imágenes base de Node.js...${NC}"
+docker build -t node-base:dev -f Dockerfile.node.base --target node-dev .
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error construyendo node-base:dev${NC}"
+    exit 1
+fi
+
+docker build -t node-base:prod -f Dockerfile.node.base --target node-prod .
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error construyendo node-base:prod${NC}"
+    exit 1
+fi
+
+# 2. Construir imágenes base de Nginx
+echo -e "${YELLOW}Construyendo imágenes base de Nginx...${NC}"
+docker build -t nginx-base:dev -f Dockerfile.nginx.base --target nginx-dev .
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error construyendo nginx-base:dev${NC}"
+    exit 1
+fi
+
+docker build -t nginx-base:prod -f Dockerfile.nginx.base --target nginx-prod .
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error construyendo nginx-base:prod${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}Todas las imágenes base construidas con éxito!${NC}"
+echo ""
+echo "Imágenes disponibles:"
+docker images | grep -E 'node-base|nginx-base'

@@ -1,21 +1,9 @@
 # Dockerfile para worker en desarrollo
+# Usa la imagen base para node en desarrollo
 
-FROM node:22-alpine
+FROM node-base:dev
 
 WORKDIR /app
-
-# Instalar dependencias del sistema y herramientas de desarrollo
-RUN apk add --no-cache git openssh curl bash
-RUN npm install -g ts-node-dev
-
-# Copiar scripts de utilidades
-COPY apps/<%=projectName%>/bin/file-utils.sh \
-     apps/<%=projectName%>/bin/service-base.sh \
-     apps/<%=projectName%>/bin/start-service.sh \
-     /usr/local/bin/
-RUN chmod +x /usr/local/bin/file-utils.sh \
-             /usr/local/bin/service-base.sh \
-             /usr/local/bin/start-service.sh
 
 # Identificar el servicio
 ENV SERVICE_TYPE="worker"

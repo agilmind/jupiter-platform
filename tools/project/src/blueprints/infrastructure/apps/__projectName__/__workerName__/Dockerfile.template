@@ -1,26 +1,10 @@
 # Dockerfile para worker en producción
-# Utiliza un enfoque multi-etapa para optimizar tamaño y rendimiento
+# Utiliza un enfoque multi-etapa con imagen base
 
 # Etapa de construcción
-FROM node:22-alpine AS builder
+FROM node-base:dev AS builder
 
 WORKDIR /app
-
-# Instalar dependencias del sistema
-RUN apk add --no-cache git openssh curl findutils bash
-
-# Copiar script de utilidades
-COPY apps/<%=projectName%>/bin/file-utils.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/file-utils.sh
-
-# Configurar npm para mayor resiliencia
-RUN npm config set fetch-retry-mintimeout 20000 \
-    && npm config set fetch-retry-maxtimeout 120000 \
-    && npm config set fetch-retries 5 \
-    && npm config set registry https://registry.npmjs.org/
-
-# Crear archivo .npmrc para prevenir problemas con repositorios privados
-RUN echo "registry=https://registry.npmjs.org/" > .npmrc
 
 # Copiar package.json para modificarlo
 COPY package.json ./
@@ -52,19 +36,7 @@ RUN echo "Compilando TypeScript para <%=workerName%>..."
 RUN npx tsc -p tsconfig.json
 
 # Etapa de producción
-FROM node:22-alpine AS production
-
-WORKDIR /app
-
-# Instalar herramientas básicas
-RUN apk add --no-cache curl bash
-
-# Copiar scripts de utilidades
-COPY apps/<%=projectName%>/bin/service-base.sh \
-     apps/<%=projectName%>/bin/start-service.sh \
-     /usr/local/bin/
-RUN chmod +x /usr/local/bin/service-base.sh \
-             /usr/local/bin/start-service.sh
+FROM node-base:prod
 
 # Identificar el servicio
 ENV SERVICE_TYPE="worker"
