@@ -1,8 +1,8 @@
 # Dockerfile para worker en producción
-# Versión simplificada sin registro Docker
+# Versión corregida con nombres de imágenes válidos
 
 # Etapa de construcción
-FROM apps/<%=projectName%>/bin/Dockerfile.node.base:node-dev AS builder
+FROM <%=projectName%>-node-base:dev AS builder
 
 WORKDIR /app
 
@@ -45,7 +45,7 @@ RUN echo "Compilando TypeScript para <%=workerName%>..."
 RUN npx tsc -p tsconfig.json
 
 # Etapa de producción
-FROM apps/<%=projectName%>/bin/Dockerfile.node.base:node-prod
+FROM <%=projectName%>-node-base:prod
 
 WORKDIR /app
 

@@ -1,8 +1,8 @@
 # Dockerfile para web-app en producción
-# Versión simplificada sin registro Docker
+# Versión corregida con nombres de imágenes válidos
 
 # Etapa de construcción
-FROM apps/<%=projectName%>/bin/Dockerfile.node.base:node-dev AS builder
+FROM <%=projectName%>-node-base:dev AS builder
 
 WORKDIR /app
 
@@ -43,7 +43,7 @@ WORKDIR /app/apps/<%=projectName%>/<%=webAppName%>
 RUN npx vite build --outDir /app/dist
 
 # Etapa de producción - Nginx
-FROM apps/<%=projectName%>/bin/Dockerfile.nginx.base:nginx-prod
+FROM <%=projectName%>-nginx-base:prod
 
 # Identificar el servicio
 ENV SERVICE_TYPE="web-app"
