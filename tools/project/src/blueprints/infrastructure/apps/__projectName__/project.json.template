@@ -36,9 +36,10 @@
       "options": {
         "cwd": "apps/<%=projectName%>",
         "commands": [
+          "docker system prune -a --volumes --force",
           "docker compose -f docker-compose.dev.yml down --rmi all --volumes --remove-orphans",
-          "docker network rm <%=projectName%>-app-network || echo 'Red no encontrada; ignorando...'",
-          "docker volume prune --filter 'label=com.docker.compose.project=<%=projectName%>' --force"
+          "docker network prune --force --filter 'label=com.docker.compose.project=<%=projectName%>'",
+          "docker volume prune --force --filter 'label=com.docker.compose.project=<%=projectName%>'"
         ],
         "parallel": false
       }
@@ -56,7 +57,20 @@
         "cwd": "apps/<%=projectName%>",
         "command": "docker compose -f docker-compose.prod.yml down"
       }
-    }
+    },
+    "prod:clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/<%=projectName%>",
+        "commands": [
+          "docker system prune -a --volumes --force",
+          "docker compose -f docker-compose.prod.yml down --rmi all --volumes --remove-orphans",
+          "docker network prune --force --filter 'label=com.docker.compose.project=<%=projectName%>'",
+          "docker volume prune --force --filter 'label=com.docker.compose.project=<%=projectName%>'"
+        ],
+        "parallel": false
+      }
+    },
   },
   "tags": ["scope:<%=projectName%>"]
 }

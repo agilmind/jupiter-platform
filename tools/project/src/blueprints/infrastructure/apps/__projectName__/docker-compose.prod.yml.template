@@ -145,7 +145,10 @@ services:
       - RABBITMQ_HOST=<%=projectName%>-rabbitmq
       - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
       - APP_SERVER_PORT=4000
+      # Importante: Asegurarse de que esta ruta sea correcta
       - WORKER_JS_PATH=/app/worker/apps/<%=projectName%>/<%=workerName%>/src/main.js
+      # También se puede especificar una ruta específica para este worker
+      - WORKER_JS_PATH_<%=workerName%>=/app/worker/apps/<%=projectName%>/<%=workerName%>/src/main.js
       - SERVICE_TYPE=worker
       - SERVICE_NAME=<%=workerName%>
     env_file:

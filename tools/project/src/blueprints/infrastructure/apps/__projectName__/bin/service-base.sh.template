@@ -59,31 +59,6 @@ wait_for_service() {
   return 0
 }
 
-# Función para buscar archivos JS principales
-find_main_js() {
-  env_path="$1"
-  search_dir="$2"
-
-  if [ -f "$env_path" ]; then
-    log_info "Archivo main.js encontrado en ruta configurada: $env_path"
-    echo "$env_path"
-    return 0
-  else
-    log_info "Buscando main.js en directorio $search_dir..."
-    found_js=$(find $search_dir -name "main.js" | head -n 1)
-
-    if [ -n "$found_js" ]; then
-      log_info "Archivo main.js encontrado en: $found_js"
-      echo "$found_js"
-      return 0
-    else
-      log_error "No se encontró main.js en $search_dir."
-      find $search_dir -type f | sort
-      return 1
-    fi
-  fi
-}
-
 # Función para mostrar información del entorno
 show_environment() {
   service_name="$1"
@@ -163,6 +138,3 @@ get_service_name() {
   echo "$hostname"
   return 0
 }
-
-# NOTA: No se usa export -f en Alpine Linux
-# Las funciones se incluyen directamente desde este script

@@ -4,7 +4,7 @@
 # Detecta automáticamente el tipo de servicio y configura según corresponda
 # ===========================================================================
 
-# Cargar script base de servicio (usa "." en lugar de "source" para compatibilidad con sh)
+# Cargar script base de servicio
 if [ -f "/usr/local/bin/service-base.sh" ]; then
   . "/usr/local/bin/service-base.sh"
 else
@@ -92,20 +92,63 @@ case $SERVICE_TYPE in
     else
       log_info "Modo de producción detectado"
 
-      # En producción, buscar la ruta del JS compilado
-      WORKER_JS_PATH_ENV="WORKER_JS_PATH_${SERVICE_NAME}"
-      WORKER_JS_PATH_VALUE=$(eval echo \$${WORKER_JS_PATH_ENV})
+      # Buscar el archivo, con varias estrategias
 
-      if [ -n "$WORKER_JS_PATH_VALUE" ]; then
-        JS_PATH="$WORKER_JS_PATH_VALUE"
-      elif [ -n "$WORKER_JS_PATH" ]; then
+      # 1. Verificar primero si hay una ruta específica para este worker
+      WORKER_VAR_NAME="WORKER_JS_PATH_${SERVICE_NAME}"
+      # Reemplazar guiones por guiones bajos en el nombre de la variable
+      WORKER_VAR_NAME=$(echo "$WORKER_VAR_NAME" | tr '-' '_')
+
+      # Intentar obtener el valor
+      WORKER_PATH_VALUE=$(eval echo \$${WORKER_VAR_NAME} 2>/dev/null || echo "")
+
+      log_info "Buscando ruta específica para el worker: $WORKER_VAR_NAME"
+
+      # 2. Si no hay ruta específica, intentar con WORKER_JS_PATH
+      JS_PATH=""
+      if [ -n "$WORKER_PATH_VALUE" ] && [ -f "$WORKER_PATH_VALUE" ]; then
+        JS_PATH="$WORKER_PATH_VALUE"
+        log_info "Usando ruta específica del worker: $JS_PATH"
+      elif [ -n "$WORKER_JS_PATH" ] && [ -f "$WORKER_JS_PATH" ]; then
+        # Verificar que la variable existe Y que el archivo existe
         JS_PATH="$WORKER_JS_PATH"
+        log_info "Usando variable WORKER_JS_PATH: $JS_PATH"
       else
-        JS_PATH=$(find_main_js "" "/app/worker")
+        # 3. Estrategia de búsqueda automática
+        log_info "Buscando main.js en las ubicaciones posibles..."
+
+        # Buscar en ubicaciones específicas una por una (sin usar arrays)
+        if [ -f "/app/worker/apps/<%=projectName%>/${SERVICE_NAME}/src/main.js" ]; then
+          JS_PATH="/app/worker/apps/<%=projectName%>/${SERVICE_NAME}/src/main.js"
+          log_info "Encontrado archivo principal en: $JS_PATH"
+        elif [ -f "/app/worker/apps/<%=projectName%>/${SERVICE_NAME}/dist/main.js" ]; then
+          JS_PATH="/app/worker/apps/<%=projectName%>/${SERVICE_NAME}/dist/main.js"
+          log_info "Encontrado archivo principal en: $JS_PATH"
+        elif [ -f "/app/worker/src/main.js" ]; then
+          JS_PATH="/app/worker/src/main.js"
+          log_info "Encontrado archivo principal en: $JS_PATH"
+        else
+          # Si no se encuentra en las ubicaciones predefinidas, buscar en todo /app/worker
+          log_info "Buscando main.js en todo /app/worker..."
+          FOUND_JS=$(find /app/worker -name "main.js" | head -n 1)
+
+          if [ -n "$FOUND_JS" ]; then
+            JS_PATH="$FOUND_JS"
+            log_info "Encontrado archivo principal en: $JS_PATH"
+          else
+            log_error "No se pudo encontrar main.js en ninguna ubicación"
+            log_info "Contenido de /app/worker:"
+            find /app/worker -type f | sort
+            exit 1
+          fi
+        fi
       fi
 
-      if [ $? -ne 0 ] || [ -z "$JS_PATH" ]; then
-        log_error "No se pudo encontrar el archivo principal para el worker"
+      # Verificar explícitamente que el archivo existe
+      if [ ! -f "$JS_PATH" ]; then
+        log_error "El archivo no existe: $JS_PATH"
+        log_info "Directorios disponibles:"
+        find /app -maxdepth 3 -type d | sort
         exit 1
       fi
 
@@ -156,10 +199,28 @@ case $SERVICE_TYPE in
       exec npx ts-node-dev --inspect=0.0.0.0:9229 --transpile-only --no-notify --respawn $JS_PATH
     else
       log_info "Modo de producción detectado"
-      JS_PATH=$(find_main_js "${SERVER_JS_PATH}" "/app/server")
 
-      if [ $? -ne 0 ]; then
-        log_error "No se pudo encontrar el archivo principal"
+      # Determinar la ruta del archivo JS
+      if [ -n "$SERVER_JS_PATH" ]; then
+        # Usar la ruta proporcionada en la variable de entorno
+        JS_PATH="$SERVER_JS_PATH"
+        log_info "Usando ruta configurada: $JS_PATH"
+      else
+        # Buscar el archivo
+        log_info "Buscando main.js en /app/server..."
+        JS_PATH=$(find /app/server -name "main.js" | head -n 1)
+
+        if [ -z "$JS_PATH" ]; then
+          log_error "No se pudo encontrar main.js en /app/server"
+          exit 1
+        fi
+
+        log_info "Archivo main.js encontrado en: $JS_PATH"
+      fi
+
+      # Verificar que el archivo existe
+      if [ ! -f "$JS_PATH" ]; then
+        log_error "El archivo no existe: $JS_PATH"
         exit 1
       fi
 
