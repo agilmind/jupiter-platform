@@ -78,6 +78,14 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
     substitutions
   );
 
+  // Generar directorio con scripts
+  generateFiles(
+    tree,
+    joinPathFragments(templatesDir, 'apps', '__projectName__', 'bin'),
+    joinPathFragments('apps', projectNameDashed, 'bin'),
+    substitutions
+  );
+
   // Generar estructura para cada aplicación web
   webAppNames.forEach(webAppName => {
     generateFiles(

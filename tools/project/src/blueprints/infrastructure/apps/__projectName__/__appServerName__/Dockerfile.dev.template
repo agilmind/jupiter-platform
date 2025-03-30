@@ -3,15 +3,23 @@ FROM node:22-alpine
 WORKDIR /app
 
 # Instalar dependencias del sistema y herramientas de desarrollo
-RUN apk add --no-cache git openssh curl gettext
+RUN apk add --no-cache git openssh curl gettext bash
 
 # Instalar dependencias globales de desarrollo
 RUN npm install -g ts-node-dev
 
-# Copiar scripts helper al contenedor
-COPY apps/<%=projectName%>/copy-if-exists.sh /usr/local/bin/
-COPY apps/<%=projectName%>/copy-files.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/copy-if-exists.sh /usr/local/bin/copy-files.sh
+# Copiar script de utilidades de archivos
+COPY apps/<%=projectName%>/bin/file-utils.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/file-utils.sh
+
+# AÑADIR variables para identificar el tipo de servicio
+ENV SERVICE_TYPE="app-server"
+ENV SERVICE_NAME="<%=appServerName%>"
+
+# AÑADIR los scripts unificados
+COPY apps/<%=projectName%>/bin/service-base.sh /usr/local/bin/
+COPY apps/<%=projectName%>/bin/start-service.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/service-base.sh /usr/local/bin/start-service.sh
 
 # Copiar package.json y package-lock.json primero para aprovechar la caché de Docker
 COPY package.json package-lock.json ./
@@ -24,9 +32,9 @@ RUN mkdir -p ./apps/<%=projectName%>/<%=appServerName%> \
 # Copiar package.json de la aplicación - este archivo debe existir
 COPY apps/<%=projectName%>/<%=appServerName%>/package.json ./apps/<%=projectName%>/<%=appServerName%>/
 
-# Copiar package.json de las libs usando copy-if-exists
-RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
-RUN /usr/local/bin/copy-if-exists.sh libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
+# Copiar package.json de las libs usando file-utils
+RUN /usr/local/bin/file-utils.sh copy-if-exists libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
+RUN /usr/local/bin/file-utils.sh copy-if-exists libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
 # Eliminar haiku-generator de las dependencias antes de instalar
 RUN node -e "const fs=require('fs'); \
@@ -45,9 +53,9 @@ COPY apps/<%=projectName%>/tsconfig.json ./apps/<%=projectName%>/
 # Copiar el código fuente de la aplicación - debe existir
 COPY apps/<%=projectName%>/<%=appServerName%> ./apps/<%=projectName%>/<%=appServerName%>/
 
-# Copiar libs compartidas usando copy-files para evitar problemas de recursión
-RUN /usr/local/bin/copy-files.sh "libs/<%=projectName%>/shared/*" "./libs/<%=projectName%>/shared/"
-RUN /usr/local/bin/copy-files.sh "libs/<%=projectName%>/api-interfaces/*" "./libs/<%=projectName%>/api-interfaces/"
+# Copiar libs compartidas usando file-utils para evitar problemas de recursión
+RUN /usr/local/bin/file-utils.sh copy-files "libs/<%=projectName%>/shared/*" "./libs/<%=projectName%>/shared/"
+RUN /usr/local/bin/file-utils.sh copy-files "libs/<%=projectName%>/api-interfaces/*" "./libs/<%=projectName%>/api-interfaces/"
 
 # Configurar prisma
 RUN cd ./apps/<%=projectName%>/<%=appServerName%> && \
@@ -90,4 +98,4 @@ EXPOSE 9229
 
 # Comando para iniciar la aplicación con soporte de debugging
 WORKDIR /app/apps/<%=projectName%>/<%=appServerName%>
-CMD ["sh", "-c", "echo 'Iniciando app-server en modo desarrollo en 0.0.0.0:4000 (debug en puerto 9229)' && npx ts-node-dev --inspect=0.0.0.0:9229 --transpile-only --no-notify --respawn src/main.ts"]
+CMD ["/usr/local/bin/start-service.sh"]

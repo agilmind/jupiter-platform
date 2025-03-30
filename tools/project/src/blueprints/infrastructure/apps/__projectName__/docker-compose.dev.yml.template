@@ -7,6 +7,8 @@ services:
       args:
         NODE_ENV: development
     container_name: <%=projectName%>-<%=appServerName%>
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
       - PORT=4000
@@ -41,6 +43,8 @@ services:
       context: ../../
       dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile.dev
     container_name: <%=projectName%>-<%=webAppName%>
+    env_file:
+      - .env
     environment:
       - SERVER_PORT=4000
       - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
@@ -62,6 +66,8 @@ services:
       args:
         NODE_ENV: development
     container_name: <%=projectName%>-<%=workerName%>
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
       - HOST=0.0.0.0
@@ -86,6 +92,8 @@ services:
   postgres:
     image: postgres:14
     container_name: <%=projectName%>-postgres
+    env_file:
+      - .env
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -111,6 +119,8 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: <%=projectName%>-rabbitmq
+    env_file:
+      - .env
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}

@@ -31,6 +31,18 @@
         "command": "docker compose -f docker-compose.dev.yml down"
       }
     },
+    "dev:clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/<%=projectName%>",
+        "commands": [
+          "docker compose -f docker-compose.dev.yml down --rmi all --volumes --remove-orphans",
+          "docker network rm <%=projectName%>-app-network || echo 'Red no encontrada; ignorando...'",
+          "docker volume prune --filter 'label=com.docker.compose.project=<%=projectName%>' --force"
+        ],
+        "parallel": false
+      }
+    },
     "prod": {
       "executor": "nx:run-commands",
       "options": {
