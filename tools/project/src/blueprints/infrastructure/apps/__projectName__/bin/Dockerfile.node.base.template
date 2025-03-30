@@ -1,6 +1,6 @@
 # ===================================================================
-# Dockerfile base para servicios Node.js - versión explícita
-# Este Dockerfile debe estar en el mismo directorio que los scripts
+# Dockerfile base para servicios Node.js
+# Este Dockerfile define las etapas y configuraciones comunes
 # ===================================================================
 
 # ------ Etapa base común para desarrollo y construcción ------
@@ -15,11 +15,11 @@ RUN npm config set fetch-retry-mintimeout 20000 \
 # Instalar herramientas comunes
 RUN apk add --no-cache git openssh curl bash
 
-# Copiar scripts de utilidades - versión con rutas explícitas
-COPY ./file-utils.sh /usr/local/bin/
-COPY ./service-base.sh /usr/local/bin/
-COPY ./start-service.sh /usr/local/bin/
-
+# Copiar scripts de utilidades
+COPY bin/file-utils.sh \
+     bin/service-base.sh \
+     bin/start-service.sh \
+     /usr/local/bin/
 RUN chmod +x /usr/local/bin/file-utils.sh \
              /usr/local/bin/service-base.sh \
              /usr/local/bin/start-service.sh

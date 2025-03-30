@@ -1,8 +1,8 @@
 # Dockerfile para web-app en desarrollo
-# Utiliza un enfoque multi-etapa con imágenes base
+# Versión simplificada sin registro Docker
 
 # Etapa de construcción
-FROM node-base:dev AS builder
+FROM apps/<%=projectName%>/bin/Dockerfile.node.base:node-dev AS builder
 
 WORKDIR /app
 
@@ -45,11 +45,12 @@ WORKDIR /app/apps/<%=projectName%>/<%=webAppName%>
 RUN npx vite build --outDir /app/dist
 
 # Etapa de ejecución con Nginx
-FROM nginx-base:dev
+FROM apps/<%=projectName%>/bin/Dockerfile.nginx.base:nginx-dev
 
 # Identificar el servicio
 ENV SERVICE_TYPE="web-app"
 ENV SERVICE_NAME="<%=webAppName%>"
+ENV NODE_ENV="development"
 
 # Copiar la aplicación construida
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -64,6 +65,10 @@ ENV APP_SERVER_PORT=4000
 
 # Exponer puerto
 EXPOSE 80
+
+# Configurar healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost/health || exit 1
 
 # Usar el script de inicio unificado
 CMD ["/usr/local/bin/start-service.sh"]

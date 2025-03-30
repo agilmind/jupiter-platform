@@ -1,10 +1,19 @@
 # Dockerfile para worker en producción
-# Utiliza un enfoque multi-etapa con imagen base
+# Versión simplificada sin registro Docker
 
 # Etapa de construcción
-FROM node-base:dev AS builder
+FROM apps/<%=projectName%>/bin/Dockerfile.node.base:node-dev AS builder
 
 WORKDIR /app
+
+# Configurar npm para mayor resiliencia
+RUN npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm config set fetch-retries 5 \
+    && npm config set registry https://registry.npmjs.org/
+
+# Crear archivo .npmrc para prevenir problemas con repositorios privados
+RUN echo "registry=https://registry.npmjs.org/" > .npmrc
 
 # Copiar package.json para modificarlo
 COPY package.json ./
@@ -36,11 +45,14 @@ RUN echo "Compilando TypeScript para <%=workerName%>..."
 RUN npx tsc -p tsconfig.json
 
 # Etapa de producción
-FROM node-base:prod
+FROM apps/<%=projectName%>/bin/Dockerfile.node.base:node-prod
+
+WORKDIR /app
 
 # Identificar el servicio
 ENV SERVICE_TYPE="worker"
 ENV SERVICE_NAME="<%=workerName%>"
+ENV NODE_ENV="production"
 
 # Copiar dependencias de producción
 COPY --from=builder /app/node_modules ./node_modules
@@ -49,7 +61,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist/compiled/<%=workerName%> ./worker
 
 # Configurar variables de entorno
-ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV RABBITMQ_HOST=<%=projectName%>-rabbitmq
 ENV APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>

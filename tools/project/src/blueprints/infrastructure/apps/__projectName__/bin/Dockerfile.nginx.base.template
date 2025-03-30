@@ -1,6 +1,5 @@
 # ===================================================================
 # Dockerfile base para servicios web con Nginx
-# Este Dockerfile debe estar en el mismo directorio que los scripts
 # ===================================================================
 
 # ------ Etapa base para Nginx ------
@@ -9,13 +8,11 @@ FROM nginx:alpine AS nginx-base
 # Instalar herramientas necesarias
 RUN apk add --no-cache gettext curl bash
 
-# Copiar scripts de utilidades - versión con rutas explícitas
-COPY ./file-utils.sh /usr/local/bin/
-COPY ./service-base.sh /usr/local/bin/
-COPY ./start-service.sh /usr/local/bin/
-
-RUN chmod +x /usr/local/bin/file-utils.sh \
-             /usr/local/bin/service-base.sh \
+# Copiar scripts de utilidades
+COPY bin/service-base.sh \
+     bin/start-service.sh \
+     /usr/local/bin/
+RUN chmod +x /usr/local/bin/service-base.sh \
              /usr/local/bin/start-service.sh
 
 # Configuración para healthcheck

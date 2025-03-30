@@ -1,7 +1,8 @@
 # Dockerfile para app-server en desarrollo
-# Usa la imagen base para node en desarrollo (sin organización)
+# Usando Dockerfile.base sin necesidad de registry
 
-FROM node-base:dev
+# Desde el contexto ../../
+FROM apps/<%=projectName%>/bin/Dockerfile.node.base:node-dev AS base
 
 WORKDIR /app
 
