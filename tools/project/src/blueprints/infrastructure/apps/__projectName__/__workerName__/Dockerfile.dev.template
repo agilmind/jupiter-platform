@@ -1,113 +1,66 @@
+# Dockerfile para worker en desarrollo
+
 FROM node:22-alpine
 
 WORKDIR /app
 
 # Instalar dependencias del sistema y herramientas de desarrollo
 RUN apk add --no-cache git openssh curl bash
-
-# Instalar ts-node-dev globalmente para asegurarnos de que esté disponible
 RUN npm install -g ts-node-dev
 
-# Copiar script de utilidades de archivos
-COPY apps/<%=projectName%>/bin/file-utils.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/file-utils.sh
+# Copiar scripts de utilidades
+COPY apps/<%=projectName%>/bin/file-utils.sh \
+     apps/<%=projectName%>/bin/service-base.sh \
+     apps/<%=projectName%>/bin/start-service.sh \
+     /usr/local/bin/
+RUN chmod +x /usr/local/bin/file-utils.sh \
+             /usr/local/bin/service-base.sh \
+             /usr/local/bin/start-service.sh
 
-# AÑADIR variables para identificar el tipo de servicio
+# Identificar el servicio
 ENV SERVICE_TYPE="worker"
 ENV SERVICE_NAME="<%=workerName%>"
+ENV NODE_ENV="development"
 
-# AÑADIR los scripts unificados
-COPY apps/<%=projectName%>/bin/service-base.sh /usr/local/bin/
-COPY apps/<%=projectName%>/bin/start-service.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/service-base.sh /usr/local/bin/start-service.sh
-
-# Copiar package.json y package-lock.json para aprovechar la caché
-COPY package.json package-lock.json ./
-
-# Preparar directorios para los package.json de apps y libs
+# Preparar directorios para los package.json
 RUN mkdir -p ./apps/<%=projectName%>/<%=workerName%> \
     ./libs/<%=projectName%>/shared \
     ./libs/<%=projectName%>/api-interfaces
 
-# Copiar package.json de la aplicación - este archivo debe existir
+# Copiar package.json de la aplicación y el proyecto
+COPY package.json package-lock.json ./
 COPY apps/<%=projectName%>/<%=workerName%>/package.json ./apps/<%=projectName%>/<%=workerName%>/
 
 # Copiar package.json de las libs usando file-utils
 RUN /usr/local/bin/file-utils.sh copy-if-exists libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
 RUN /usr/local/bin/file-utils.sh copy-if-exists libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
-# Eliminar haiku-generator de las dependencias antes de instalar
+# Eliminar dependencias problemáticas
 RUN node -e "const fs=require('fs'); \
     const pkg=JSON.parse(fs.readFileSync('./package.json')); \
     if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; \
     if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; \
     fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
 
-# Instalar dependencias
+# Instalar dependencias (con caché de Docker)
 RUN npm install
 RUN npm install --save-dev @types/amqplib
 
-# Copiar archivos de configuración TypeScript - estos archivos deben existir
+# Copiar archivos de configuración
 COPY tsconfig.base.json ./
 COPY apps/<%=projectName%>/tsconfig.json ./apps/<%=projectName%>/
 
-# Copiar el código fuente de la aplicación - debe existir
-COPY apps/<%=projectName%>/<%=workerName%> ./apps/<%=projectName%>/<%=workerName%>/
-
-# Copiar libs compartidas usando file-utils para evitar problemas de recursión
-RUN /usr/local/bin/file-utils.sh copy-files "libs/<%=projectName%>/shared/*" "./libs/<%=projectName%>/shared/"
-RUN /usr/local/bin/file-utils.sh copy-files "libs/<%=projectName%>/api-interfaces/*" "./libs/<%=projectName%>/api-interfaces/"
-
-# Configurar prisma
+# Configurar prisma si es necesario
 RUN cd ./apps/<%=projectName%>/<%=workerName%> && \
     if [ -f "./prisma/schema.prisma" ]; then \
       npx prisma generate; \
     fi
 
-# Preparar script de diagnóstico - crear directamente
-RUN mkdir -p /app/scripts
-RUN echo "#!/bin/sh\n\
-echo '=== Iniciando diagnóstico de red para worker ==='\n\
-echo 'Hostname: '\$(hostname)\n\
-echo 'Dirección IP: '\$(hostname -i)\n\
-echo 'Variables de entorno:'\n\
-echo 'HOST='\$HOST\n\
-echo 'NODE_ENV='\$NODE_ENV\n\
-echo 'RABBITMQ_URL='\$RABBITMQ_URL\n\
-echo 'DATABASE_URL='\$DATABASE_URL\n\
-\n\
-echo '=== Verificando escucha de puertos ==='\n\
-apk add --no-cache curl netcat-openbsd iputils\n\
-\n\
-echo 'Puertos en escucha:'\n\
-netstat -tulpn | grep LISTEN\n\
-\n\
-echo '=== Verificando conectividad entre contenedores ==='\n\
-echo 'Ping a app-server:'\n\
-ping -c 3 <%=projectName%>-<%=appServerName%> || echo 'No se pudo hacer ping'\n\
-\n\
-echo 'Ping a RabbitMQ:'\n\
-ping -c 3 <%=projectName%>-rabbitmq || echo 'No se pudo hacer ping'\n\
-\n\
-echo '=== Comprobando procesos en ejecución ==='\n\
-ps aux\n\
-\n\
-echo '=== Verificando conexiones a servicios ==='\n\
-echo 'Conexión a RabbitMQ puerto 5672:'\n\
-nc -zv <%=projectName%>-rabbitmq 5672 || echo 'Conexión fallida'\n\
-\n\
-echo 'Conexión a app-server puerto 4000:'\n\
-nc -zv <%=projectName%>-<%=appServerName%> 4000 || echo 'Conexión fallida'\n\
-" > /app/debug-network.sh && chmod +x /app/debug-network.sh
-
-# Configurar explícitamente variables de entorno
+# Configurar Debug
 ENV HOST="0.0.0.0"
 ENV DEBUG_PORT="9230"
-ENV NODE_ENV="development"
-
-# Exponer el puerto de debug
 EXPOSE ${DEBUG_PORT}
 
-# Comando para iniciar el worker con soporte de debugging
+# Usar el script de inicio unificado
 WORKDIR /app/apps/<%=projectName%>/<%=workerName%>
 CMD ["/usr/local/bin/start-service.sh"]

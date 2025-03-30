@@ -7,14 +7,16 @@ services:
       args:
         NODE_ENV: development
     container_name: <%=projectName%>-<%=appServerName%>
-    env_file:
-      - .env
     environment:
       - NODE_ENV=development
       - PORT=4000
       - HOST=0.0.0.0
       - DATABASE_URL=${DATABASE_URL}
       - RABBITMQ_URL=amqp://guest:guest@<%=projectName%>-rabbitmq:5672
+      - SERVICE_TYPE=app-server
+      - SERVICE_NAME=<%=appServerName%>
+    env_file:
+      - .env
     ports:
       - "4000:4000"
       - "9229:9229"  # Puerto para debugging
@@ -24,10 +26,10 @@ services:
       - ../../node_modules:/app/node_modules
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-40s}
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,14 +45,22 @@ services:
       context: ../../
       dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile.dev
     container_name: <%=projectName%>-<%=webAppName%>
-    env_file:
-      - .env
     environment:
       - SERVER_PORT=4000
       - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
       - APP_SERVER_PORT=4000
+      - SERVICE_TYPE=web-app
+      - SERVICE_NAME=<%=webAppName%>
+    env_file:
+      - .env
     ports:
       - "3000:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-20s}
     depends_on:
       <%=appServerName%>:
         condition: service_healthy
@@ -66,13 +76,15 @@ services:
       args:
         NODE_ENV: development
     container_name: <%=projectName%>-<%=workerName%>
-    env_file:
-      - .env
     environment:
       - NODE_ENV=development
       - HOST=0.0.0.0
       - RABBITMQ_URL=amqp://guest:guest@<%=projectName%>-rabbitmq:5672
       - DATABASE_URL=${DATABASE_URL}
+      - SERVICE_TYPE=worker
+      - SERVICE_NAME=<%=workerName%>
+    env_file:
+      - .env
     ports:
       - "9230:9230"  # Puerto para debugging del worker
     volumes:
@@ -90,14 +102,14 @@ services:
 
   # Database
   postgres:
-    image: postgres:14
+    image: postgres:14-alpine
     container_name: <%=projectName%>-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-<%=projectName%>}
     env_file:
       - .env
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
@@ -106,34 +118,44 @@ services:
       resources:
         limits:
           memory: 500M
+        reservations:
+          memory: 200M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: ${HEALTH_CHECK_INTERVAL:-10s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
+      retries: ${HEALTH_CHECK_RETRIES:-5}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-20s}
     restart: unless-stopped
     networks:
       - app-network
 
   # Message Queue
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3-management-alpine
     container_name: <%=projectName%>-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
     env_file:
       - .env
-    environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
     ports:
       - "5672:5672"
       - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+        reservations:
+          memory: 200M
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: ${HEALTH_CHECK_INTERVAL:-10s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
+      retries: ${HEALTH_CHECK_RETRIES:-5}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-30s}
     restart: unless-stopped
     networks:
       - app-network
@@ -144,4 +166,6 @@ networks:
 
 volumes:
   postgres_data:
+    driver: local
   rabbitmq_data:
+    driver: local

@@ -1,33 +1,32 @@
-FROM node:22-alpine AS base
+# Dockerfile para web-app en desarrollo
+# Utiliza un enfoque multi-etapa
+
+# Etapa de construcción
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 # Instalar dependencias del sistema
 RUN apk add --no-cache git openssh bash
 
-# Copiar script de utilidades de archivos
+# Copiar script de utilidades
 COPY apps/<%=projectName%>/bin/file-utils.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/file-utils.sh
 
-# Stage for installing dependencies and building
-FROM base AS builder
-
-# Copiar package.json y package-lock.json para la caché de Docker
-COPY package.json package-lock.json ./
-
-# Preparar directorios para los package.json de apps y libs
+# Preparar directorios para los package.json
 RUN mkdir -p ./apps/<%=projectName%>/<%=webAppName%> \
     ./libs/<%=projectName%>/shared \
     ./libs/<%=projectName%>/api-interfaces
 
-# Copiar package.json de la aplicación - este archivo debe existir
+# Copiar package.json de la aplicación y el proyecto
+COPY package.json package-lock.json ./
 COPY apps/<%=projectName%>/<%=webAppName%>/package.json ./apps/<%=projectName%>/<%=webAppName%>/
 
 # Copiar package.json de las libs usando file-utils
 RUN /usr/local/bin/file-utils.sh copy-if-exists libs/<%=projectName%>/shared/package.json ./libs/<%=projectName%>/shared/
 RUN /usr/local/bin/file-utils.sh copy-if-exists libs/<%=projectName%>/api-interfaces/package.json ./libs/<%=projectName%>/api-interfaces/
 
-# Eliminar haiku-generator de las dependencias
+# Eliminar dependencias problemáticas
 RUN node -e "const fs=require('fs'); \
     const pkg=JSON.parse(fs.readFileSync('./package.json')); \
     if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; \
@@ -37,11 +36,11 @@ RUN node -e "const fs=require('fs'); \
 # Instalar dependencias
 RUN npm install
 
-# Copiar archivos de configuración TypeScript - estos archivos deben existir
+# Copiar archivos de configuración
 COPY tsconfig.base.json ./
 COPY apps/<%=projectName%>/tsconfig.json ./apps/<%=projectName%>/
 
-# Copiar el código fuente de la aplicación - debe existir
+# Copiar el código fuente
 COPY apps/<%=projectName%>/<%=webAppName%> ./apps/<%=projectName%>/<%=webAppName%>/
 
 # Copiar libs compartidas usando file-utils
@@ -52,36 +51,41 @@ RUN /usr/local/bin/file-utils.sh copy-files "libs/<%=projectName%>/api-interface
 WORKDIR /app/apps/<%=projectName%>/<%=webAppName%>
 RUN npx vite build --outDir /app/dist
 
-# Producción - imagen nginx
+# Etapa de ejecución con Nginx
 FROM nginx:alpine
-
-WORKDIR /usr/share/nginx/html
 
 # Instalar dependencias necesarias
 RUN apk add --no-cache gettext curl bash
 
+# Copiar scripts de utilidades
+COPY apps/<%=projectName%>/bin/service-base.sh \
+     apps/<%=projectName%>/bin/start-service.sh \
+     /usr/local/bin/
+RUN chmod +x /usr/local/bin/service-base.sh \
+             /usr/local/bin/start-service.sh
+
+# Identificar el servicio
+ENV SERVICE_TYPE="web-app"
+ENV SERVICE_NAME="<%=webAppName%>"
+ENV NODE_ENV="development"
+
 # Copiar la aplicación construida
-COPY --from=builder /app/dist .
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copiar configuración de nginx
 COPY apps/<%=projectName%>/<%=webAppName%>/nginx.conf /etc/nginx/conf.d/default.conf.template
 
-# IMPORTANTE: Copiar los scripts a la etapa final de nginx
-COPY apps/<%=projectName%>/bin/service-base.sh /usr/local/bin/
-COPY apps/<%=projectName%>/bin/start-service.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/service-base.sh /usr/local/bin/start-service.sh
-
-# Configurar variables para identificar el servicio
-ENV SERVICE_TYPE="web-app"
-ENV SERVICE_NAME="<%=webAppName%>"
-
-# Configurar variables de entorno predeterminadas
+# Configurar variables de entorno
 ENV SERVER_PORT=4000
 ENV APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
 ENV APP_SERVER_PORT=4000
 
 # Exponer puerto
 EXPOSE 80
+
+# Configurar healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost/health || exit 1
 
 # Usar el script de inicio unificado
 CMD ["/usr/local/bin/start-service.sh"]
