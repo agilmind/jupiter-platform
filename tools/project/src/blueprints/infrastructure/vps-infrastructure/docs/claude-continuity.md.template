@@ -4,6 +4,15 @@
 
 Estamos desarrollando una infraestructura de VPS para proyectos generados con un generador basado en NX. Toda la implementación debe ser genérica utilizando variables de template como `<%=projectName%>` que se reemplazan durante la generación.
 
+## Estado actual del desarrollo
+
+Hemos implementado una infraestructura funcional para desplegar proyectos en VPS con:
+- Configuración Docker Compose para entornos de desarrollo y producción
+- Scripts de despliegue y configuración automatizados
+- Configuración de Nginx para enrutamiento y SSL
+- Seguridad básica con aislamiento de servicios internos
+- Acceso a API a través de URL amigables (ej: project.ar/api) en lugar de puertos
+
 ## Principios del desarrollo
 
 1. **Todo debe ser un archivo .template**:
@@ -24,13 +33,6 @@ Estamos desarrollando una infraestructura de VPS para proyectos generados con un
 4. **Separación de responsabilidades**:
    - Los scripts de despliegue solo transfieren archivos, no los generan
    - Cada archivo de configuración tiene su propio .template
-
-## Estado actual del desarrollo
-
-Hemos creado la estructura base de `vps-infrastructure` con templates para:
-- Configuración "minimal" para VPS (enfocada en Nginx como punto de entrada)
-- Configuración de docker-compose para despliegue
-- Scripts de despliegue y captura de snapshots
 
 ## Estructura actual de directorios
 
@@ -56,13 +58,13 @@ vps-infrastructure/
 │   ├── docker-compose.yml.template
 │   └── nginx/
 │       ├── conf.d/
-│       │   ├── project.conf.template
+│       │   ├── project.conf.template   # Configuración con soporte para /api
 │       │   └── webapp.conf.template
 │       └── ssl/
 ├── deployment/
 │   ├── environments/ # Variables por entorno
 │   └── scripts/      # Scripts de despliegue
-│       ├── deploy-vps.sh.template
+│       ├── deploy-vps.sh.template      # Script mejorado para despliegue en VPS
 │       └── setup-ssl.sh.template
 ├── docs/            # Documentación
 │   ├── claude-continuity.md.template
@@ -70,42 +72,76 @@ vps-infrastructure/
 │   └── project-plan.md.template
 └── scripts/         # Scripts utilitarios
     ├── snapshot-environment.sh.template
-    └── setup-nginx.sh.template
+    ├── setup-nginx.sh.template
+    └── fix-docker-network.sh.template  # Script para resolver problemas de red Docker
 ```
 
 ## Flujo de trabajo para VPS
 
 1. **Generación del proyecto**:
-   - Ejecutar `nx g project:create projectName` para generar el proyecto
-   - Esto crea todos los archivos necesarios usando los templates
+   ```bash
+   nx g project:create projectName
+   ```
 
-2. **Despliegue en VPS**:
-   - Usar el script `deploy-vps.sh` generado en `apps/projectName/scripts/`
-   - Este script transfiere los archivos y ejecuta comandos remotos para instalar dependencias
+2. **Despliegue en VPS** (usuario deploy con permisos sudo):
+   ```bash
+   bash ./apps/projectName/vps-infrastructure/deployment/scripts/deploy-vps.sh
+   ```
 
-3. **Configuración post-despliegue**:
-   - Configurar HTTPS con `setup-ssl.sh`
-   - Configurar monitoreo si es necesario
+3. **Configuración de SSL** (después del despliegue):
+   ```bash
+   ssh deploy@projectName.ar "cd /opt/projectName && ./setup-ssl.sh"
+   ```
+
+4. **Resolución de problemas** (si es necesario):
+   ```bash
+   ssh deploy@projectName.ar "cd /opt/projectName && sudo ./fix-docker-network.sh"
+   ```
+
+## Componentes implementados
+
+1. **Configuración minimal para VPS**:
+   - Nginx como punto de entrada: redirige a /api y sirve la web-app
+   - Sin exposición de puertos innecesarios (solo 80/443 para web y 15673 para admin RabbitMQ)
+   - Seguridad básica con aislamiento de servicios
+
+2. **Docker Compose adaptado**:
+   - Redes simplificadas para evitar problemas
+   - Volúmenes para persistencia
+   - Configuración específica para producción
+
+3. **SSL/HTTPS**:
+   - Certificados Let's Encrypt
+   - Renovación automática
+   - Redirección HTTPS
+
+4. **Scripts de administración**:
+   - Solución para problemas de red Docker
+   - Despliegue con imágenes precompiladas
 
 ## Próximos pasos
 
-1. **Separar correctamente los archivos**:
-   - Mover archivos .template a sus ubicaciones correctas
-   - Eliminar generación dinámica de archivos en scripts
+1. **Mejorar monitoreo**:
+   - Implementar Prometheus/Grafana para monitoreo
+   - Configurar alertas para servicios críticos
 
-2. **Implementar HTTPS apropiadamente**:
-   - Agregar soporte para certificados SSL
-   - Configurar redirección automática
+2. **Implementar CI/CD**:
+   - Pipeline GitHub Actions
+   - Despliegue automatizado
 
-3. **Implementar monitoreo básico**:
-   - Agregar health checks para todos los servicios
-   - Configurar logs centralizados
+3. **Optimización de rendimiento**:
+   - Configuración de caché para Nginx
+   - Ajustes de rendimiento para PostgreSQL y pgBouncer
+
+4. **Backups automatizados**:
+   - Scripts de backup programados
+   - Estrategia de recuperación
 
 ## Consideraciones técnicas para Claude
 
 1. Todos los archivos deben terminar con `.template`
 2. Usar las variables `<%=projectName%>`, `<%=appServerName%>`, etc. para personalización
-3. Evitar crear archivos dinámicamente con `cat >` dentro de scripts
+3. Al hacer cambios, siempre considerar su incorporación al generador
 4. Los scripts deben ser compatibles con Alpine Linux (ash) por compatibilidad con contenedores
 5. Nunca usar nombres de proyectos específicos como "jupiter" en los templates
 6. Aclarar siempre en qué carpeta debe ir un archivo nuevo
