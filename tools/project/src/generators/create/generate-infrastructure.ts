@@ -73,7 +73,7 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
   // Generar infraestructura para el VPS
   generateFiles(
     tree,
-    joinPathFragments(templatesDir, 'vps-infraestructure'),
+    joinPathFragments(templatesDir, 'vps-infrastructure'),
     joinPathFragments('apps', projectNameDashed, 'vps'),
     substitutions
   );
