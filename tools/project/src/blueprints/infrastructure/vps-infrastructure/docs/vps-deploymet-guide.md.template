@@ -1,261 +1,63 @@
-# Guía de despliegue en VPS para <%=projectName%>
+### Actualizar el despliegue
 
-Esta guía proporciona instrucciones detalladas para desplegar <%=projectName%> en un servidor VPS, incluyendo configuración, solución de problemas y mantenimiento.
+Existen dos métodos para actualizar el proyecto con nuevos cambios:
 
-## Requisitos previos
+#### Método 1: Actualización segura (recomendado para entornos en producción)
 
-### Requisitos del servidor
-- Ubuntu 20.04 LTS o superior
-- Mínimo 2 GB RAM, recomendado 4 GB
-- 2 CPU cores o más
-- 20 GB de almacenamiento disponible
-- Puertos 80 y 443 abiertos
-
-### Configuración de DNS
-- Registros A para `<%=projectName%>.ar` → IP del VPS
-- Registros A para `webapp.<%=projectName%>.ar` → IP del VPS
-
-### Software en máquina local
-- Docker y Docker Compose
-- rsync
-- SSH configurado para acceso al VPS
-- Proyecto generado con NX
-
-### Configuración en VPS
-- Usuario con permisos sudo (`deploy` recomendado)
-- Docker instalado
-- Nginx instalado
-
-## Preparación del entorno
-
-### 1. Crear usuario deploy en VPS (desde root)
+Este método preserva datos y configuraciones existentes:
 
 ```bash
-# Conectar como root
-ssh root@<%=projectName%>.ar
-
-# Crear usuario deploy
-adduser deploy
-# Seguir instrucciones para establecer contraseña
-
-# Agregar al grupo sudo
-usermod -aG sudo deploy
-
-# Configurar sudo sin contraseña para comandos específicos (opcional)
-echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/docker, /usr/bin/docker-compose, /bin/systemctl restart nginx, /usr/sbin/nginx, /usr/bin/certbot" > /etc/sudoers.d/deploy
-chmod 440 /etc/sudoers.d/deploy
-
-# Agregar al grupo docker
-usermod -aG docker deploy
-
-# Crear directorio para despliegue
-mkdir -p /opt/<%=projectName%>
-chown -R deploy:deploy /opt/<%=projectName%>
-```
-
-### 2. Configurar acceso SSH (desde máquina local)
-
-```bash
-# Copiar clave SSH (opcional pero recomendado)
-ssh-copy-id deploy@<%=projectName%>.ar
-```
-
-## Despliegue del proyecto
-
-### 1. Generar el proyecto actualizado
-
-```bash
-# Desde la raíz del proyecto
+# Regenerar el proyecto
 nx g project:create <%=projectName%>
+
+# Ejecutar el script de actualización
+bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/update-vps.sh
 ```
 
-### 2. Ejecutar script de despliegue
+El script `update-vps.sh`:
+- Crea un respaldo automático antes de actualizar
+- Preserva configuraciones existentes
+- Solo actualiza las imágenes Docker
+- No interrumpe servicios por más tiempo del necesario
+
+#### Método 2: Despliegue completo (solo para instalaciones iniciales)
+
+Este método puede sobrescribir configuraciones y datos existentes:
 
 ```bash
-# Desde la raíz del proyecto
+# Regenerar el proyecto
+nx g project:create <%=projectName%>
+
+# Ejecutar el despliegue
 bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/deploy-vps.sh
 ```
 
-El script realizará las siguientes acciones:
-- Construir imágenes Docker localmente
-- Crear archivo tar con las imágenes
-- Transferir archivos al VPS
-- Configurar Nginx
-- Arrancar los contenedores
+⚠️ **ADVERTENCIA**: Este método solicitará confirmación explícita para continuar.
 
-### 3. Configurar HTTPS/SSL
+### Respaldo y restauración
+
+#### Crear respaldo completo
+
+Para crear un respaldo completo que incluya configuración, base de datos y mensajes:
 
 ```bash
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && ./setup-ssl.sh"
+bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/backup-vps.sh
 ```
 
 Este script:
-- Instala Certbot si es necesario
-- Obtiene certificados para los dominios
-- Configura la renovación automática
-- Actualiza la configuración de Nginx
+- Respalda la configuración completa
+- Crea un volcado de la base de datos
+- Extrae configuración de RabbitMQ
+- Guarda todo en un archivo único
 
-## Verificación del despliegue
+#### Restaurar desde respaldo
 
-### Acceso a servicios
-
-- **Web App**: https://webapp.<%=projectName%>.ar
-- **API**: https://<%=projectName%>.ar/api
-- **RabbitMQ Admin**: https://<%=projectName%>.ar/rabbitmq (usuario: guest, contraseña: guest)
-
-### Verificar estado de contenedores
+Para restaurar el proyecto desde un respaldo:
 
 ```bash
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && docker compose ps"
+bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/restore-vps.sh ruta/al/respaldo
 ```
 
-### Verificar logs
+⚠️ **ADVERTENCIA**: La restauración sobrescribirá completamente la instalación actual.
 
-```bash
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && docker compose logs -f"
-```
-
-## Solución de problemas
-
-### Problemas con la red de Docker
-
-Si encuentras errores relacionados con la red de Docker durante el despliegue:
-
-```bash
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && sudo ./fix-docker-network.sh"
-```
-
-### Error 502 Bad Gateway
-
-1. Verificar que los contenedores estén funcionando:
-   ```bash
-   ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && docker compose ps"
-   ```
-
-2. Verificar configuración de Nginx:
-   ```bash
-   ssh deploy@<%=projectName%>.ar "sudo nginx -t"
-   ```
-
-3. Revisar logs de Nginx:
-   ```bash
-   ssh deploy@<%=projectName%>.ar "sudo tail -f /var/log/nginx/error.log"
-   ```
-
-### Problemas con certificados SSL
-
-1. Verificar el estado de Certbot:
-   ```bash
-   ssh deploy@<%=projectName%>.ar "sudo certbot certificates"
-   ```
-
-2. Forzar renovación de certificados:
-   ```bash
-   ssh deploy@<%=projectName%>.ar "sudo certbot --force-renewal"
-   ```
-
-## Mantenimiento
-
-### Actualizar el despliegue
-
-Para actualizar el proyecto con nuevos cambios:
-
-1. Actualizar el código local
-2. Regenerar el proyecto:
-   ```bash
-   nx g project:create <%=projectName%>
-   ```
-3. Ejecutar el despliegue nuevamente:
-   ```bash
-   bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/deploy-vps.sh
-   ```
-
-### Respaldo de datos
-
-#### Respaldo de base de datos
-
-```bash
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && \
-  docker compose exec postgres pg_dump -U postgres <%=projectName%> > <%=projectName%>_backup_\$(date +%Y%m%d).sql"
-```
-
-#### Respaldo de volúmenes (opcional)
-
-```bash
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && \
-  docker run --rm -v <%=projectName%>_postgres_data:/data -v \$(pwd):/backup alpine tar -zcvf /backup/postgres_data_backup_\$(date +%Y%m%d).tar.gz /data"
-```
-
-### Monitoreo básico
-
-```bash
-# Ver recursos de contenedores
-ssh deploy@<%=projectName%>.ar "docker stats"
-
-# Ver logs de la aplicación
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && docker compose logs -f app-server"
-
-# Ver logs de Nginx
-ssh deploy@<%=projectName%>.ar "sudo tail -f /var/log/nginx/access.log"
-```
-
-## Comandos útiles
-
-### Administración de contenedores
-
-```bash
-# Iniciar todos los servicios
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && docker compose up -d"
-
-# Detener todos los servicios
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && docker compose down"
-
-# Reiniciar un servicio específico
-ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && docker compose restart app-server"
-```
-
-### Administración de certificados SSL
-
-```bash
-# Listar certificados
-ssh deploy@<%=projectName%>.ar "sudo certbot certificates"
-
-# Renovar certificados manualmente
-ssh deploy@<%=projectName%>.ar "sudo certbot renew"
-```
-
-### Administración de Nginx
-
-```bash
-# Revisar configuración
-ssh deploy@<%=projectName%>.ar "sudo nginx -t"
-
-# Recargar configuración
-ssh deploy@<%=projectName%>.ar "sudo systemctl reload nginx"
-```
-
-## Arquitectura
-
-El despliegue sigue esta arquitectura:
-
-```
-Usuario -> HTTPS (443) -> Nginx -> /api -> App Server
-                               -> /    -> Web App
-                               -> /rabbitmq -> RabbitMQ Admin
-
-Internamente:
-App Server <-> PostgreSQL (a través de pgBouncer)
-App Server <-> RabbitMQ
-Worker <-> PostgreSQL (a través de pgBouncer)
-Worker <-> RabbitMQ
-Worker <-> App Server
-```
-
-Todos los servicios internos están aislados y solo son accesibles a través de Nginx.
-
-## Próximos pasos
-
-1. Implementar monitoreo con Prometheus/Grafana
-2. Configurar backups automáticos
-3. Implementar CI/CD para despliegue automático
-4. Optimizar rendimiento y seguridad
+El script acepta tanto un directorio de respaldo como un archivo tar.gz creado por `backup-vps.sh`.
