@@ -48,14 +48,14 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/<%=projectName%>",
-        "command": "docker compose -f docker-compose.local.prod.yml up -d --build"
+        "command": "docker compose -f docker-compose.local-prod.yml up -d --build"
       }
     },
     "prod:down": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/<%=projectName%>",
-        "command": "docker compose -f docker-compose.local.prod.yml down"
+        "command": "docker compose -f docker-compose.local-prod.yml down"
       }
     },
     "prod:clean": {
@@ -64,7 +64,7 @@
         "cwd": "apps/<%=projectName%>",
         "commands": [
           "docker system prune -a --volumes --force",
-          "docker compose -f docker-compose.local.prod.yml down --rmi all --volumes --remove-orphans",
+          "docker compose -f docker-compose.local-prod.yml down --rmi all --volumes --remove-orphans",
           "docker network prune --force --filter 'label=com.docker.compose.project=<%=projectName%>'",
           "docker volume prune --force --filter 'label=com.docker.compose.project=<%=projectName%>'"
         ],

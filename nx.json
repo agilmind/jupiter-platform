@@ -88,6 +88,10 @@
     "mi-proyecto": {
       "tags": [],
       "root": "apps/mi-proyecto"
+    },
+    "jupiter": {
+      "tags": [],
+      "root": "apps/jupiter"
     }
   }
 }

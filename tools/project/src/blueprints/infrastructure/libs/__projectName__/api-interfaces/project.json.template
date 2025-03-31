@@ -1,5 +1,5 @@
 {
-  "name": "api-interfaces",
+  "name": "<%=projectName%>-api-interfaces",
   "root": "libs/<%=projectName%>/api-interfaces",
   "sourceRoot": "libs/<%=projectName%>/api-interfaces/src",
   "projectType": "library",

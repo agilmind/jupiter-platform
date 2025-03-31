@@ -1,5 +1,5 @@
 {
-  "name": "<%=appServerName%>",
+  "name": "<%=projectName%>-<%=appServerName%>",
   "root": "apps/<%=projectName%>/<%=appServerName%>",
   "sourceRoot": "apps/<%=projectName%>/<%=appServerName%>/src",
   "projectType": "application",

@@ -1,5 +1,5 @@
 {
-  "name": "shared",
+  "name": "<%=projectName%>-shared",
   "root": "libs/<%=projectName%>/shared",
   "sourceRoot": "libs/<%=projectName%>/shared/src",
   "projectType": "library",
