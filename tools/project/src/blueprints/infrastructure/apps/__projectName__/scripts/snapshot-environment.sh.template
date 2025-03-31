@@ -21,10 +21,10 @@ echo -e "${BLUE}Capturando estado actual del entorno local-prod de $PROJECT_NAME
 echo -e "${BLUE}==========================================================${NC}"
 
 # Verificar que los contenedores estén en ejecución
-CONTAINER_COUNT=$(docker-compose -f $COMPOSE_FILE ps -q | wc -l)
+CONTAINER_COUNT=$(docker compose -f $COMPOSE_FILE ps -q | wc -l)
 if [ "$CONTAINER_COUNT" -eq 0 ]; then
     echo -e "${RED}Error: No hay contenedores en ejecución. Inicia el entorno primero.${NC}"
-    echo -e "${YELLOW}Ejecuta: docker-compose -f $COMPOSE_FILE up -d${NC}"
+    echo -e "${YELLOW}Ejecuta: docker compose -f $COMPOSE_FILE up -d${NC}"
     exit 1
 fi
 
@@ -34,7 +34,7 @@ echo -e "${YELLOW}Encontrados $CONTAINER_COUNT contenedores en ejecución.${NC}"
 mkdir -p "$OUTPUT_DIR"
 
 # Obtener la lista de servicios
-SERVICES=$(docker-compose -f $COMPOSE_FILE config --services)
+SERVICES=$(docker compose -f $COMPOSE_FILE config --services)
 
 # Crear imágenes a partir del estado actual de los contenedores
 echo -e "${YELLOW}Creando imágenes a partir de los contenedores actuales...${NC}"
@@ -257,7 +257,7 @@ if [ -f "snapshot-images.tar" ]; then
 fi
 
 # Iniciar el entorno
-docker-compose up -d
+docker compose up -d
 
 echo -e "${GREEN}==========================================================${NC}"
 echo -e "${GREEN}Entorno iniciado correctamente${NC}"
@@ -282,7 +282,7 @@ YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
 echo -e "${YELLOW}Deteniendo entorno de snapshot...${NC}"
-docker-compose down
+docker compose down
 
 echo -e "${GREEN}Entorno detenido correctamente${NC}"
 EOF
