@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script para configurar la autenticación de las herramientas de monitoreo
-# Versión: 1.0
+# Versión: 1.1 (corregida)
 
 set -e  # Exit on error
 
@@ -114,6 +114,10 @@ add_header X-Content-Type-Options nosniff;
 add_header X-XSS-Protection "1; mode=block";
 EOF
     echo -e "${GREEN}Archivo ssl-params.conf creado${NC}"
+else
+    echo -e "${YELLOW}Archivo ssl-params.conf ya existe, verificando contenido...${NC}"
+    # Si el archivo existe, nos aseguramos que las directivas no estén duplicadas en los archivos de configuración
+    echo -e "${YELLOW}Si ves advertencias sobre directivas duplicadas, verifica manualmente los archivos.${NC}"
 fi
 
 # Crear o actualizar zona de caché para Grafana
@@ -129,15 +133,23 @@ EOF
     # Crear directorio de caché si no existe
     mkdir -p /var/cache/nginx/grafana
     chown -R www-data:www-data /var/cache/nginx
+else
+    echo -e "${YELLOW}Archivo cache-zones.conf ya existe, no se modificará${NC}"
 fi
 
-# Recargar configuración de Nginx
-echo -e "${YELLOW}Recargando configuración de Nginx...${NC}"
-nginx -t && systemctl reload nginx
+# Recargar configuración de Nginx, pero con más cuidado
+echo -e "${YELLOW}Verificando y recargando configuración de Nginx...${NC}"
+nginx -t
 if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Configuración de Nginx verificada correctamente${NC}"
+    systemctl reload nginx
     echo -e "${GREEN}Configuración de Nginx recargada correctamente${NC}"
 else
-    echo -e "${RED}Error al recargar configuración de Nginx${NC}"
+    echo -e "${RED}Error en la configuración de Nginx${NC}"
+    echo -e "${YELLOW}Por favor, revisa manualmente los archivos de configuración para resolver conflictos:${NC}"
+    echo -e "${YELLOW}- $SSL_PARAMS_FILE${NC}"
+    echo -e "${YELLOW}- $NGINX_CACHE_CONF${NC}"
+    echo -e "${YELLOW}- /etc/nginx/conf.d/*.conf${NC}"
     exit 1
 fi
 

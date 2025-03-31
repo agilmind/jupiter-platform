@@ -92,7 +92,7 @@ cp -r ./apps/$PROJECT_NAME/vps-infrastructure/hybrid/* "$TEMP_DIR/deploy/"
 
 # Copiar archivos comunes de monitoreo
 cp -r ./apps/$PROJECT_NAME/vps-infrastructure/common/monitoring/* "$TEMP_DIR/deploy/monitoring/"
-cp ./apps/$PROJECT_NAME/vps-infrastructure/common/docker-compose.monitoring.yml.template "$TEMP_DIR/deploy/docker-compose.monitoring.yml"
+cp ./apps/$PROJECT_NAME/vps-infrastructure/common/docker-compose.monitoring.yml "$TEMP_DIR/deploy/docker-compose.monitoring.yml"
 
 # 9. Reemplazar variables en los archivos
 echo -e "${YELLOW}Reemplazando variables en los archivos...${NC}"

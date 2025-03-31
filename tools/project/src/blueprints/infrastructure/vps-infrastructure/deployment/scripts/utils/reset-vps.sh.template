@@ -1,7 +1,7 @@
 #!/bin/bash
 # Script para resetear completamente el VPS - SOLO PARA PRUEBAS
 # ¡ADVERTENCIA! Este script eliminará TODOS los datos y configuraciones
-# Versión: 1.0
+# Versión: 1.1
 
 # Colores para output
 GREEN='\033[0;32m'
@@ -71,125 +71,60 @@ if ! ssh "$VPS_USER@$VPS_HOST" "[ -d $DEPLOY_PATH ]"; then
   fi
 fi
 
-# Realizar backup automático antes de borrar
-echo -e "${YELLOW}Realizando backup de emergencia antes de resetear...${NC}"
-ssh "$VPS_USER@$VPS_HOST" "if [ -d $DEPLOY_PATH ]; then sudo cp -r $DEPLOY_PATH $BACKUP_PATH; fi"
+# Método interactivo - necesitamos conectarnos directamente al VPS y ejecutar comandos allí
+echo -e "${YELLOW}===========================================================${NC}"
+echo -e "${YELLOW}El reseteo requiere acceso de superusuario en el VPS.${NC}"
+echo -e "${YELLOW}A continuación se abrirá una sesión SSH al VPS.${NC}"
+echo -e "${YELLOW}Por favor, ejecute estos comandos manualmente:${NC}"
+echo -e "${BLUE}"
+echo "# 1. Crear directorio de backup"
+echo "sudo mkdir -p $BACKUP_PATH"
+echo ""
+echo "# 2. Copiar instalación actual (si existe)"
+echo "if [ -d $DEPLOY_PATH ]; then sudo cp -r $DEPLOY_PATH/* $BACKUP_PATH/ 2>/dev/null; fi"
+echo ""
+echo "# 3. Detener y eliminar todos los contenedores Docker"
+echo "docker stop \$(docker ps -a -q) 2>/dev/null || true"
+echo "docker rm \$(docker ps -a -q) 2>/dev/null || true"
+echo ""
+echo "# 4. Eliminar todas las imágenes Docker"
+echo "docker rmi -f \$(docker images -a -q) 2>/dev/null || true"
+echo ""
+echo "# 5. Eliminar todos los volúmenes Docker"
+echo "docker volume rm \$(docker volume ls -q) 2>/dev/null || true"
+echo ""
+echo "# 6. Eliminar redes Docker personalizadas"
+echo "NETWORKS=\$(docker network ls | grep -v \"bridge\" | grep -v \"host\" | grep -v \"none\" | awk 'NR>1 {print \$1}')"
+echo "if [ ! -z \"\$NETWORKS\" ]; then docker network rm \$NETWORKS; fi"
+echo ""
+echo "# 7. Limpiar sistema Docker"
+echo "docker system prune -af --volumes"
+echo ""
+echo "# 8. Eliminar directorio de instalación"
+echo "sudo rm -rf $DEPLOY_PATH"
+echo ""
+echo "# 9. Eliminar configuraciones de Nginx"
+echo "sudo rm -f /etc/nginx/conf.d/${PROJECT_NAME}.conf"
+echo "sudo rm -f /etc/nginx/conf.d/grafana.vps.${PROJECT_NAME}.ar.conf"
+echo "sudo rm -f /etc/nginx/conf.d/prometheus.vps.${PROJECT_NAME}.ar.conf"
+echo "sudo rm -f /etc/nginx/conf.d/alertmanager.vps.${PROJECT_NAME}.ar.conf"
+echo ""
+echo "# 10. Recargar Nginx"
+echo "sudo nginx -t && sudo systemctl reload nginx"
+echo ""
+echo "# 11. Salir cuando haya terminado"
+echo "exit"
+echo -e "${NC}"
+echo -e "${YELLOW}===========================================================${NC}"
+echo -e "${YELLOW}Presione Enter para conectarse al VPS y ejecutar estos comandos.${NC}"
+echo -e "${YELLOW}===========================================================${NC}"
+read
 
-# Crear script de limpieza para ejecutar en el VPS
-cat > /tmp/reset-script.sh << 'EOF'
-#!/bin/bash
-# Script para resetear el VPS - Se ejecuta en el servidor
-
-# Colores para output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[0;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-PROJECT_PATH=$1
-PROJECT_NAME=$(basename $PROJECT_PATH)
-BACKUP_PATH=$2
-
-echo -e "${BLUE}===========================================================${NC}"
-echo -e "${BLUE}Iniciando reseteo completo del VPS${NC}"
-echo -e "${BLUE}===========================================================${NC}"
-
-# 1. Detener y eliminar todos los contenedores de Docker
-echo -e "${YELLOW}Deteniendo y eliminando todos los contenedores Docker...${NC}"
-if [ "$(docker ps -a -q)" ]; then
-    docker stop $(docker ps -a -q)
-    docker rm $(docker ps -a -q)
-    echo -e "${GREEN}✅ Todos los contenedores eliminados${NC}"
-else
-    echo -e "${YELLOW}No hay contenedores para eliminar${NC}"
-fi
-
-# 2. Eliminar todas las imágenes Docker
-echo -e "${YELLOW}Eliminando todas las imágenes Docker...${NC}"
-if [ "$(docker images -a -q)" ]; then
-    docker rmi -f $(docker images -a -q)
-    echo -e "${GREEN}✅ Todas las imágenes eliminadas${NC}"
-else
-    echo -e "${YELLOW}No hay imágenes para eliminar${NC}"
-fi
-
-# 3. Eliminar todos los volúmenes Docker
-echo -e "${YELLOW}Eliminando todos los volúmenes Docker...${NC}"
-if [ "$(docker volume ls -q)" ]; then
-    docker volume rm $(docker volume ls -q)
-    echo -e "${GREEN}✅ Todos los volúmenes eliminados${NC}"
-else
-    echo -e "${YELLOW}No hay volúmenes para eliminar${NC}"
-fi
-
-# 4. Eliminar todas las redes Docker (excepto las predeterminadas)
-echo -e "${YELLOW}Eliminando redes Docker personalizadas...${NC}"
-NETWORKS=$(docker network ls | grep -v "bridge" | grep -v "host" | grep -v "none" | awk 'NR>1 {print $1}')
-if [ ! -z "$NETWORKS" ]; then
-    docker network rm $NETWORKS
-    echo -e "${GREEN}✅ Redes personalizadas eliminadas${NC}"
-else
-    echo -e "${YELLOW}No hay redes personalizadas para eliminar${NC}"
-fi
-
-# 5. Limpiar sistema Docker
-echo -e "${YELLOW}Limpiando sistema Docker...${NC}"
-docker system prune -af --volumes
-echo -e "${GREEN}✅ Sistema Docker limpiado${NC}"
-
-# 6. Eliminar directorio de instalación
-if [ -d "$PROJECT_PATH" ]; then
-    echo -e "${YELLOW}Eliminando directorio de instalación: $PROJECT_PATH${NC}"
-    echo -e "${YELLOW}Se ha realizado un backup en: $BACKUP_PATH${NC}"
-    sudo rm -rf $PROJECT_PATH
-    echo -e "${GREEN}✅ Directorio eliminado${NC}"
-else
-    echo -e "${YELLOW}No existe el directorio $PROJECT_PATH${NC}"
-fi
-
-# 7. Eliminar configuraciones de Nginx
-echo -e "${YELLOW}Eliminando configuraciones de Nginx...${NC}"
-if [ -f "/etc/nginx/conf.d/${PROJECT_NAME}.conf" ]; then
-    sudo rm /etc/nginx/conf.d/${PROJECT_NAME}.conf
-    echo -e "${GREEN}✅ Configuración Nginx eliminada${NC}"
-fi
-
-if [ -f "/etc/nginx/conf.d/grafana.vps.${PROJECT_NAME}.ar.conf" ]; then
-    sudo rm /etc/nginx/conf.d/grafana.vps.${PROJECT_NAME}.ar.conf
-    echo -e "${GREEN}✅ Configuración Nginx de Grafana eliminada${NC}"
-fi
-
-if [ -f "/etc/nginx/conf.d/prometheus.vps.${PROJECT_NAME}.ar.conf" ]; then
-    sudo rm /etc/nginx/conf.d/prometheus.vps.${PROJECT_NAME}.ar.conf
-    echo -e "${GREEN}✅ Configuración Nginx de Prometheus eliminada${NC}"
-fi
-
-if [ -f "/etc/nginx/conf.d/alertmanager.vps.${PROJECT_NAME}.ar.conf" ]; then
-    sudo rm /etc/nginx/conf.d/alertmanager.vps.${PROJECT_NAME}.ar.conf
-    echo -e "${GREEN}✅ Configuración Nginx de AlertManager eliminada${NC}"
-fi
-
-# Recargar Nginx
-sudo nginx -t && sudo systemctl reload nginx
+# Conectar al VPS
+ssh "$VPS_USER@$VPS_HOST"
 
 echo -e "${GREEN}===========================================================${NC}"
-echo -e "${GREEN}Reseteo completo finalizado${NC}"
-echo -e "${GREEN}===========================================================${NC}"
-echo -e "${YELLOW}Se ha realizado un backup en: $BACKUP_PATH${NC}"
-echo -e "${YELLOW}Para restaurar (solo en caso de emergencia):${NC}"
-echo -e "${YELLOW}sudo cp -r $BACKUP_PATH $PROJECT_PATH${NC}"
-EOF
-
-# Transferir y ejecutar el script en el VPS
-echo -e "${YELLOW}Transfiriendo script de reseteo al VPS...${NC}"
-scp /tmp/reset-script.sh "$VPS_USER@$VPS_HOST:/tmp/"
-
-echo -e "${YELLOW}Ejecutando script de reseteo en el VPS...${NC}"
-ssh "$VPS_USER@$VPS_HOST" "chmod +x /tmp/reset-script.sh && sudo /tmp/reset-script.sh $DEPLOY_PATH $BACKUP_PATH"
-
-echo -e "${GREEN}===========================================================${NC}"
-echo -e "${GREEN}Reseteo del VPS completado${NC}"
+echo -e "${GREEN}Si ejecutaste todos los comandos correctamente, el VPS ahora está limpio.${NC}"
 echo -e "${GREEN}===========================================================${NC}"
 echo
 echo -e "${YELLOW}Se ha realizado un backup de emergencia en:${NC}"

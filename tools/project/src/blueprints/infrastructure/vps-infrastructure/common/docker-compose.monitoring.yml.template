@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # Prometheus - Sistema de monitoreo y almacenamiento de métricas
   prometheus:
@@ -87,8 +89,9 @@ services:
       - "9187"
     networks:
       - app-network
-    depends_on:
-      - postgres
+    # Quitamos la dependencia explícita a postgres
+    # depends_on:
+    #   - postgres
     deploy:
       resources:
         limits:
@@ -123,8 +126,9 @@ services:
       - "9419"
     networks:
       - app-network
-    depends_on:
-      - rabbitmq
+    # Quitamos la dependencia explícita a rabbitmq
+    # depends_on:
+    #   - rabbitmq
     deploy:
       resources:
         limits:
@@ -163,8 +167,9 @@ services:
       - "3000"
     networks:
       - app-network
-    depends_on:
-      - prometheus
+    # Quitamos la dependencia explícita a prometheus
+    # depends_on:
+    #   - prometheus
     deploy:
       resources:
         limits:
@@ -214,6 +219,7 @@ services:
         max-size: "5m"
         max-file: "3"
 
+# Reutilizamos la red existente del proyecto principal
 networks:
   app-network:
     external: true
