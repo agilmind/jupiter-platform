@@ -1,5 +1,5 @@
 {
-  "name": "<%=nativeAppName%>",
+  "name": "<%=projectName%>-<%=nativeAppName%>",
   "root": "apps/<%=projectName%>/<%=nativeAppName%>",
   "sourceRoot": "apps/<%=projectName%>/<%=nativeAppName%>/src",
   "projectType": "application",

@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Configuración para simular entorno de producción localmente
 services:
   # App Server

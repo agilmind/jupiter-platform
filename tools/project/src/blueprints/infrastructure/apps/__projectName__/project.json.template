@@ -3,20 +3,6 @@
   "root": "apps/<%=projectName%>",
   "projectType": "application",
   "targets": {
-    "build-all": {
-      "executor": "nx:run-commands",
-      "options": {
-        "commands": [
-          "nx build <%=appServerName%>",
-          {
-            "command": "nx build <%=webAppName%>",
-            "forwardAllArgs": true
-          },
-          "nx build <%=workerName%>"
-        ],
-        "parallel": false
-      }
-    },
     "dev": {
       "executor": "nx:run-commands",
       "options": {
