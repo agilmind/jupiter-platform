@@ -1,4 +1,3 @@
-# Configuración para simular entorno de producción localmente
 services:
   # App Server
   <%=appServerName%>:
@@ -16,8 +15,8 @@ services:
       - RABBITMQ_HOST=<%=projectName%>-rabbitmq-local
       - SERVICE_TYPE=app-server
       - SERVICE_NAME=<%=appServerName%>
-    ports:
-      - "4001:4001"  # Puerto diferente para no colisionar con desarrollo
+    expose:
+      - "4001"  # Solo exponemos internamente, Nginx hará proxy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
       interval: 30s
@@ -26,7 +25,7 @@ services:
       start_period: 20s
     restart: unless-stopped
     networks:
-      - local_prod_network
+      - <%=projectName%>_network
     depends_on:
       - pgbouncer
       - rabbitmq
@@ -53,7 +52,7 @@ services:
       start_period: 20s
     restart: unless-stopped
     networks:
-      - local_prod_network
+      - <%=projectName%>_network
     depends_on:
       - <%=appServerName%>
 
@@ -74,7 +73,7 @@ services:
       - SERVICE_NAME=<%=workerName%>
     restart: unless-stopped
     networks:
-      - local_prod_network
+      - <%=projectName%>_network
     depends_on:
       - pgbouncer
       - rabbitmq
@@ -88,10 +87,10 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-<%=projectName%>}
-    ports:
-      - "5433:5432"  # Puerto diferente para no colisionar con desarrollo
+    expose:
+      - "5432"  # Solo exposición interna
     volumes:
-      - local_prod_postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       # Script de inicialización
       - ./init-scripts/postgres:/docker-entrypoint-initdb.d
     healthcheck:
@@ -101,7 +100,7 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - local_prod_network
+      - <%=projectName%>_network
     restart: unless-stopped
 
   # PgBouncer - Connection pooling para PostgreSQL
@@ -119,10 +118,10 @@ services:
       - SERVER_RESET_QUERY=DISCARD ALL
       - MAX_DB_CONNECTIONS=0
       - MAX_USER_CONNECTIONS=0
-    ports:
-      - "6432:6432"  # Puerto estándar de pgBouncer
+    expose:
+      - "6432"  # Solo exposición interna
     networks:
-      - local_prod_network
+      - <%=projectName%>_network
     restart: unless-stopped
     depends_on:
       - postgres
@@ -134,11 +133,12 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
+    expose:
+      - "5672"  # AMQP expuesto internamente
     ports:
-      - "5673:5672"  # Puerto diferente para AMQP
-      - "15673:15672"  # Puerto de administración diferente
+      - "15673:15672"  # Puerto de administración visible externamente
     volumes:
-      - local_prod_rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -146,16 +146,16 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - local_prod_network
+      - <%=projectName%>_network
     restart: unless-stopped
 
 networks:
-  local_prod_network:
-    name: <%=projectName%>_local_prod_network
+  <%=projectName%>_network:
     driver: bridge
+    name: <%=projectName%>_network
 
 volumes:
-  local_prod_postgres_data:
-    name: <%=projectName%>_local_prod_postgres_data
-  local_prod_rabbitmq_data:
-    name: <%=projectName%>_local_prod_rabbitmq_data
+  postgres_data:
+    name: <%=projectName%>_postgres_data
+  rabbitmq_data:
+    name: <%=projectName%>_rabbitmq_data

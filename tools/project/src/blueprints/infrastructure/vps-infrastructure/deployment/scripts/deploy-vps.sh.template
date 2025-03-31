@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script para desplegar <%=projectName%> en el VPS
-# Versión: 1.0 - Despliegue básico
+# Versión: 2.2 - Despliegue con imágenes precompiladas y contexto correcto
 
 # Colores para consola
 GREEN='\033[0;32m'
@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 
 # Configuración
 PROJECT_NAME="<%=projectName%>"
-VPS_USER="root"  # Cambiar según sea necesario
+VPS_USER="deploy"  # Usuario dedicado para despliegues
 VPS_HOST="$PROJECT_NAME.ar"  # O la IP/dominio de tu VPS
 DEPLOY_PATH="/opt/$PROJECT_NAME"  # Ruta en el VPS donde se desplegará
 
@@ -22,7 +22,7 @@ echo -e "${BLUE}===========================================================${NC}
 # 1. Verificar que se ejecuta desde la carpeta raíz del proyecto
 if [ ! -d "./apps/$PROJECT_NAME" ]; then
   echo -e "${RED}Error: Este script debe ejecutarse desde la carpeta raíz del proyecto${NC}"
-  echo -e "${YELLOW}Ejemplo: ./apps/$PROJECT_NAME/scripts/deploy-vps.sh${NC}"
+  echo -e "${YELLOW}Ejemplo: bash ./apps/$PROJECT_NAME/vps-infrastructure/deployment/scripts/deploy-vps.sh${NC}"
   exit 1
 fi
 
@@ -34,61 +34,510 @@ if [ ! -f "./apps/$PROJECT_NAME/docker-compose.local-prod.yml" ]; then
   exit 1
 fi
 
-# 3. Crear directorio temporal para los archivos a transferir
-TEMP_DIR=$(mktemp -d)
-mkdir -p "$TEMP_DIR/deploy"
-
-echo -e "${YELLOW}Preparando archivos para transferir...${NC}"
-
-# 4. Copiar archivos necesarios
-cp "./apps/$PROJECT_NAME/docker-compose.local-prod.yml" "$TEMP_DIR/deploy/docker-compose.yml"
-cp -r "./apps/$PROJECT_NAME/init-scripts" "$TEMP_DIR/deploy/"
-cp -r "./apps/$PROJECT_NAME/bin" "$TEMP_DIR/deploy/"
-cp "./apps/$PROJECT_NAME/.env" "$TEMP_DIR/deploy/" 2>/dev/null || cp "./apps/$PROJECT_NAME/.env.example" "$TEMP_DIR/deploy/.env" 2>/dev/null
-
-# 5. Copiar scripts de VPS (estos deberían haber sido generados correctamente)
-if [ -d "./vps-infrastructure" ]; then
-  # Copiar configuraciones de Nginx
-  mkdir -p "$TEMP_DIR/deploy/nginx/conf.d"
-  cp "./vps-infrastructure/minimal/nginx/conf.d/project.conf" "$TEMP_DIR/deploy/nginx/conf.d/$PROJECT_NAME.ar.conf" 2>/dev/null
-  cp "./vps-infrastructure/minimal/nginx/conf.d/webapp.conf" "$TEMP_DIR/deploy/nginx/conf.d/webapp.$PROJECT_NAME.ar.conf" 2>/dev/null
-
-  # Copiar scripts de configuración
-  cp "./vps-infrastructure/scripts/setup-nginx.sh" "$TEMP_DIR/deploy/" 2>/dev/null
-  cp "./vps-infrastructure/scripts/setup-ssl.sh" "$TEMP_DIR/deploy/" 2>/dev/null
-  chmod +x "$TEMP_DIR/deploy/"*.sh 2>/dev/null
-else
-  echo -e "${YELLOW}Directorio vps-infrastructure no encontrado. Se usarán configuraciones básicas.${NC}"
+# 3. Verificar que Docker está instalado localmente
+if ! command -v docker &> /dev/null; then
+  echo -e "${RED}Error: Docker no está instalado en tu sistema${NC}"
+  exit 1
 fi
 
-# 6. Transferir archivos al VPS
-echo -e "${YELLOW}Transfiriendo archivos al VPS...${NC}"
+# 4. Crear directorio temporal para los archivos a transferir
+TEMP_DIR=$(mktemp -d)
+mkdir -p "$TEMP_DIR/deploy"
+echo -e "${YELLOW}Directorio temporal creado: $TEMP_DIR${NC}"
+
+# 5. Preparar archivos para despliegue
+echo -e "${YELLOW}Preparando archivos para transferir...${NC}"
+
+# 6. Construir imágenes base localmente (esto es necesario para los builds)
+echo -e "${YELLOW}Construyendo imágenes base localmente...${NC}"
+cd "./apps/$PROJECT_NAME/bin" && bash build-base-images.sh && cd ../../..
+
+# 7. Construir las imágenes usando docker-compose.local-prod.yml
+echo -e "${YELLOW}Construyendo imágenes de servicio para producción...${NC}"
+cd ./apps/$PROJECT_NAME
+
+# Modificar docker-compose.local-prod.yml temporalmente para asignar tags a las imágenes
+TEMP_COMPOSE_FILE=$(mktemp)
+cat docker-compose.local-prod.yml > $TEMP_COMPOSE_FILE
+
+# Definir nombres de imágenes
+APP_SERVER_IMG="$PROJECT_NAME-app-server:prod"
+WEBAPP_IMG="$PROJECT_NAME-webapp:prod"
+WORKER_IMG="$PROJECT_NAME-worker-sample:prod"
+
+echo -e "${YELLOW}Usando docker-compose para construir las imágenes...${NC}"
+docker compose -f docker-compose.local-prod.yml build
+
+# Etiquetar las imágenes construidas con nombres predecibles
+echo -e "${YELLOW}Etiquetando imágenes con nombres predecibles...${NC}"
+
+# Obtener los nombres de las imágenes construidas
+APP_SERVER_ACTUAL=$(docker compose -f docker-compose.local-prod.yml images app-server -q)
+WEBAPP_ACTUAL=$(docker compose -f docker-compose.local-prod.yml images web-app -q)
+WORKER_ACTUAL=$(docker compose -f docker-compose.local-prod.yml images worker-sample -q)
+
+echo "Imagen app-server: $APP_SERVER_ACTUAL"
+echo "Imagen web-app: $WEBAPP_ACTUAL"
+echo "Imagen worker-sample: $WORKER_ACTUAL"
+
+# Etiquetar las imágenes
+if [ ! -z "$APP_SERVER_ACTUAL" ]; then
+  docker tag $APP_SERVER_ACTUAL $APP_SERVER_IMG
+fi
+
+if [ ! -z "$WEBAPP_ACTUAL" ]; then
+  docker tag $WEBAPP_ACTUAL $WEBAPP_IMG
+fi
+
+if [ ! -z "$WORKER_ACTUAL" ]; then
+  docker tag $WORKER_ACTUAL $WORKER_IMG
+fi
+
+# Verificar que las imágenes están etiquetadas correctamente
+echo -e "${YELLOW}Verificando imágenes etiquetadas...${NC}"
+docker images | grep "$PROJECT_NAME"
+
+cd ../..
+
+# 8. Crear lista de imágenes para exportar
+echo -e "${YELLOW}Preparando imágenes para exportar...${NC}"
+IMAGE_LIST=(
+  "$APP_SERVER_IMG"
+  "$WEBAPP_IMG"
+  "$WORKER_IMG"
+)
+
+# 9. Exportar imágenes a un archivo tar
+echo -e "${YELLOW}Exportando imágenes a archivo tar...${NC}"
+echo -e "${YELLOW}Esto puede tomar varios minutos dependiendo del tamaño de las imágenes...${NC}"
+docker save -o "$TEMP_DIR/$PROJECT_NAME-images.tar" ${IMAGE_LIST[@]}
+if [ $? -ne 0 ]; then
+  echo -e "${RED}Error: Falló la exportación de imágenes${NC}"
+  exit 1
+fi
+
+# 10. Modificar docker-compose.yml para usar imágenes en lugar de builds
+echo -e "${YELLOW}Modificando docker-compose.yml para uso en producción...${NC}"
+cat > "$TEMP_DIR/deploy/docker-compose.yml" << EOF
+services:
+  # App Server
+  app-server:
+    image: $APP_SERVER_IMG
+    container_name: $PROJECT_NAME-app-server-local-prod
+    environment:
+      - NODE_ENV=production
+      - PORT=4001
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgresql://\${POSTGRES_USER:-postgres}:\${POSTGRES_PASSWORD:-postgres}@$PROJECT_NAME-pgbouncer-local:6432/\${POSTGRES_DB:-$PROJECT_NAME}
+      - RABBITMQ_URL=amqp://\${RABBITMQ_DEFAULT_USER:-guest}:\${RABBITMQ_DEFAULT_PASS:-guest}@$PROJECT_NAME-rabbitmq-local:5672
+      - RABBITMQ_HOST=$PROJECT_NAME-rabbitmq-local
+      - SERVICE_TYPE=app-server
+      - SERVICE_NAME=app-server
+    ports:
+      - "4001:4001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - local_prod_network
+    depends_on:
+      - pgbouncer
+      - rabbitmq
+
+  # Web App
+  web-app:
+    image: $WEBAPP_IMG
+    container_name: $PROJECT_NAME-web-app-local-prod
+    environment:
+      - SERVER_PORT=4001
+      - APP_SERVER_HOST=$PROJECT_NAME-app-server-local-prod
+      - APP_SERVER_PORT=4001
+      - SERVICE_TYPE=web-app
+      - SERVICE_NAME=web-app
+    ports:
+      - "8081:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - local_prod_network
+    depends_on:
+      - app-server
+
+  # Worker
+  worker-sample:
+    image: $WORKER_IMG
+    container_name: $PROJECT_NAME-worker-sample-local-prod
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://\${POSTGRES_USER:-postgres}:\${POSTGRES_PASSWORD:-postgres}@$PROJECT_NAME-pgbouncer-local:6432/\${POSTGRES_DB:-$PROJECT_NAME}
+      - RABBITMQ_URL=amqp://\${RABBITMQ_DEFAULT_USER:-guest}:\${RABBITMQ_DEFAULT_PASS:-guest}@$PROJECT_NAME-rabbitmq-local:5672
+      - RABBITMQ_HOST=$PROJECT_NAME-rabbitmq-local
+      - APP_SERVER_HOST=$PROJECT_NAME-app-server-local-prod
+      - APP_SERVER_PORT=4001
+      - SERVICE_TYPE=worker
+      - SERVICE_NAME=worker-sample
+    restart: unless-stopped
+    networks:
+      - local_prod_network
+    depends_on:
+      - pgbouncer
+      - rabbitmq
+      - app-server
+
+  # PostgreSQL
+  postgres:
+    image: postgres:14-alpine
+    container_name: $PROJECT_NAME-postgres-local-prod
+    environment:
+      - POSTGRES_USER=\${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=\${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=\${POSTGRES_DB:-$PROJECT_NAME}
+    ports:
+      - "5433:5432"
+    volumes:
+      - local_prod_postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - local_prod_network
+    restart: unless-stopped
+
+  # PgBouncer - Connection pooling para PostgreSQL
+  pgbouncer:
+    image: edoburu/pgbouncer:1.18.0
+    container_name: $PROJECT_NAME-pgbouncer-local
+    environment:
+      - DB_USER=\${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=\${POSTGRES_PASSWORD:-postgres}
+      - DB_HOST=$PROJECT_NAME-postgres-local-prod
+      - DB_NAME=\${POSTGRES_DB:-$PROJECT_NAME}
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=100
+      - DEFAULT_POOL_SIZE=20
+      - SERVER_RESET_QUERY=DISCARD ALL
+      - MAX_DB_CONNECTIONS=0
+      - MAX_USER_CONNECTIONS=0
+    ports:
+      - "6432:6432"
+    networks:
+      - local_prod_network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: $PROJECT_NAME-rabbitmq-local
+    environment:
+      - RABBITMQ_DEFAULT_USER=\${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=\${RABBITMQ_DEFAULT_PASS:-guest}
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    volumes:
+      - local_prod_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - local_prod_network
+    restart: unless-stopped
+
+networks:
+  local_prod_network:
+    name: ${PROJECT_NAME}_local_prod_network
+    driver: bridge
+
+volumes:
+  local_prod_postgres_data:
+    name: ${PROJECT_NAME}_local_prod_postgres_data
+  local_prod_rabbitmq_data:
+    name: ${PROJECT_NAME}_local_prod_rabbitmq_data
+EOF
+
+# 11. Copiar otros archivos necesarios
+echo -e "${YELLOW}Copiando scripts y archivos adicionales...${NC}"
+mkdir -p "$TEMP_DIR/deploy/init-scripts/postgres"
+cp -r "./apps/$PROJECT_NAME/init-scripts/postgres/"* "$TEMP_DIR/deploy/init-scripts/postgres/" 2>/dev/null || echo -e "${YELLOW}No hay scripts de inicialización de PostgreSQL${NC}"
+
+# 12. Crear .env si no existe
+if [ ! -f "./apps/$PROJECT_NAME/.env" ]; then
+  echo -e "${YELLOW}Creando archivo .env básico${NC}"
+  cat > "$TEMP_DIR/deploy/.env" << EOF
+# Variables de entorno para producción
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=$PROJECT_NAME
+NODE_ENV=production
+EOF
+else
+  cp "./apps/$PROJECT_NAME/.env" "$TEMP_DIR/deploy/.env"
+fi
+
+# 13. Copiar scripts y configuraciones de VPS
+echo -e "${YELLOW}Copiando scripts de configuración...${NC}"
+mkdir -p "$TEMP_DIR/deploy/nginx/conf.d"
+cp "./apps/$PROJECT_NAME/vps-infrastructure/minimal/nginx/conf.d/project.conf" "$TEMP_DIR/deploy/nginx/conf.d/$PROJECT_NAME.ar.conf" 2>/dev/null || \
+  echo -e "${YELLOW}Archivo project.conf no encontrado, creando uno básico...${NC}" && \
+  cat > "$TEMP_DIR/deploy/nginx/conf.d/$PROJECT_NAME.ar.conf" << EOF
+server {
+    listen 80;
+    server_name $PROJECT_NAME.ar;
+
+    location / {
+        proxy_pass http://localhost:4001;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Acceso a RabbitMQ Management
+    location /rabbitmq/ {
+        proxy_pass http://localhost:15673/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Health check
+    location /health {
+        proxy_pass http://localhost:4001/health;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+    }
+}
+EOF
+
+cp "./apps/$PROJECT_NAME/vps-infrastructure/minimal/nginx/conf.d/webapp.conf" "$TEMP_DIR/deploy/nginx/conf.d/webapp.$PROJECT_NAME.ar.conf" 2>/dev/null || \
+  echo -e "${YELLOW}Archivo webapp.conf no encontrado, creando uno básico...${NC}" && \
+  cat > "$TEMP_DIR/deploy/nginx/conf.d/webapp.$PROJECT_NAME.ar.conf" << EOF
+server {
+    listen 80;
+    server_name webapp.$PROJECT_NAME.ar;
+
+    location / {
+        proxy_pass http://localhost:8081;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Health check
+    location /health {
+        proxy_pass http://localhost:8081/health;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+    }
+}
+EOF
+
+# Copiar setup-nginx.sh
+cp "./apps/$PROJECT_NAME/vps-infrastructure/scripts/setup-nginx.sh" "$TEMP_DIR/deploy/" 2>/dev/null || \
+  echo -e "${YELLOW}Archivo setup-nginx.sh no encontrado, creando uno básico...${NC}" && \
+  cat > "$TEMP_DIR/deploy/setup-nginx.sh" << 'EOF'
+#!/bin/bash
+# Script para configurar Nginx en el VPS
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Configurando Nginx${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# Verificar permisos suficientes
+if [ "$(id -u)" -ne 0 ]; then
+    if ! command -v sudo &> /dev/null; then
+        echo -e "${RED}Este script debe ejecutarse como root o con sudo${NC}"
+        exit 1
+    fi
+    echo -e "${YELLOW}Ejecutando con sudo...${NC}"
+    exec sudo "$0" "$@"
+    exit $?
+fi
+
+# Instalar Nginx si no está instalado
+if ! command -v nginx &> /dev/null; then
+    echo -e "${YELLOW}Nginx no está instalado. Instalando...${NC}"
+    apt-get update && apt-get install -y nginx
+else
+    echo -e "${GREEN}Nginx ya está instalado${NC}"
+fi
+
+# Verificar que existen los archivos de configuración
+if [ ! -d "./nginx/conf.d" ]; then
+    echo -e "${RED}Error: No se encontró el directorio nginx/conf.d${NC}"
+    exit 1
+fi
+
+# Crear directorio para la configuración
+mkdir -p /etc/nginx/conf.d/
+
+# Copiar archivos de configuración
+cp ./nginx/conf.d/*.conf /etc/nginx/conf.d/
+
+# Verificar la configuración de Nginx
+echo -e "${YELLOW}Verificando configuración de Nginx...${NC}"
+nginx -t
+
+if [ $? -eq 0 ]; then
+    # Reiniciar Nginx
+    echo -e "${YELLOW}Reiniciando Nginx...${NC}"
+    systemctl restart nginx
+    echo -e "${GREEN}Nginx configurado correctamente${NC}"
+else
+    echo -e "${RED}Error en la configuración de Nginx${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Configuración de Nginx completada${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+EOF
+
+# Copiar setup-ssl.sh
+cp "./apps/$PROJECT_NAME/vps-infrastructure/scripts/setup-ssl.sh" "$TEMP_DIR/deploy/" 2>/dev/null || \
+  echo -e "${YELLOW}Archivo setup-ssl.sh no encontrado, se creará uno básico${NC}"
+
+# Hacer ejecutables los scripts
+chmod +x "$TEMP_DIR/deploy/"*.sh 2>/dev/null
+
+# 14. Crear script de inicialización en el VPS
+cat > "$TEMP_DIR/deploy/setup-vps.sh" << 'EOF'
+#!/bin/bash
+# Script para configurar el entorno en el VPS
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Obtener el nombre del proyecto del directorio actual
+PROJECT_NAME=$(basename $(pwd))
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Configurando $PROJECT_NAME en el VPS${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# Instalar Docker si no está instalado
+if ! command -v docker &> /dev/null; then
+    echo -e "${YELLOW}Docker no está instalado. Instalando...${NC}"
+    sudo apt-get update
+    sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sudo sh get-docker.sh
+    sudo usermod -aG docker $USER
+    rm get-docker.sh
+    echo -e "${GREEN}Docker instalado. Es posible que necesites cerrar sesión y volver a iniciarla.${NC}"
+    echo -e "${YELLOW}Presiona Enter para continuar o Ctrl+C para salir y reiniciar sesión${NC}"
+    read
+fi
+
+# Verificar que Docker Compose está disponible
+if ! docker compose version &> /dev/null; then
+    echo -e "${RED}Docker Compose no está disponible. Asegúrate de que Docker está actualizado.${NC}"
+    exit 1
+fi
+
+# Cargar las imágenes Docker
+if [ -f "$PROJECT_NAME-images.tar" ]; then
+    echo -e "${YELLOW}Cargando imágenes Docker. Esto puede tardar varios minutos...${NC}"
+    docker load -i "$PROJECT_NAME-images.tar"
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Error al cargar las imágenes Docker${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}Imágenes cargadas correctamente${NC}"
+else
+    echo -e "${RED}No se encontró el archivo de imágenes: $PROJECT_NAME-images.tar${NC}"
+    exit 1
+fi
+
+# Configurar Nginx
+if [ -f "./setup-nginx.sh" ]; then
+    echo -e "${YELLOW}Configurando Nginx...${NC}"
+    chmod +x ./setup-nginx.sh
+    ./setup-nginx.sh
+fi
+
+# Iniciar contenedores
+echo -e "${YELLOW}Iniciando contenedores...${NC}"
+docker compose up -d
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}$PROJECT_NAME configurado correctamente${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+echo ""
+echo -e "${YELLOW}Servicios disponibles:${NC}"
+echo "- Web App: http://webapp.$PROJECT_NAME.ar"
+echo "- API: http://$PROJECT_NAME.ar:4001"
+echo "- RabbitMQ Admin: http://$PROJECT_NAME.ar:15673 (guest/guest)"
+echo ""
+echo "Para configurar HTTPS, ejecuta: ./setup-ssl.sh"
+EOF
+
+chmod +x "$TEMP_DIR/deploy/setup-vps.sh"
+
+# 15. Transferir archivos al VPS
+echo -e "${YELLOW}Transfiriendo archivos al VPS... Esto puede tardar varios minutos...${NC}"
+echo -e "${YELLOW}Tamaño del archivo de imágenes: $(du -h "$TEMP_DIR/$PROJECT_NAME-images.tar" | cut -f1)${NC}"
+
+# Asegurarse de que el directorio existe en el VPS
 ssh "$VPS_USER@$VPS_HOST" "mkdir -p $DEPLOY_PATH"
-rsync -avz --delete "$TEMP_DIR/deploy/" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
 
-# 7. Configurar y ejecutar en el VPS
-echo -e "${YELLOW}Configurando el VPS...${NC}"
-ssh "$VPS_USER@$VPS_HOST" "cd $DEPLOY_PATH && \
-  # Instalar dependencias
-  if ! command -v docker &> /dev/null; then
-    curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh && rm get-docker.sh;
-  fi && \
-  if ! command -v docker-compose &> /dev/null; then
-    curl -L \"https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose && \
-    chmod +x /usr/local/bin/docker-compose && ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose;
-  fi && \
-  # Configurar Nginx si existe
-  if [ -f \"./setup-nginx.sh\" ]; then
-    chmod +x ./setup-nginx.sh && ./setup-nginx.sh;
-  fi && \
-  # Construir imágenes base
-  if [ -d \"./bin\" ]; then
-    cd ./bin && chmod +x *.sh && ./build-base-images.sh && cd ..;
-  fi && \
-  # Iniciar contenedores
-  docker-compose up -d"
+# Transferir todo excepto las imágenes (más rápido)
+rsync -avz --delete --exclude="$PROJECT_NAME-images.tar" "$TEMP_DIR/deploy/" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
 
-# 8. Limpiar archivos temporales
+# Verificar si el archivo de imágenes ya existe en el VPS
+echo -e "${YELLOW}Verificando si el archivo de imágenes ya existe en el VPS...${NC}"
+if ssh "$VPS_USER@$VPS_HOST" "[ -f $DEPLOY_PATH/$PROJECT_NAME-images.tar ]"; then
+    echo -e "${YELLOW}El archivo de imágenes ya existe en el VPS.${NC}"
+    read -p "¿Deseas sobrescribirlo? (s/n): " OVERWRITE
+    if [[ "$OVERWRITE" == "s" || "$OVERWRITE" == "S" ]]; then
+        echo -e "${YELLOW}Transfiriendo archivo de imágenes...${NC}"
+        rsync -avz "$TEMP_DIR/$PROJECT_NAME-images.tar" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+    else
+        echo -e "${YELLOW}Se usará el archivo de imágenes existente${NC}"
+    fi
+else
+    echo -e "${YELLOW}Transfiriendo archivo de imágenes...${NC}"
+    rsync -avz "$TEMP_DIR/$PROJECT_NAME-images.tar" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+fi
+
+# 16. Configurar y ejecutar en el VPS
+echo -e "${YELLOW}Ejecutando configuración en el VPS...${NC}"
+echo -e "${YELLOW}Esto puede tardar varios minutos...${NC}"
+ssh "$VPS_USER@$VPS_HOST" "cd $DEPLOY_PATH && chmod +x setup-vps.sh && ./setup-vps.sh"
+
+# 17. Limpiar archivos temporales
+echo -e "${YELLOW}Limpiando archivos temporales...${NC}"
 rm -rf "$TEMP_DIR"
 
 echo -e "${GREEN}===========================================================${NC}"
@@ -104,6 +553,6 @@ echo -e "${YELLOW}Para configurar HTTPS:${NC}"
 echo "ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && ./setup-ssl.sh\""
 echo ""
 echo -e "${YELLOW}Para administrar remotamente:${NC}"
-echo "- Detener: ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && docker-compose down\""
-echo "- Iniciar: ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && docker-compose up -d\""
-echo "- Ver logs: ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && docker-compose logs -f\""
+echo "- Detener: ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && docker compose down\""
+echo "- Iniciar: ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && docker compose up -d\""
+echo "- Ver logs: ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && docker compose logs -f\""

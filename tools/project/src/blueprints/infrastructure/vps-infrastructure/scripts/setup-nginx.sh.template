@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script para configurar Nginx en el VPS
-# Este script debe ejecutarse en el VPS
+# Este script debe ejecutarse con privilegios sudo
 
 # Colores para consola
 GREEN='\033[0;32m'
@@ -13,10 +13,15 @@ echo -e "${BLUE}===========================================================${NC}
 echo -e "${BLUE}Configurando Nginx para <%=projectName%>.ar${NC}"
 echo -e "${BLUE}===========================================================${NC}"
 
-# Verificar que se ejecuta como root
+# Verificar permisos suficientes
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${RED}Este script debe ejecutarse como root${NC}"
-    exit 1
+    if ! command -v sudo &> /dev/null; then
+        echo -e "${RED}Este script debe ejecutarse como root o con sudo${NC}"
+        exit 1
+    fi
+    echo -e "${YELLOW}Ejecutando con sudo...${NC}"
+    exec sudo "$0" "$@"
+    exit $?
 fi
 
 # Instalar Nginx si no está instalado
