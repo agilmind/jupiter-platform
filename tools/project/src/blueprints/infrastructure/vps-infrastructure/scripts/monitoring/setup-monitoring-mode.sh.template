@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script para configurar el modo de monitoreo (apagado/ligero/completo)
-# Versión: 1.0
+# Versión: 1.1 (corregido)
 
 set -e  # Exit on error
 
@@ -72,7 +72,7 @@ configure_light_mode() {
     sed -i 's/cpus: .1./cpus: 0.5/g' "$DOCKER_COMPOSE_FILE"
 
     # Aplicar cambios
-    docker compose -f "$DOCKER_COMPOSE_FILE" up -d
+    docker compose -f docker-compose.yml -f "$DOCKER_COMPOSE_FILE" up -d
 
     echo -e "${GREEN}Modo ligero configurado correctamente${NC}"
 }
@@ -93,7 +93,7 @@ configure_full_mode() {
     cp "$DOCKER_COMPOSE_FILE.bak" "$DOCKER_COMPOSE_FILE" 2>/dev/null || true
 
     # Aplicar cambios
-    docker compose -f "$DOCKER_COMPOSE_FILE" up -d
+    docker compose -f docker-compose.yml -f "$DOCKER_COMPOSE_FILE" up -d
 
     echo -e "${GREEN}Modo completo configurado correctamente${NC}"
 }
@@ -111,7 +111,7 @@ MODE="$1"
 case "$MODE" in
     off)
         echo -e "${YELLOW}Deteniendo servicios de monitoreo...${NC}"
-        docker compose -f "$DOCKER_COMPOSE_FILE" down
+        docker compose -f docker-compose.yml -f "$DOCKER_COMPOSE_FILE" down
         echo -e "${GREEN}Servicios de monitoreo detenidos${NC}"
         ;;
     light)
@@ -130,7 +130,7 @@ case "$MODE" in
             sed -i 's/--storage.tsdb.retention.time=15d/--storage.tsdb.retention.time=3d/g' "$DOCKER_COMPOSE_FILE"
 
             # Iniciar servicios
-            docker compose -f "$DOCKER_COMPOSE_FILE" up -d
+            docker compose -f docker-compose.yml -f "$DOCKER_COMPOSE_FILE" up -d
 
             echo -e "${GREEN}Servicios de monitoreo iniciados en modo ligero${NC}"
         fi
@@ -148,7 +148,7 @@ case "$MODE" in
             fi
 
             # Iniciar servicios
-            docker compose -f "$DOCKER_COMPOSE_FILE" up -d
+            docker compose -f docker-compose.yml -f "$DOCKER_COMPOSE_FILE" up -d
 
             echo -e "${GREEN}Servicios de monitoreo iniciados en modo completo${NC}"
         fi

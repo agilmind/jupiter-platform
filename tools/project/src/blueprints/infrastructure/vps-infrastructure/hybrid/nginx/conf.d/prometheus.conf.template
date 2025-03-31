@@ -15,7 +15,7 @@ server {
     # Configuración SSL
     ssl_certificate /etc/letsencrypt/live/<%=projectName%>.ar/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/<%=projectName%>.ar/privkey.pem;
-    include /etc/nginx/conf.d/ssl-params.conf;
+    include /etc/nginx/conf.d/ssl-params-<%=projectName%>.conf;
 
     # Autenticación básica
     auth_basic "Área restringida";

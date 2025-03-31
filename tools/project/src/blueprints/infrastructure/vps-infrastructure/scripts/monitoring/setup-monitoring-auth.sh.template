@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script para configurar la autenticación de las herramientas de monitoreo
-# Versión: 1.1 (corregida)
+# Versión: 1.2 (solución para SSL)
 
 set -e  # Exit on error
 
@@ -92,11 +92,10 @@ if [ ! -d "$NGINX_CONF_DIR" ]; then
     exit 1
 fi
 
-# Crear configuración SSL params si no existe
-SSL_PARAMS_FILE="$NGINX_CONF_DIR/ssl-params.conf"
-if [ ! -f "$SSL_PARAMS_FILE" ]; then
-    echo -e "${YELLOW}Creando archivo de parámetros SSL...${NC}"
-    cat > "$SSL_PARAMS_FILE" << 'EOF'
+# Crear configuración SSL params con nombre específico para este proyecto
+SSL_PARAMS_FILE="$NGINX_CONF_DIR/ssl-params-$PROJECT_NAME.conf"
+echo -e "${YELLOW}Creando archivo de parámetros SSL específico: $SSL_PARAMS_FILE${NC}"
+cat > "$SSL_PARAMS_FILE" << 'EOF'
 # Configuración optimizada de SSL
 ssl_protocols TLSv1.2 TLSv1.3;
 ssl_prefer_server_ciphers on;
@@ -113,31 +112,40 @@ add_header X-Frame-Options DENY;
 add_header X-Content-Type-Options nosniff;
 add_header X-XSS-Protection "1; mode=block";
 EOF
-    echo -e "${GREEN}Archivo ssl-params.conf creado${NC}"
-else
-    echo -e "${YELLOW}Archivo ssl-params.conf ya existe, verificando contenido...${NC}"
-    # Si el archivo existe, nos aseguramos que las directivas no estén duplicadas en los archivos de configuración
-    echo -e "${YELLOW}Si ves advertencias sobre directivas duplicadas, verifica manualmente los archivos.${NC}"
-fi
+echo -e "${GREEN}Archivo ssl-params-$PROJECT_NAME.conf creado${NC}"
+
+# Actualizar los archivos de configuración de Nginx para usar el nuevo archivo de SSL
+echo -e "${YELLOW}Actualizando archivos de configuración Nginx...${NC}"
+for file in grafana.vps.$PROJECT_NAME.ar.conf prometheus.vps.$PROJECT_NAME.ar.conf alertmanager.vps.$PROJECT_NAME.ar.conf; do
+  if [ -f "$NGINX_CONF_DIR/$file" ]; then
+    echo -e "${YELLOW}Actualizando $file...${NC}"
+    # Cambiar la referencia a ssl-params.conf por ssl-params-PROJECT_NAME.conf
+    sed -i "s|include /etc/nginx/conf.d/ssl-params.conf;|include /etc/nginx/conf.d/ssl-params-$PROJECT_NAME.conf;|g" "$NGINX_CONF_DIR/$file"
+  fi
+done
 
 # Crear o actualizar zona de caché para Grafana
-NGINX_CACHE_CONF="/etc/nginx/conf.d/cache-zones.conf"
-if [ ! -f "$NGINX_CACHE_CONF" ]; then
-    echo -e "${YELLOW}Creando configuración de caché para Nginx...${NC}"
-    cat > "$NGINX_CACHE_CONF" << 'EOF'
-# Definición de zonas de caché
-proxy_cache_path /var/cache/nginx/grafana levels=1:2 keys_zone=grafana_cache:10m max_size=1g inactive=60m use_temp_path=off;
+NGINX_CACHE_CONF="/etc/nginx/conf.d/cache-zones-$PROJECT_NAME.conf"
+echo -e "${YELLOW}Creando configuración de caché específica: $NGINX_CACHE_CONF${NC}"
+cat > "$NGINX_CACHE_CONF" << EOF
+# Definición de zonas de caché para $PROJECT_NAME
+proxy_cache_path /var/cache/nginx/$PROJECT_NAME levels=1:2 keys_zone=${PROJECT_NAME}_cache:10m max_size=1g inactive=60m use_temp_path=off;
 EOF
-    echo -e "${GREEN}Archivo cache-zones.conf creado${NC}"
+echo -e "${GREEN}Archivo cache-zones-$PROJECT_NAME.conf creado${NC}"
 
-    # Crear directorio de caché si no existe
-    mkdir -p /var/cache/nginx/grafana
-    chown -R www-data:www-data /var/cache/nginx
-else
-    echo -e "${YELLOW}Archivo cache-zones.conf ya existe, no se modificará${NC}"
-fi
+# Crear directorio de caché si no existe
+mkdir -p /var/cache/nginx/$PROJECT_NAME
+chown -R www-data:www-data /var/cache/nginx
 
-# Recargar configuración de Nginx, pero con más cuidado
+# Actualizar los archivos de configuración para usar la nueva zona de caché
+for file in grafana.vps.$PROJECT_NAME.ar.conf; do
+  if [ -f "$NGINX_CONF_DIR/$file" ]; then
+    echo -e "${YELLOW}Actualizando caché en $file...${NC}"
+    sed -i "s|proxy_cache grafana_cache;|proxy_cache ${PROJECT_NAME}_cache;|g" "$NGINX_CONF_DIR/$file"
+  fi
+done
+
+# Recargar configuración de Nginx
 echo -e "${YELLOW}Verificando y recargando configuración de Nginx...${NC}"
 nginx -t
 if [ $? -eq 0 ]; then
@@ -146,10 +154,12 @@ if [ $? -eq 0 ]; then
     echo -e "${GREEN}Configuración de Nginx recargada correctamente${NC}"
 else
     echo -e "${RED}Error en la configuración de Nginx${NC}"
-    echo -e "${YELLOW}Por favor, revisa manualmente los archivos de configuración para resolver conflictos:${NC}"
+    echo -e "${YELLOW}Por favor, revisa manualmente los archivos de configuración:${NC}"
     echo -e "${YELLOW}- $SSL_PARAMS_FILE${NC}"
     echo -e "${YELLOW}- $NGINX_CACHE_CONF${NC}"
-    echo -e "${YELLOW}- /etc/nginx/conf.d/*.conf${NC}"
+    echo -e "${YELLOW}- $NGINX_CONF_DIR/grafana.vps.$PROJECT_NAME.ar.conf${NC}"
+    echo -e "${YELLOW}- $NGINX_CONF_DIR/prometheus.vps.$PROJECT_NAME.ar.conf${NC}"
+    echo -e "${YELLOW}- $NGINX_CONF_DIR/alertmanager.vps.$PROJECT_NAME.ar.conf${NC}"
     exit 1
 fi
 
