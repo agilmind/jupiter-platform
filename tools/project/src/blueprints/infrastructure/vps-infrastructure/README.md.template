@@ -1,0 +1,41 @@
+# VPS Infrastructure for <%=projectName%>
+
+Este directorio contiene la configuración de infraestructura para desplegar el proyecto en un VPS.
+
+## Estructura
+
+- **complete/**: Configuración completa (todo en un VPS)
+- **hybrid/**: Configuración híbrida (algunos servicios en cloud)
+- **minimal/**: Configuración mínima (servicios principalmente en cloud)
+- **deployment/**: Scripts y configuraciones de despliegue
+- **docs/**: Documentación del proyecto
+- **scripts/**: Scripts utilitarios
+
+## Guías de uso
+
+### Para entorno de producción completo
+
+1. Configure las variables de entorno en `deployment/environments/prod.env`
+2. Ejecute el script de despliegue: `./deployment/scripts/deploy-prod.sh`
+
+### Para entorno híbrido
+
+1. Configure las variables de entorno en `deployment/environments/prod.env`
+2. Ajuste las configuraciones de conexión en `hybrid/pgbouncer/pgbouncer.ini`
+3. Ejecute el despliegue con: `cd hybrid && docker-compose up -d`
+
+### Para capturar un snapshot del entorno
+
+1. Asegúrese de que el entorno esté en ejecución
+2. Ejecute: `./scripts/snapshot-environment.sh`
+3. Siga las instrucciones para compartir el snapshot
+
+## Requisitos
+
+- Docker y Docker Compose
+- Acceso SSH al VPS
+- Variables de entorno configuradas
+
+## Más información
+
+Consulte la documentación en el directorio `docs/` para más detalles.

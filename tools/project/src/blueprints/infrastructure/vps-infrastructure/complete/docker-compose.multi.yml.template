@@ -1,0 +1,18 @@
+version: '3.8'
+
+# Docker Compose para entornos múltiples (staging + prod) en un solo VPS
+services:
+  # Nginx - Proxy inverso compartido
+  nginx:
+    image: nginx:alpine
+    container_name: <%=projectName%>-nginx
+    # Configuración pendiente para múltiples entornos
+    # ...
+
+  # Servicios para producción
+  # ...
+
+  # Servicios para staging
+  # ...
+
+# Networks y Volumes pendientes

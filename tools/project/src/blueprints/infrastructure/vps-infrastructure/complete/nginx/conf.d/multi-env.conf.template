@@ -1,0 +1,17 @@
+# Configuración de Nginx para múltiples entornos en un solo VPS
+
+# Producción
+server {
+    listen 80;
+    server_name <%=projectName%>.com www.<%=projectName%>.com;
+
+    # Configuración pendiente
+}
+
+# Staging
+server {
+    listen 80;
+    server_name staging.<%=projectName%>.com;
+
+    # Configuración pendiente
+}

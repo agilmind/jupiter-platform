@@ -1,0 +1,47 @@
+version: '3.8'
+
+# Docker Compose con todos los servicios para un despliegue completo en VPS
+services:
+  # Nginx - Proxy inverso y balanceador de carga
+  nginx:
+    image: nginx:alpine
+    container_name: <%=projectName%>-nginx
+    # Configuración pendiente
+    # ...
+
+  # PostgreSQL
+  postgres:
+    image: postgres:14-alpine
+    container_name: <%=projectName%>-postgres
+    # Configuración pendiente
+    # ...
+
+  # PgBouncer
+  pgbouncer:
+    image: edoburu/pgbouncer:1.16.0
+    container_name: <%=projectName%>-pgbouncer
+    # Configuración pendiente
+    # ...
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: <%=projectName%>-rabbitmq
+    # Configuración pendiente
+    # ...
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: <%=projectName%>-prometheus
+    # Configuración pendiente
+    # ...
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: <%=projectName%>-grafana
+    # Configuración pendiente
+    # ...
+
+# Networks y Volumes pendientes

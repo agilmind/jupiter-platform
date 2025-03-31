@@ -1,0 +1,33 @@
+version: '3.8'
+
+# Docker Compose para arquitectura híbrida (algunos servicios en cloud)
+services:
+  # Nginx - Proxy inverso y balanceador de carga
+  nginx:
+    image: nginx:alpine
+    container_name: <%=projectName%>-nginx
+    # Configuración pendiente
+    # ...
+
+  # PgBouncer - Conexión a PostgreSQL externo
+  pgbouncer:
+    image: edoburu/pgbouncer:1.16.0
+    container_name: <%=projectName%>-pgbouncer
+    # Configuración para conectar a PostgreSQL externo
+    # ...
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: <%=projectName%>-prometheus
+    # Configuración pendiente
+    # ...
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: <%=projectName%>-grafana
+    # Configuración pendiente
+    # ...
+
+# Networks y Volumes pendientes

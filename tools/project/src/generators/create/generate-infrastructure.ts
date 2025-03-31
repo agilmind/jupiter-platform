@@ -70,6 +70,14 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
     }
   });
 
+  // Generar infraestructura para el VPS
+  generateFiles(
+    tree,
+    joinPathFragments(templatesDir, 'vps-infraestructure'),
+    joinPathFragments('apps', projectNameDashed, 'vps'),
+    substitutions
+  );
+
   // Generar estructura para el servidor de aplicación
   generateFiles(
     tree,
@@ -78,27 +86,15 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
     substitutions
   );
 
-  // Generar directorio con scripts
-  generateFiles(
-    tree,
-    joinPathFragments(templatesDir, 'apps', '__projectName__', 'bin'),
-    joinPathFragments('apps', projectNameDashed, 'bin'),
-    substitutions
-  );
-
-  generateFiles(
-    tree,
-    joinPathFragments(templatesDir, 'apps', '__projectName__', 'postgres-init'),
-    joinPathFragments('apps', projectNameDashed, 'postgres-init'),
-    substitutions
-  );
-
-  generateFiles(
-    tree,
-    joinPathFragments(templatesDir, 'apps', '__projectName__', 'rabbitmq-init'),
-    joinPathFragments('apps', projectNameDashed, 'rabbitmq-init'),
-    substitutions
-  );
+  // Generar directorios completos en apps
+  for (const dirName of ['bin', 'init-scripts', 'scripts']) {
+    generateFiles(
+      tree,
+      joinPathFragments(templatesDir, 'apps', '__projectName__', dirName),
+      joinPathFragments('apps', projectNameDashed, dirName),
+      substitutions
+    );
+  }
 
   // Generar estructura para cada aplicación web
   webAppNames.forEach(webAppName => {
@@ -130,21 +126,15 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
     );
   });
 
-  // Generar estructura para las librerías compartidas
-  generateFiles(
-    tree,
-    joinPathFragments(templatesDir, 'libs', '__projectName__', 'shared'),
-    joinPathFragments('libs', projectNameDashed, 'shared'),
-    substitutions
-  );
-
-  // Generar estructura para las interfaces de API
-  generateFiles(
-    tree,
-    joinPathFragments(templatesDir, 'libs', '__projectName__', 'api-interfaces'),
-    joinPathFragments('libs', projectNameDashed, 'api-interfaces'),
-    substitutions
-  );
+  // Generar directorios completos en libs
+  for (const dirName of ['shared', 'api-interfaces']) {
+    generateFiles(
+      tree,
+      joinPathFragments(templatesDir, 'libs', '__projectName__', dirName),
+      joinPathFragments('libs', projectNameDashed, dirName),
+      substitutions
+    );
+  }
 
   // Formatear todos los archivos generados
   await formatFiles(tree);

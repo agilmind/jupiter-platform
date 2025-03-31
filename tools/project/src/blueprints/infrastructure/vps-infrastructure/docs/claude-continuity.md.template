@@ -1,0 +1,98 @@
+# Guía de continuidad para Claude
+
+## Contexto del proyecto
+
+Estamos desarrollando una infraestructura de VPS para el proyecto `<%=projectName%>`. Esta infraestructura está organizada dentro de un generador basado en NX, utilizando templates con variables como `<%=projectName%>` que se reemplazan durante la generación.
+
+## Estructura y enfoque
+
+El proyecto sigue una arquitectura flexible con tres configuraciones posibles:
+
+1. **Complete**: Todo en un solo VPS (PostgreSQL, RabbitMQ, Nginx, etc.)
+2. **Hybrid**: Algunos servicios en cloud (PostgreSQL) y otros en VPS (Nginx, pgBouncer)
+3. **Minimal**: Infraestructura mínima cuando todo está en la nube
+
+Adicionalmente, hemos implementado un sistema de "snapshot" que permite capturar el estado actual del entorno y compartirlo fácilmente.
+
+## Estado actual del desarrollo
+
+Acabamos de crear la estructura base del proyecto `vps-infrastructure` con los templates necesarios para cada componente. Los archivos están organizados siguiendo las tres configuraciones mencionadas.
+
+## Próximos pasos planeados
+
+1. **Alta disponibilidad** (en progreso):
+   - Configurar pgBouncer para connection pooling
+   - Implementar clustering de RabbitMQ
+   - Balanceo de carga con Nginx
+   - Sistema de respaldos automatizados
+
+2. **CI/CD y despliegue continuo** (siguiente fase):
+   - Pipeline de integración continua
+   - Despliegues automatizados
+   - Pruebas automatizadas
+   - Estrategia de rollback
+
+3. **Seguridad** (fase final):
+   - Hardening de contenedores
+   - Gestión segura de credenciales
+   - Configuración TLS/SSL
+   - Reglas de acceso y firewall
+
+## Decisiones técnicas clave
+
+1. **pgBouncer**:
+   - Se decidió implementarlo junto a PostgreSQL en la configuración "complete"
+   - En configuraciones "hybrid", se incluye en el VPS para conexiones a DB externa
+   - Ubicación siempre cercana a los clientes para minimizar latencia
+
+2. **Entornos múltiples**:
+   - Configuración para soportar prod y staging en el mismo VPS
+   - Nginx como punto de entrada que enruta según el hostname
+
+3. **Snapshot del entorno**:
+   - Sistema para capturar el estado actual y compartirlo
+   - Basado en imágenes Docker con el estado actual
+
+## Instrucciones para continuar
+
+Si estás retomando esta conversación:
+
+1. **Para continuar con Alta Disponibilidad**:
+   - Necesitamos implementar la configuración completa de Nginx para balanceo
+   - Optimizar la configuración de pgBouncer
+   - Configurar el clustering de RabbitMQ
+
+2. **Para trabajar en el sistema de snapshots**:
+   - Ya tenemos implementado el script `snapshot-environment.sh`
+   - Podríamos mejorar la documentación o añadir funcionalidades
+
+3. **Para avanzar a CI/CD**:
+   - Necesitamos definir el flujo de trabajo de integración continua
+   - Implementar los scripts de despliegue automatizado
+
+## Ejemplos de código relevantes
+
+Ya hemos implementado los siguientes componentes clave:
+
+1. **Script para generar estructura**:
+   ```bash
+   ./generate-vps-infrastructure.sh
+   ```
+
+2. **Script para capturar snapshots**:
+   ```bash
+   ./vps-infrastructure/scripts/snapshot-environment.sh
+   ```
+
+3. **Configuración de Nginx para múltiples entornos**:
+   - Archivos en `vps-infrastructure/complete/nginx/conf.d/`
+
+## Observaciones técnicas para Claude
+
+Al continuar el desarrollo, considera:
+
+1. La estructura debe mantener la separación clara entre las tres configuraciones
+2. Los archivos deben terminar con `.template` para el generador NX
+3. Usa las variables `<%=projectName%>`, `<%=appServerName%>`, etc.
+4. Al crear scripts, asegúrate que sean compatibles con Alpine Linux (ash)
+5. Todos los archivos de configuración deben estar documentados

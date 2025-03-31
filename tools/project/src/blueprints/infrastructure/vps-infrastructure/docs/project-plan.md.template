@@ -1,0 +1,85 @@
+# Planificación de Infraestructura VPS
+
+## Objetivo
+
+Este documento describe el plan de desarrollo para la infraestructura VPS del proyecto <%=projectName%>. Está estructurado para facilitar la continuidad del desarrollo incluso si la conversación se interrumpe.
+
+## Arquitectura y componentes
+
+Estamos implementando una infraestructura flexible con tres configuraciones posibles:
+
+1. **Complete**: Todo en un solo VPS
+   - PostgreSQL + pgBouncer
+   - RabbitMQ
+   - Nginx como proxy/balanceador
+   - Monitoreo con Prometheus/Grafana
+
+2. **Hybrid**: Algunos servicios en cloud
+   - PostgreSQL en servicio gestionado
+   - pgBouncer en VPS para conexión a PostgreSQL externo
+   - Nginx y monitoreo en VPS
+
+3. **Minimal**: Infraestructura mínima cuando todo está en servicios gestionados
+   - Solo Nginx como punto de entrada
+   - Configuración mínima para conectar con servicios externos
+
+## Enfoque de desarrollo
+
+Nuestro enfoque actual es:
+
+1. Implementar la estructura base con todos los archivos de configuración
+2. Comenzar con la arquitectura "Complete" para VPS
+3. Implementar el sistema de Alta Disponibilidad
+4. Añadir CI/CD y despliegue continuo
+5. Mejorar seguridad
+
+### Plan para Alta Disponibilidad (Fase actual)
+
+1. Configurar PostgreSQL con pgBouncer para connection pooling
+2. Implementar clustering de RabbitMQ
+3. Configurar balanceo de carga para múltiples instancias de la aplicación
+4. Implementar sistema de respaldo automatizado
+
+### Plan para CI/CD (Siguiente fase)
+
+1. Configurar pipeline de integración continua
+2. Implementar despliegues automatizados
+3. Pruebas automatizadas pre-despliegue
+4. Estrategia de rollback
+
+### Plan para Seguridad (Fase final)
+
+1. Hardening de contenedores
+2. Manejo seguro de secretos y credenciales
+3. Configuración de TLS/SSL
+4. Firewall y reglas de acceso
+
+## Funcionalidades especiales
+
+1. **Entornos múltiples**: Configuración para tener staging y prod en mismo VPS
+2. **Snapshot del entorno**: Sistema para capturar y compartir estado actual del entorno
+3. **Portabilidad**: Capacidad para empaquetar y compartir entornos completos
+
+## Progreso actual
+
+1. [x] Diseño de la estructura de directorios
+2. [x] Script para capturar snapshots del entorno
+3. [ ] Implementación de nginx para múltiples entornos
+4. [ ] Configuración de pgBouncer para alta disponibilidad
+5. [ ] Implementación de monitoreo con Prometheus/Grafana
+
+## Próximos pasos
+
+Los próximos componentes a desarrollar son:
+
+1. Completar configuración de Nginx para balanceo de carga
+2. Implementar configuración optimizada de pgBouncer
+3. Configurar sistema de respaldo automatizado
+4. Implementar monitoreo básico
+
+## Notas para continuidad
+
+Si necesitas retomar esta conversación con Claude:
+1. Comparte este documento
+2. Explica que estás continuando el desarrollo de la infraestructura VPS
+3. Indica en qué componente específico quieres continuar trabajando

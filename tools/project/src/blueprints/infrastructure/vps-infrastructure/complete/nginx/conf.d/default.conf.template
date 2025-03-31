@@ -1,0 +1,30 @@
+# Configuración de Nginx para entorno completo
+# Para ser implementada con más detalle
+
+server {
+    listen 80;
+    server_name <%=projectName%>.com www.<%=projectName%>.com;
+
+    # Redirección a HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name <%=projectName%>.com www.<%=projectName%>.com;
+
+    # Configuración SSL
+    # ...
+
+    # Configuración de proxy para web-app
+    location / {
+        # Configuración pendiente
+    }
+
+    # Configuración de proxy para app-server
+    location /api {
+        # Configuración pendiente
+    }
+}

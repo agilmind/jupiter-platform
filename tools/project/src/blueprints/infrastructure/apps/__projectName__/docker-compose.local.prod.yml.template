@@ -1,0 +1,163 @@
+version: '3.8'
+
+# Configuración para simular entorno de producción localmente
+services:
+  # App Server
+  <%=appServerName%>:
+    build:
+      context: ../../
+      dockerfile: apps/<%=projectName%>/<%=appServerName%>/Dockerfile
+    container_name: <%=projectName%>-<%=appServerName%>-local-prod
+    environment:
+      - NODE_ENV=production
+      - PORT=4001  # Puerto diferente para no colisionar con desarrollo
+      - HOST=0.0.0.0
+      # Usamos pgBouncer en lugar de PostgreSQL directamente
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@<%=projectName%>-pgbouncer-local:6432/${POSTGRES_DB:-<%=projectName%>}
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@<%=projectName%>-rabbitmq-local:5672
+      - RABBITMQ_HOST=<%=projectName%>-rabbitmq-local
+      - SERVICE_TYPE=app-server
+      - SERVICE_NAME=<%=appServerName%>
+    ports:
+      - "4001:4001"  # Puerto diferente para no colisionar con desarrollo
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - local_prod_network
+    depends_on:
+      - pgbouncer
+      - rabbitmq
+
+  # Web App
+  <%=webAppName%>:
+    build:
+      context: ../../
+      dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile
+    container_name: <%=projectName%>-<%=webAppName%>-local-prod
+    environment:
+      - SERVER_PORT=4001
+      - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>-local-prod
+      - APP_SERVER_PORT=4001
+      - SERVICE_TYPE=web-app
+      - SERVICE_NAME=<%=webAppName%>
+    ports:
+      - "8081:80"  # Puerto diferente para no colisionar con desarrollo
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - local_prod_network
+    depends_on:
+      - <%=appServerName%>
+
+  # Worker
+  <%=workerName%>:
+    build:
+      context: ../../
+      dockerfile: apps/<%=projectName%>/<%=workerName%>/Dockerfile
+    container_name: <%=projectName%>-<%=workerName%>-local-prod
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@<%=projectName%>-pgbouncer-local:6432/${POSTGRES_DB:-<%=projectName%>}
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@<%=projectName%>-rabbitmq-local:5672
+      - RABBITMQ_HOST=<%=projectName%>-rabbitmq-local
+      - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>-local-prod
+      - APP_SERVER_PORT=4001
+      - SERVICE_TYPE=worker
+      - SERVICE_NAME=<%=workerName%>
+    restart: unless-stopped
+    networks:
+      - local_prod_network
+    depends_on:
+      - pgbouncer
+      - rabbitmq
+      - <%=appServerName%>
+
+  # PostgreSQL
+  postgres:
+    image: postgres:14-alpine
+    container_name: <%=projectName%>-postgres-local-prod
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-<%=projectName%>}
+    ports:
+      - "5433:5432"  # Puerto diferente para no colisionar con desarrollo
+    volumes:
+      - local_prod_postgres_data:/var/lib/postgresql/data
+      # Script de inicialización
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - local_prod_network
+    restart: unless-stopped
+
+  # PgBouncer - Connection pooling para PostgreSQL
+  pgbouncer:
+    image: edoburu/pgbouncer:1.18.0
+    container_name: <%=projectName%>-pgbouncer-local
+    environment:
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - DB_HOST=<%=projectName%>-postgres-local-prod
+      - DB_NAME=${POSTGRES_DB:-<%=projectName%>}
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=100
+      - DEFAULT_POOL_SIZE=20
+      - SERVER_RESET_QUERY=DISCARD ALL
+      - MAX_DB_CONNECTIONS=0
+      - MAX_USER_CONNECTIONS=0
+    ports:
+      - "6432:6432"  # Puerto estándar de pgBouncer
+    networks:
+      - local_prod_network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: <%=projectName%>-rabbitmq-local
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
+    ports:
+      - "5673:5672"  # Puerto diferente para AMQP
+      - "15673:15672"  # Puerto de administración diferente
+    volumes:
+      - local_prod_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - local_prod_network
+    restart: unless-stopped
+
+networks:
+  local_prod_network:
+    name: <%=projectName%>_local_prod_network
+    driver: bridge
+
+volumes:
+  local_prod_postgres_data:
+    name: <%=projectName%>_local_prod_postgres_data
+  local_prod_rabbitmq_data:
+    name: <%=projectName%>_local_prod_rabbitmq_data
