@@ -6,12 +6,35 @@ Estamos desarrollando una infraestructura de VPS para proyectos generados con un
 
 ## Estado actual del desarrollo
 
-Hemos implementado una infraestructura funcional para desplegar proyectos en VPS con:
+Hemos implementado una infraestructura funcional "Minimal" para desplegar proyectos en VPS con:
 - Configuración Docker Compose para entornos de desarrollo y producción
 - Scripts de despliegue y configuración automatizados
 - Configuración de Nginx para enrutamiento y SSL
 - Seguridad básica con aislamiento de servicios internos
 - Acceso a API a través de URL amigables (ej: project.ar/api) en lugar de puertos
+
+## Plan de desarrollo actual
+
+Estamos avanzando hacia una solución más robusta basada en el plan del documento project-plan.md. La prioridad actual es:
+
+1. **Implementar sistema de monitoreo completo con:**
+   - Prometheus para recolección de métricas
+   - Grafana para visualización
+   - AlertManager para gestión de alertas
+   - Node Exporter, PostgreSQL Exporter y RabbitMQ Exporter para métricas de servicios
+   - Acceso a través de subdominios específicos (grafana.vps.jupiter.ar, prometheus.vps.jupiter.ar)
+   - Autenticación y seguridad para herramientas expuestas
+
+2. **Implementar sistema de logging centralizado:**
+   - Loki para recolección y almacenamiento de logs
+   - Integración con Grafana para visualización
+   - Tracing distribuido con Jaeger/OpenTelemetry
+   - Mecanismo de correlation IDs para seguimiento entre servicios
+
+3. **Capacidad de operación multimodal:**
+   - Modos de funcionamiento: apagado/ligero/completo
+   - Scripts para cambiar entre modos
+   - Configuración de retención de datos según el modo
 
 ## Principios del desarrollo
 
@@ -24,6 +47,7 @@ Hemos implementado una infraestructura funcional para desplegar proyectos en VPS
    - Los scripts van en `vps-infrastructure/scripts/`
    - Los archivos de configuración van en sus respectivos directorios (nginx/conf.d/, etc.)
    - Los documentos van en `vps-infrastructure/docs/`
+   - El monitoreo va en `vps-infrastructure/complete/monitoring/`
 
 3. **Generalización completa**:
    - Todas las referencias específicas deben usar variables como `<%=projectName%>`
@@ -42,6 +66,12 @@ vps-infrastructure/
 │   ├── docker-compose.multi.yml.template
 │   ├── docker-compose.yml.template
 │   ├── monitoring/
+│   │   ├── alertmanager
+│   │   ├── grafana
+│   │   │   ├── dashboards
+│   │   │   └── provisioning
+│   │   └── prometheus
+│   │       └── prometheus.yml.template
 │   ├── nginx/
 │   │   ├── conf.d/
 │   │   │   ├── default.conf.template
@@ -76,72 +106,57 @@ vps-infrastructure/
     └── fix-docker-network.sh.template  # Script para resolver problemas de red Docker
 ```
 
-## Flujo de trabajo para VPS
+## Componentes en desarrollo
 
-1. **Generación del proyecto**:
-   ```bash
-   nx g project:create projectName
-   ```
+Estamos ampliando la estructura para incluir:
 
-2. **Despliegue en VPS** (usuario deploy con permisos sudo):
-   ```bash
-   bash ./apps/projectName/vps-infrastructure/deployment/scripts/deploy-vps.sh
-   ```
+```
+vps-infrastructure/
+├── complete/
+│   ├── monitoring/
+│   │   ├── alertmanager/
+│   │   │   └── alertmanager.yml.template
+│   │   ├── grafana/
+│   │   │   ├── dashboards/
+│   │   │   │   ├── node-exporter.json.template
+│   │   │   │   ├── postgres.json.template
+│   │   │   │   └── rabbitmq.json.template
+│   │   │   └── provisioning/
+│   │   │       ├── dashboards/
+│   │   │       └── datasources/
+│   │   ├── exporters/
+│   │   │   ├── node-exporter/
+│   │   │   ├── postgres-exporter/
+│   │   │   └── rabbitmq-exporter/
+│   │   ├── loki/
+│   │   │   └── loki-config.yml.template
+│   │   ├── jaeger/
+│   │   │   └── jaeger.yml.template
+│   │   └── prometheus/
+│   │       ├── prometheus.yml.template
+│   │       └── rules/
+│   │           ├── alerting-rules.yml.template
+│   │           └── recording-rules.yml.template
+│   └── nginx/
+│       ├── conf.d/
+│       │   ├── grafana.conf.template
+│       │   ├── prometheus.conf.template
+│       │   └── monitoring.conf.template
+```
 
-3. **Configuración de SSL** (después del despliegue):
-   ```bash
-   ssh deploy@projectName.ar "cd /opt/projectName && ./setup-ssl.sh"
-   ```
+## Flujo de trabajo para continuación
 
-4. **Resolución de problemas** (si es necesario):
-   ```bash
-   ssh deploy@projectName.ar "cd /opt/projectName && sudo ./fix-docker-network.sh"
-   ```
+Si necesitas retomar esta conversación con Claude:
+1. Comparte este documento
+2. Explica que estás continuando el desarrollo de la infraestructura VPS
+3. Menciona que estamos implementando el sistema de monitoreo y logging
+4. Especifica en qué componente específico quedamos trabajando
+5. Comparte también cualquier archivo nuevo que hayamos creado
 
-## Componentes implementados
+## Notas adicionales
 
-1. **Configuración minimal para VPS**:
-   - Nginx como punto de entrada: redirige a /api y sirve la web-app
-   - Sin exposición de puertos innecesarios (solo 80/443 para web y 15673 para admin RabbitMQ)
-   - Seguridad básica con aislamiento de servicios
-
-2. **Docker Compose adaptado**:
-   - Redes simplificadas para evitar problemas
-   - Volúmenes para persistencia
-   - Configuración específica para producción
-
-3. **SSL/HTTPS**:
-   - Certificados Let's Encrypt
-   - Renovación automática
-   - Redirección HTTPS
-
-4. **Scripts de administración**:
-   - Solución para problemas de red Docker
-   - Despliegue con imágenes precompiladas
-
-## Próximos pasos
-
-1. **Mejorar monitoreo**:
-   - Implementar Prometheus/Grafana para monitoreo
-   - Configurar alertas para servicios críticos
-
-2. **Implementar CI/CD**:
-   - Pipeline GitHub Actions
-   - Despliegue automatizado
-
-3. **Optimización de rendimiento**:
-   - Configuración de caché para Nginx
-   - Ajustes de rendimiento para PostgreSQL y pgBouncer
-
-4. **Backups automatizados**:
-   - Scripts de backup programados
-   - Estrategia de recuperación
-
-## Consideraciones técnicas para Claude
-
-1. Todos los archivos deben terminar con `.template`
-2. Usar las variables `<%=projectName%>`, `<%=appServerName%>`, etc. para personalización
-3. Al hacer cambios, siempre considerar su incorporación al generador
-4. Los scripts deben ser compatibles con Alpine Linux (ash) por compatibilidad con contenedores
-5. Nunca usar nombres de proyectos específicos como "jupiter" en los templates
-6. Aclarar siempre en qué carpeta debe ir un archivo nuevo
+- Estamos trabajando con un VPS de Hostinger (KVM 4: 200GB disco, 16GB RAM, 4 núcleos)
+- Postfix está configurado para enviar alertas por email
+- Las herramientas de monitoreo deben estar accesibles a través de subdominios específicos
+- Se requiere autenticación para proteger las herramientas de monitoreo
+- El sistema debe poder funcionar en tres modos: apagado, ligero y completo

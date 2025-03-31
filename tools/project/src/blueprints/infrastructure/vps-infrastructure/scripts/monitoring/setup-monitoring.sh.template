@@ -1,0 +1,157 @@
+#!/bin/bash
+# Script para configurar el monitoreo en una instalación existente
+# Versión: 1.0
+
+set -e  # Exit on error
+
+# Colores para output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Configuración
+PROJECT_NAME="<%=projectName%>"
+VPS_USER="deploy"  # Usuario dedicado para despliegues
+VPS_HOST="$PROJECT_NAME.ar"  # O la IP/dominio de tu VPS
+DEPLOY_PATH="/opt/$PROJECT_NAME"  # Ruta en el VPS donde está desplegado
+
+# Subdominios para monitoreo
+DOMAINS=(
+  "grafana.vps.$PROJECT_NAME.ar"
+  "prometheus.vps.$PROJECT_NAME.ar"
+  "alertmanager.vps.$PROJECT_NAME.ar"
+)
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Configurando monitoreo para $PROJECT_NAME en $VPS_HOST${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# 1. Verificar que se ejecuta desde la carpeta raíz del proyecto
+if [ ! -d "./apps/$PROJECT_NAME" ]; then
+  echo -e "${RED}Error: Este script debe ejecutarse desde la carpeta raíz del proyecto${NC}"
+  echo -e "${YELLOW}Ejemplo: bash ./apps/$PROJECT_NAME/vps-infrastructure/deployment/scripts/setup-monitoring.sh${NC}"
+  exit 1
+fi
+
+# 2. Verificar que el VPS existe y es accesible
+echo -e "${YELLOW}Verificando conexión con el VPS...${NC}"
+if ! ssh -q "$VPS_USER@$VPS_HOST" exit; then
+  echo -e "${RED}Error: No se puede conectar al VPS${NC}"
+  exit 1
+fi
+
+# 3. Verificar que el proyecto está desplegado en el VPS
+echo -e "${YELLOW}Verificando que el proyecto está desplegado en el VPS...${NC}"
+if ! ssh "$VPS_USER@$VPS_HOST" "[ -d $DEPLOY_PATH ]"; then
+  echo -e "${RED}Error: No se encontró el proyecto desplegado en $DEPLOY_PATH${NC}"
+  echo -e "${YELLOW}Primero debes desplegar el proyecto con deploy-vps.sh o deploy-hybrid.sh${NC}"
+  exit 1
+fi
+
+# 4. Crear directorio temporal para los archivos a transferir
+TEMP_DIR=$(mktemp -d)
+mkdir -p "$TEMP_DIR/monitoring"
+echo -e "${YELLOW}Directorio temporal creado: $TEMP_DIR${NC}"
+
+# 5. Preparar directorios de configuración
+mkdir -p "$TEMP_DIR/monitoring/prometheus/rules"
+mkdir -p "$TEMP_DIR/monitoring/grafana/provisioning/datasources"
+mkdir -p "$TEMP_DIR/monitoring/grafana/provisioning/dashboards"
+mkdir -p "$TEMP_DIR/monitoring/grafana/dashboards"
+mkdir -p "$TEMP_DIR/monitoring/alertmanager"
+mkdir -p "$TEMP_DIR/nginx/conf.d"
+
+# 6. Copiar archivos de configuración
+echo -e "${YELLOW}Copiando archivos de configuración...${NC}"
+
+# Prometheus
+cp "./apps/$PROJECT_NAME/vps-infrastructure/common/monitoring/prometheus/prometheus.yml.template" "$TEMP_DIR/monitoring/prometheus/prometheus.yml"
+cp "./apps/$PROJECT_NAME/vps-infrastructure/common/monitoring/prometheus/rules/alerting-rules.yml.template" "$TEMP_DIR/monitoring/prometheus/rules/alerting-rules.yml"
+
+# Grafana
+cp "./apps/$PROJECT_NAME/vps-infrastructure/common/monitoring/grafana/provisioning/datasources/datasources.yml.template" "$TEMP_DIR/monitoring/grafana/provisioning/datasources/datasources.yml"
+cp "./apps/$PROJECT_NAME/vps-infrastructure/common/monitoring/grafana/provisioning/dashboards/dashboards.yml.template" "$TEMP_DIR/monitoring/grafana/provisioning/dashboards/dashboards.yml"
+
+# AlertManager
+cp "./apps/$PROJECT_NAME/vps-infrastructure/common/monitoring/alertmanager/alertmanager.yml.template" "$TEMP_DIR/monitoring/alertmanager/alertmanager.yml"
+
+# Docker Compose
+cp "./apps/$PROJECT_NAME/vps-infrastructure/common/docker-compose.monitoring.yml.template" "$TEMP_DIR/docker-compose.monitoring.yml"
+
+# Nginx
+cp "./apps/$PROJECT_NAME/vps-infrastructure/hybrid/nginx/conf.d/grafana.conf.template" "$TEMP_DIR/nginx/conf.d/grafana.conf"
+cp "./apps/$PROJECT_NAME/vps-infrastructure/hybrid/nginx/conf.d/prometheus.conf.template" "$TEMP_DIR/nginx/conf.d/prometheus.conf"
+cp "./apps/$PROJECT_NAME/vps-infrastructure/hybrid/nginx/conf.d/alertmanager.conf.template" "$TEMP_DIR/nginx/conf.d/alertmanager.conf"
+
+# Scripts
+cp "./apps/$PROJECT_NAME/vps-infrastructure/scripts/setup-monitoring-auth.sh.template" "$TEMP_DIR/setup-monitoring-auth.sh"
+cp "./apps/$PROJECT_NAME/vps-infrastructure/scripts/setup-monitoring-mode.sh.template" "$TEMP_DIR/setup-monitoring-mode.sh"
+
+# 7. Reemplazar variables en los archivos
+echo -e "${YELLOW}Reemplazando variables en los archivos...${NC}"
+find "$TEMP_DIR" -type f -exec sed -i "s/<%=projectName%>/$PROJECT_NAME/g" {} \;
+find "$TEMP_DIR" -type f -exec sed -i "s/<%=appServerName%>/app-server/g" {} \;
+find "$TEMP_DIR" -type f -exec sed -i "s/<%=workerName%>/worker-sample/g" {} \;
+find "$TEMP_DIR" -type f -exec sed -i "s/<%=webAppName%>/web-app/g" {} \;
+
+# 8. Transferir archivos al VPS
+echo -e "${YELLOW}Transfiriendo archivos al VPS...${NC}"
+
+# Crear directorios en el VPS
+ssh "$VPS_USER@$VPS_HOST" "mkdir -p $DEPLOY_PATH/monitoring/prometheus/rules"
+ssh "$VPS_USER@$VPS_HOST" "mkdir -p $DEPLOY_PATH/monitoring/grafana/provisioning/datasources"
+ssh "$VPS_USER@$VPS_HOST" "mkdir -p $DEPLOY_PATH/monitoring/grafana/provisioning/dashboards"
+ssh "$VPS_USER@$VPS_HOST" "mkdir -p $DEPLOY_PATH/monitoring/grafana/dashboards"
+ssh "$VPS_USER@$VPS_HOST" "mkdir -p $DEPLOY_PATH/monitoring/alertmanager"
+ssh "$VPS_USER@$VPS_HOST" "mkdir -p $DEPLOY_PATH/nginx/conf.d"
+
+# Transferir archivos
+rsync -avz "$TEMP_DIR/monitoring/" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/monitoring/"
+rsync -avz "$TEMP_DIR/docker-compose.monitoring.yml" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+rsync -avz "$TEMP_DIR/setup-monitoring-auth.sh" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+rsync -avz "$TEMP_DIR/setup-monitoring-mode.sh" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+rsync -avz "$TEMP_DIR/nginx/" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/nginx/"
+
+# 9. Configurar permisos
+echo -e "${YELLOW}Configurando permisos...${NC}"
+ssh "$VPS_USER@$VPS_HOST" "chmod +x $DEPLOY_PATH/setup-monitoring-auth.sh"
+ssh "$VPS_USER@$VPS_HOST" "chmod +x $DEPLOY_PATH/setup-monitoring-mode.sh"
+
+# 10. Configurar DNS si es necesario
+echo -e "${YELLOW}Verificando configuración DNS para subdominios...${NC}"
+echo -e "${YELLOW}Por favor, asegúrate de que los siguientes subdominios apunten a tu VPS:${NC}"
+for domain in "${DOMAINS[@]}"; do
+  echo -e "  - $domain"
+done
+echo -e "${YELLOW}Puedes configurarlos en tu proveedor DNS o en CloudFlare${NC}"
+
+# 11. Añadir configuración de Nginx al servidor
+echo -e "${YELLOW}Configurando Nginx...${NC}"
+ssh "$VPS_USER@$VPS_HOST" "sudo cp $DEPLOY_PATH/nginx/conf.d/*.conf /etc/nginx/conf.d/"
+ssh "$VPS_USER@$VPS_HOST" "sudo nginx -t && sudo systemctl reload nginx"
+
+if [ $? -eq 0 ]; then
+  echo -e "${GREEN}Configuración de Nginx aplicada correctamente${NC}"
+else
+  echo -e "${RED}Error al aplicar configuración de Nginx${NC}"
+  echo -e "${YELLOW}Por favor, verifica manualmente los archivos de configuración${NC}"
+fi
+
+# 12. Limpiar archivos temporales
+rm -rf "$TEMP_DIR"
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Configuración de monitoreo completada${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+echo ""
+echo -e "${YELLOW}Pasos finales:${NC}"
+echo -e "1. Configurar DNS para los subdominios si aún no lo has hecho"
+echo -e "2. Ejecutar en el VPS: ${BLUE}sudo $DEPLOY_PATH/setup-monitoring-auth.sh${NC}"
+echo -e "3. Iniciar servicios: ${BLUE}cd $DEPLOY_PATH && ./setup-monitoring-mode.sh full${NC}"
+echo ""
+echo -e "${YELLOW}Una vez completados los pasos, los accesos serán:${NC}"
+echo -e "- Grafana: ${BLUE}https://grafana.vps.$PROJECT_NAME.ar${NC}"
+echo -e "- Prometheus: ${BLUE}https://prometheus.vps.$PROJECT_NAME.ar${NC}"
+echo -e "- AlertManager: ${BLUE}https://alertmanager.vps.$PROJECT_NAME.ar${NC}"

@@ -1,0 +1,201 @@
+#!/bin/bash
+# Script para resetear completamente el VPS - SOLO PARA PRUEBAS
+# ¡ADVERTENCIA! Este script eliminará TODOS los datos y configuraciones
+# Versión: 1.0
+
+# Colores para output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# Configuración
+PROJECT_NAME="<%=projectName%>"
+VPS_USER="deploy"  # Usuario dedicado para despliegues
+VPS_HOST="$PROJECT_NAME.ar"  # O la IP/dominio de tu VPS
+DEPLOY_PATH="/opt/$PROJECT_NAME"  # Ruta en el VPS donde está desplegado
+BACKUP_PATH="/opt/$PROJECT_NAME-BACKUP-BEFORE-RESET-$(date +%Y%m%d%H%M%S)"
+
+# Advertencias múltiples para evitar errores
+echo -e "${RED}${BOLD}¡¡¡ ADVERTENCIA EXTREMA !!!${NC}"
+echo
+echo -e "${RED}===========================================================${NC}"
+echo -e "${RED}               RESETEO COMPLETO DEL VPS                    ${NC}"
+echo -e "${RED}===========================================================${NC}"
+echo
+echo -e "${RED}${BOLD}¡¡¡ ESTE SCRIPT ELIMINARÁ PERMANENTEMENTE !!!${NC}"
+echo -e "${RED}${BOLD} * TODOS los contenedores Docker${NC}"
+echo -e "${RED}${BOLD} * TODAS las imágenes Docker${NC}"
+echo -e "${RED}${BOLD} * TODOS los volúmenes y datos${NC}"
+echo -e "${RED}${BOLD} * TODA la configuración en $DEPLOY_PATH${NC}"
+echo
+echo -e "${YELLOW}Este script SOLO debe usarse en entornos de prueba o cuando${NC}"
+echo -e "${YELLOW}se necesita comenzar desde cero. NO ES ADECUADO PARA PRODUCCIÓN.${NC}"
+echo
+echo -e "${YELLOW}Se realizará un backup automático en: $BACKUP_PATH${NC}"
+echo -e "${YELLOW}pero NO hay garantía de que sea completo o restaurable.${NC}"
+echo
+echo -e "${RED}===========================================================${NC}"
+
+# Primera confirmación
+read -p "¿Estás ABSOLUTAMENTE SEGURO de que quieres continuar? (escriba 'yes' para confirmar): " CONFIRM1
+if [[ "$CONFIRM1" != "yes" ]]; then
+    echo -e "${GREEN}Operación cancelada. No se ha modificado nada.${NC}"
+    exit 0
+fi
+
+# Segunda confirmación (escribir el nombre del proyecto)
+read -p "Para confirmar, escriba el nombre del proyecto ($PROJECT_NAME): " CONFIRM2
+if [[ "$CONFIRM2" != "$PROJECT_NAME" ]]; then
+    echo -e "${GREEN}Operación cancelada. No se ha modificado nada.${NC}"
+    exit 0
+fi
+
+# Verificar conexión al VPS
+echo -e "${YELLOW}Verificando conexión con el VPS...${NC}"
+if ! ssh -q "$VPS_USER@$VPS_HOST" exit; then
+  echo -e "${RED}Error: No se puede conectar al VPS${NC}"
+  exit 1
+fi
+
+# Verificar que existe la instalación
+echo -e "${YELLOW}Verificando instalación existente...${NC}"
+if ! ssh "$VPS_USER@$VPS_HOST" "[ -d $DEPLOY_PATH ]"; then
+  echo -e "${YELLOW}Advertencia: No se encontró ninguna instalación en $DEPLOY_PATH${NC}"
+  read -p "¿Continuar de todos modos? (y/n): " CONTINUE
+  if [[ "$CONTINUE" != "y" ]]; then
+      echo -e "${GREEN}Operación cancelada.${NC}"
+      exit 0
+  fi
+fi
+
+# Realizar backup automático antes de borrar
+echo -e "${YELLOW}Realizando backup de emergencia antes de resetear...${NC}"
+ssh "$VPS_USER@$VPS_HOST" "if [ -d $DEPLOY_PATH ]; then sudo cp -r $DEPLOY_PATH $BACKUP_PATH; fi"
+
+# Crear script de limpieza para ejecutar en el VPS
+cat > /tmp/reset-script.sh << 'EOF'
+#!/bin/bash
+# Script para resetear el VPS - Se ejecuta en el servidor
+
+# Colores para output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+PROJECT_PATH=$1
+PROJECT_NAME=$(basename $PROJECT_PATH)
+BACKUP_PATH=$2
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Iniciando reseteo completo del VPS${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# 1. Detener y eliminar todos los contenedores de Docker
+echo -e "${YELLOW}Deteniendo y eliminando todos los contenedores Docker...${NC}"
+if [ "$(docker ps -a -q)" ]; then
+    docker stop $(docker ps -a -q)
+    docker rm $(docker ps -a -q)
+    echo -e "${GREEN}✅ Todos los contenedores eliminados${NC}"
+else
+    echo -e "${YELLOW}No hay contenedores para eliminar${NC}"
+fi
+
+# 2. Eliminar todas las imágenes Docker
+echo -e "${YELLOW}Eliminando todas las imágenes Docker...${NC}"
+if [ "$(docker images -a -q)" ]; then
+    docker rmi -f $(docker images -a -q)
+    echo -e "${GREEN}✅ Todas las imágenes eliminadas${NC}"
+else
+    echo -e "${YELLOW}No hay imágenes para eliminar${NC}"
+fi
+
+# 3. Eliminar todos los volúmenes Docker
+echo -e "${YELLOW}Eliminando todos los volúmenes Docker...${NC}"
+if [ "$(docker volume ls -q)" ]; then
+    docker volume rm $(docker volume ls -q)
+    echo -e "${GREEN}✅ Todos los volúmenes eliminados${NC}"
+else
+    echo -e "${YELLOW}No hay volúmenes para eliminar${NC}"
+fi
+
+# 4. Eliminar todas las redes Docker (excepto las predeterminadas)
+echo -e "${YELLOW}Eliminando redes Docker personalizadas...${NC}"
+NETWORKS=$(docker network ls | grep -v "bridge" | grep -v "host" | grep -v "none" | awk 'NR>1 {print $1}')
+if [ ! -z "$NETWORKS" ]; then
+    docker network rm $NETWORKS
+    echo -e "${GREEN}✅ Redes personalizadas eliminadas${NC}"
+else
+    echo -e "${YELLOW}No hay redes personalizadas para eliminar${NC}"
+fi
+
+# 5. Limpiar sistema Docker
+echo -e "${YELLOW}Limpiando sistema Docker...${NC}"
+docker system prune -af --volumes
+echo -e "${GREEN}✅ Sistema Docker limpiado${NC}"
+
+# 6. Eliminar directorio de instalación
+if [ -d "$PROJECT_PATH" ]; then
+    echo -e "${YELLOW}Eliminando directorio de instalación: $PROJECT_PATH${NC}"
+    echo -e "${YELLOW}Se ha realizado un backup en: $BACKUP_PATH${NC}"
+    sudo rm -rf $PROJECT_PATH
+    echo -e "${GREEN}✅ Directorio eliminado${NC}"
+else
+    echo -e "${YELLOW}No existe el directorio $PROJECT_PATH${NC}"
+fi
+
+# 7. Eliminar configuraciones de Nginx
+echo -e "${YELLOW}Eliminando configuraciones de Nginx...${NC}"
+if [ -f "/etc/nginx/conf.d/${PROJECT_NAME}.conf" ]; then
+    sudo rm /etc/nginx/conf.d/${PROJECT_NAME}.conf
+    echo -e "${GREEN}✅ Configuración Nginx eliminada${NC}"
+fi
+
+if [ -f "/etc/nginx/conf.d/grafana.vps.${PROJECT_NAME}.ar.conf" ]; then
+    sudo rm /etc/nginx/conf.d/grafana.vps.${PROJECT_NAME}.ar.conf
+    echo -e "${GREEN}✅ Configuración Nginx de Grafana eliminada${NC}"
+fi
+
+if [ -f "/etc/nginx/conf.d/prometheus.vps.${PROJECT_NAME}.ar.conf" ]; then
+    sudo rm /etc/nginx/conf.d/prometheus.vps.${PROJECT_NAME}.ar.conf
+    echo -e "${GREEN}✅ Configuración Nginx de Prometheus eliminada${NC}"
+fi
+
+if [ -f "/etc/nginx/conf.d/alertmanager.vps.${PROJECT_NAME}.ar.conf" ]; then
+    sudo rm /etc/nginx/conf.d/alertmanager.vps.${PROJECT_NAME}.ar.conf
+    echo -e "${GREEN}✅ Configuración Nginx de AlertManager eliminada${NC}"
+fi
+
+# Recargar Nginx
+sudo nginx -t && sudo systemctl reload nginx
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Reseteo completo finalizado${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${YELLOW}Se ha realizado un backup en: $BACKUP_PATH${NC}"
+echo -e "${YELLOW}Para restaurar (solo en caso de emergencia):${NC}"
+echo -e "${YELLOW}sudo cp -r $BACKUP_PATH $PROJECT_PATH${NC}"
+EOF
+
+# Transferir y ejecutar el script en el VPS
+echo -e "${YELLOW}Transfiriendo script de reseteo al VPS...${NC}"
+scp /tmp/reset-script.sh "$VPS_USER@$VPS_HOST:/tmp/"
+
+echo -e "${YELLOW}Ejecutando script de reseteo en el VPS...${NC}"
+ssh "$VPS_USER@$VPS_HOST" "chmod +x /tmp/reset-script.sh && sudo /tmp/reset-script.sh $DEPLOY_PATH $BACKUP_PATH"
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Reseteo del VPS completado${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+echo
+echo -e "${YELLOW}Se ha realizado un backup de emergencia en:${NC}"
+echo -e "${BLUE}$BACKUP_PATH${NC}"
+echo
+echo -e "${YELLOW}El VPS ahora está en estado limpio, listo para una nueva instalación.${NC}"
+echo -e "${YELLOW}Puedes instalar ahora usando:${NC}"
+echo -e "${BLUE}bash ./apps/$PROJECT_NAME/vps-infrastructure/deployment/scripts/minimal/deploy-minimal.sh${NC}"
+echo -e "${BLUE}bash ./apps/$PROJECT_NAME/vps-infrastructure/deployment/scripts/hybrid/deploy-hybrid.sh${NC}"

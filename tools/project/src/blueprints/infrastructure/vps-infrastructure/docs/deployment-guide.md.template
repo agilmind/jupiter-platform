@@ -94,7 +94,7 @@ bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/hybrid/update
 bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/complete/update-complete.sh
 ```
 
-### Respaldo y Restauración
+### Herramientas Adicionales
 
 ```bash
 # Crear un respaldo completo
@@ -102,31 +102,33 @@ bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/utils/backup-
 
 # Restaurar desde un respaldo
 bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/utils/restore-vps.sh ruta/al/respaldo
-```
 
-### Añadir monitoreo a una instalación existente
-
-```bash
-# Añadir monitoreo a una instalación Minimal
+# Añadir monitoreo a una instalación Minimal existente
 bash ./apps/<%=projectName%>/vps-infrastructure/scripts/monitoring/setup-monitoring.sh
-```
 
-### Operaciones para pruebas o recuperación
-
-```bash
 # Resetear completamente el VPS (¡SOLO PARA PRUEBAS!)
 bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/utils/reset-vps.sh
 ```
 
-## Guías específicas
+## Flujo de Trabajo Recomendado
 
-Para instrucciones detalladas sobre cada tipo de despliegue:
+1. **Desarrollo inicial**:
+   - Usar configuración Minimal para pruebas rápidas
+   - Desplegar con `deploy-minimal.sh`
 
-- [Guía de despliegue Minimal](./minimal-guide.md)
-- [Guía de despliegue Hybrid](./hybrid-guide.md)
-- [Guía de monitoreo](./monitoring-guide.md)
+2. **Preparación para producción**:
+   - Migrar a Hybrid para añadir monitoreo
+   - Usar `setup-monitoring.sh` o desplegar desde cero con `deploy-hybrid.sh`
 
-## Protección de datos en producción
+3. **Escalar para alta disponibilidad**:
+   - Cuando se necesite mayor confiabilidad
+   - Migrar a Complete con `deploy-complete.sh`
+
+4. **Mantenimiento**:
+   - Realizar respaldos periódicos con `backup-vps.sh`
+   - Actualizar con los scripts correspondientes
+
+## Protección de Datos en Producción
 
 Todos los scripts de despliegue incluyen:
 
@@ -139,7 +141,7 @@ Los scripts de actualización están diseñados para preservar:
 - Configuraciones personalizadas
 - Estado de los servicios
 
-## Acceso a los servicios
+## Acceso a los Servicios
 
 Después del despliegue, se puede acceder a los servicios a través de:
 
@@ -151,3 +153,27 @@ Para configuración Hybrid y Complete:
 - **Grafana**: https://grafana.vps.<%=projectName%>.ar
 - **Prometheus**: https://prometheus.vps.<%=projectName%>.ar
 - **AlertManager**: https://alertmanager.vps.<%=projectName%>.ar
+
+## Solución de Problemas
+
+Si encuentras problemas durante el despliegue:
+
+1. Verificar logs:
+   ```bash
+   ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && docker compose logs"
+   ```
+
+2. Revisar estado de los servicios:
+   ```bash
+   ssh deploy@<%=projectName%>.ar "cd /opt/<%=projectName%> && docker compose ps"
+   ```
+
+3. Restaurar desde backup si es necesario:
+   ```bash
+   bash ./apps/<%=projectName%>/vps-infrastructure/deployment/scripts/utils/restore-vps.sh ruta/al/respaldo
+   ```
+
+Para información más detallada, consulta las guías específicas:
+- [Guía de Minimal](./minimal-guide.md)
+- [Guía de Hybrid](./hybrid-guide.md)
+- [Guía de Monitoreo](./monitoring-guide.md)
