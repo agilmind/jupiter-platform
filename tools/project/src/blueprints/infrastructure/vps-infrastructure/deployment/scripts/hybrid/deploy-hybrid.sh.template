@@ -88,12 +88,12 @@ cp -r ./apps/$PROJECT_NAME/vps-infrastructure/hybrid/* "$TEMP_DIR/deploy/"
 
 # Copiar archivos comunes de monitoreo
 cp -r ./apps/$PROJECT_NAME/vps-infrastructure/common/monitoring/* "$TEMP_DIR/deploy/monitoring/"
-cp ./apps/$PROJECT_NAME/vps-infrastructure/common/docker-compose.monitoring.yml.template "$TEMP_DIR/deploy/docker-compose.monitoring.yml"
+cp ./apps/$PROJECT_NAME/vps-infrastructure/common/docker-compose.monitoring.yml "$TEMP_DIR/deploy/docker-compose.monitoring.yml"
 
 # Copiar scripts específicos
-cp ./apps/$PROJECT_NAME/vps-infrastructure/scripts/monitoring/setup-monitoring-auth.sh.template "$TEMP_DIR/deploy/setup-monitoring-auth.sh"
-cp ./apps/$PROJECT_NAME/vps-infrastructure/scripts/monitoring/setup-monitoring-mode.sh.template "$TEMP_DIR/deploy/setup-monitoring-mode.sh"
-cp ./apps/$PROJECT_NAME/vps-infrastructure/scripts/setup-ssl.sh.template "$TEMP_DIR/deploy/setup-ssl.sh"
+cp ./apps/$PROJECT_NAME/vps-infrastructure/scripts/monitoring/setup-monitoring-auth.sh "$TEMP_DIR/deploy/setup-monitoring-auth.sh"
+cp ./apps/$PROJECT_NAME/vps-infrastructure/scripts/monitoring/setup-monitoring-mode.sh "$TEMP_DIR/deploy/setup-monitoring-mode.sh"
+cp ./apps/$PROJECT_NAME/vps-infrastructure/scripts/setup-ssl.sh "$TEMP_DIR/deploy/setup-ssl.sh"
 
 # Copiar archivos de configuración
 cp ./apps/$PROJECT_NAME/docker-compose.prod.yml "$TEMP_DIR/deploy/docker-compose.yml"
