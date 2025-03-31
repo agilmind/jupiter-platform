@@ -1,0 +1,90 @@
+#!/bin/bash
+# Script para configurar SSL con Let's Encrypt
+# Ejecutar en el VPS después del despliegue inicial
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Configuración
+PROJECT_NAME="<%=projectName%>"
+DOMAINS=("$PROJECT_NAME.ar" "webapp.$PROJECT_NAME.ar")
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Configurando SSL para $PROJECT_NAME${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# Verificar que se ejecuta como root
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "${RED}Este script debe ejecutarse como root${NC}"
+    exit 1
+fi
+
+# Verificar que Nginx está instalado
+if ! command -v nginx &> /dev/null; then
+    echo -e "${RED}Error: Nginx no está instalado. Instálalo primero.${NC}"
+    exit 1
+fi
+
+# Instalar Certbot si no está instalado
+if ! command -v certbot &> /dev/null; then
+    echo -e "${YELLOW}Certbot no está instalado. Instalando...${NC}"
+    apt-get update
+    apt-get install -y certbot python3-certbot-nginx
+else
+    echo -e "${GREEN}Certbot ya está instalado${NC}"
+fi
+
+# Construir la lista de dominios para Certbot
+DOMAIN_ARGS=""
+for domain in "${DOMAINS[@]}"; do
+    DOMAIN_ARGS="$DOMAIN_ARGS -d $domain"
+done
+
+# Obtener certificados
+echo -e "${YELLOW}Obteniendo certificados para ${DOMAINS[*]}...${NC}"
+certbot --nginx $DOMAIN_ARGS --non-interactive --agree-tos --email admin@$PROJECT_NAME.ar
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Certificados obtenidos correctamente${NC}"
+else
+    echo -e "${RED}Error al obtener certificados. Comprueba los logs de Certbot.${NC}"
+    exit 1
+fi
+
+# Verificar la renovación automática
+echo -e "${YELLOW}Verificando renovación automática...${NC}"
+certbot renew --dry-run
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Renovación automática configurada correctamente${NC}"
+else
+    echo -e "${RED}Error al configurar la renovación automática${NC}"
+    exit 1
+fi
+
+# Verificar la configuración de Nginx
+echo -e "${YELLOW}Verificando configuración de Nginx...${NC}"
+nginx -t
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Configuración de Nginx correcta${NC}"
+    systemctl restart nginx
+else
+    echo -e "${RED}Error en la configuración de Nginx${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Configuración SSL completada${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+echo ""
+echo -e "${YELLOW}Los servicios ahora están disponibles en:${NC}"
+echo "- Web App: https://webapp.$PROJECT_NAME.ar"
+echo "- API: https://$PROJECT_NAME.ar"
+echo "- RabbitMQ Admin: https://$PROJECT_NAME.ar/rabbitmq (guest/guest)"
+echo ""
+echo -e "${YELLOW}Renovación automática configurada. Los certificados se renovarán automáticamente.${NC}"

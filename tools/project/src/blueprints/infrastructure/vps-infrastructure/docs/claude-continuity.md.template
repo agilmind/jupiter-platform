@@ -1,98 +1,111 @@
-# Guía de continuidad para Claude
+# Guía de continuidad para Claude - Infraestructura VPS
 
 ## Contexto del proyecto
 
-Estamos desarrollando una infraestructura de VPS para el proyecto `<%=projectName%>`. Esta infraestructura está organizada dentro de un generador basado en NX, utilizando templates con variables como `<%=projectName%>` que se reemplazan durante la generación.
+Estamos desarrollando una infraestructura de VPS para proyectos generados con un generador basado en NX. Toda la implementación debe ser genérica utilizando variables de template como `<%=projectName%>` que se reemplazan durante la generación.
 
-## Estructura y enfoque
+## Principios del desarrollo
 
-El proyecto sigue una arquitectura flexible con tres configuraciones posibles:
+1. **Todo debe ser un archivo .template**:
+   - Todos los archivos (scripts, configuraciones, etc.) deben ser archivos .template
+   - Cada archivo debe estar ubicado en su directorio correspondiente dentro de la estructura
+   - No se debe generar contenido dinámicamente con `cat >` dentro de scripts
 
-1. **Complete**: Todo en un solo VPS (PostgreSQL, RabbitMQ, Nginx, etc.)
-2. **Hybrid**: Algunos servicios en cloud (PostgreSQL) y otros en VPS (Nginx, pgBouncer)
-3. **Minimal**: Infraestructura mínima cuando todo está en la nube
+2. **Estructura clara de directorios**:
+   - Los scripts van en `vps-infrastructure/scripts/`
+   - Los archivos de configuración van en sus respectivos directorios (nginx/conf.d/, etc.)
+   - Los documentos van en `vps-infrastructure/docs/`
 
-Adicionalmente, hemos implementado un sistema de "snapshot" que permite capturar el estado actual del entorno y compartirlo fácilmente.
+3. **Generalización completa**:
+   - Todas las referencias específicas deben usar variables como `<%=projectName%>`
+   - Todas las URLs deben usar variables o variables de entorno
+   - Se debe usar envsubst para sustituir variables en archivos de configuración
+
+4. **Separación de responsabilidades**:
+   - Los scripts de despliegue solo transfieren archivos, no los generan
+   - Cada archivo de configuración tiene su propio .template
 
 ## Estado actual del desarrollo
 
-Acabamos de crear la estructura base del proyecto `vps-infrastructure` con los templates necesarios para cada componente. Los archivos están organizados siguiendo las tres configuraciones mencionadas.
+Hemos creado la estructura base de `vps-infrastructure` con templates para:
+- Configuración "minimal" para VPS (enfocada en Nginx como punto de entrada)
+- Configuración de docker-compose para despliegue
+- Scripts de despliegue y captura de snapshots
 
-## Próximos pasos planeados
+## Estructura actual de directorios
 
-1. **Alta disponibilidad** (en progreso):
-   - Configurar pgBouncer para connection pooling
-   - Implementar clustering de RabbitMQ
-   - Balanceo de carga con Nginx
-   - Sistema de respaldos automatizados
+```
+vps-infrastructure/
+├── complete/         # Todo en un solo VPS
+│   ├── docker-compose.multi.yml.template
+│   ├── docker-compose.yml.template
+│   ├── monitoring/
+│   ├── nginx/
+│   │   ├── conf.d/
+│   │   │   ├── default.conf.template
+│   │   │   └── multi-env.conf.template
+│   │   └── ssl/
+│   ├── postgres/
+│   └── rabbitmq/
+├── hybrid/           # Algunos servicios en cloud
+│   ├── docker-compose.yml.template
+│   ├── monitoring/
+│   ├── nginx/
+│   └── pgbouncer/
+├── minimal/          # Infraestructura mínima (principalmente Nginx)
+│   ├── docker-compose.yml.template
+│   └── nginx/
+│       ├── conf.d/
+│       │   ├── project.conf.template
+│       │   └── webapp.conf.template
+│       └── ssl/
+├── deployment/
+│   ├── environments/ # Variables por entorno
+│   └── scripts/      # Scripts de despliegue
+│       ├── deploy-vps.sh.template
+│       └── setup-ssl.sh.template
+├── docs/            # Documentación
+│   ├── claude-continuity.md.template
+│   ├── vps-deployment-guide.md.template
+│   └── project-plan.md.template
+└── scripts/         # Scripts utilitarios
+    ├── snapshot-environment.sh.template
+    └── setup-nginx.sh.template
+```
 
-2. **CI/CD y despliegue continuo** (siguiente fase):
-   - Pipeline de integración continua
-   - Despliegues automatizados
-   - Pruebas automatizadas
-   - Estrategia de rollback
+## Flujo de trabajo para VPS
 
-3. **Seguridad** (fase final):
-   - Hardening de contenedores
-   - Gestión segura de credenciales
-   - Configuración TLS/SSL
-   - Reglas de acceso y firewall
+1. **Generación del proyecto**:
+   - Ejecutar `nx g project:create projectName` para generar el proyecto
+   - Esto crea todos los archivos necesarios usando los templates
 
-## Decisiones técnicas clave
+2. **Despliegue en VPS**:
+   - Usar el script `deploy-vps.sh` generado en `apps/projectName/scripts/`
+   - Este script transfiere los archivos y ejecuta comandos remotos para instalar dependencias
 
-1. **pgBouncer**:
-   - Se decidió implementarlo junto a PostgreSQL en la configuración "complete"
-   - En configuraciones "hybrid", se incluye en el VPS para conexiones a DB externa
-   - Ubicación siempre cercana a los clientes para minimizar latencia
+3. **Configuración post-despliegue**:
+   - Configurar HTTPS con `setup-ssl.sh`
+   - Configurar monitoreo si es necesario
 
-2. **Entornos múltiples**:
-   - Configuración para soportar prod y staging en el mismo VPS
-   - Nginx como punto de entrada que enruta según el hostname
+## Próximos pasos
 
-3. **Snapshot del entorno**:
-   - Sistema para capturar el estado actual y compartirlo
-   - Basado en imágenes Docker con el estado actual
+1. **Separar correctamente los archivos**:
+   - Mover archivos .template a sus ubicaciones correctas
+   - Eliminar generación dinámica de archivos en scripts
 
-## Instrucciones para continuar
+2. **Implementar HTTPS apropiadamente**:
+   - Agregar soporte para certificados SSL
+   - Configurar redirección automática
 
-Si estás retomando esta conversación:
+3. **Implementar monitoreo básico**:
+   - Agregar health checks para todos los servicios
+   - Configurar logs centralizados
 
-1. **Para continuar con Alta Disponibilidad**:
-   - Necesitamos implementar la configuración completa de Nginx para balanceo
-   - Optimizar la configuración de pgBouncer
-   - Configurar el clustering de RabbitMQ
+## Consideraciones técnicas para Claude
 
-2. **Para trabajar en el sistema de snapshots**:
-   - Ya tenemos implementado el script `snapshot-environment.sh`
-   - Podríamos mejorar la documentación o añadir funcionalidades
-
-3. **Para avanzar a CI/CD**:
-   - Necesitamos definir el flujo de trabajo de integración continua
-   - Implementar los scripts de despliegue automatizado
-
-## Ejemplos de código relevantes
-
-Ya hemos implementado los siguientes componentes clave:
-
-1. **Script para generar estructura**:
-   ```bash
-   ./generate-vps-infrastructure.sh
-   ```
-
-2. **Script para capturar snapshots**:
-   ```bash
-   ./vps-infrastructure/scripts/snapshot-environment.sh
-   ```
-
-3. **Configuración de Nginx para múltiples entornos**:
-   - Archivos en `vps-infrastructure/complete/nginx/conf.d/`
-
-## Observaciones técnicas para Claude
-
-Al continuar el desarrollo, considera:
-
-1. La estructura debe mantener la separación clara entre las tres configuraciones
-2. Los archivos deben terminar con `.template` para el generador NX
-3. Usa las variables `<%=projectName%>`, `<%=appServerName%>`, etc.
-4. Al crear scripts, asegúrate que sean compatibles con Alpine Linux (ash)
-5. Todos los archivos de configuración deben estar documentados
+1. Todos los archivos deben terminar con `.template`
+2. Usar las variables `<%=projectName%>`, `<%=appServerName%>`, etc. para personalización
+3. Evitar crear archivos dinámicamente con `cat >` dentro de scripts
+4. Los scripts deben ser compatibles con Alpine Linux (ash) por compatibilidad con contenedores
+5. Nunca usar nombres de proyectos específicos como "jupiter" en los templates
+6. Aclarar siempre en qué carpeta debe ir un archivo nuevo

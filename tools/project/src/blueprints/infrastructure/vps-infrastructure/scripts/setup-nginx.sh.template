@@ -1,0 +1,58 @@
+#!/bin/bash
+# Script para configurar Nginx en el VPS
+# Este script debe ejecutarse en el VPS
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Configurando Nginx para <%=projectName%>.ar${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# Verificar que se ejecuta como root
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "${RED}Este script debe ejecutarse como root${NC}"
+    exit 1
+fi
+
+# Instalar Nginx si no está instalado
+if ! command -v nginx &> /dev/null; then
+    echo -e "${YELLOW}Nginx no está instalado. Instalando...${NC}"
+    apt-get update && apt-get install -y nginx
+else
+    echo -e "${GREEN}Nginx ya está instalado${NC}"
+fi
+
+# Verificar que existen los archivos de configuración
+if [ ! -d "./nginx/conf.d" ]; then
+    echo -e "${RED}Error: No se encontró el directorio nginx/conf.d${NC}"
+    exit 1
+fi
+
+# Crear directorio para la configuración
+mkdir -p /etc/nginx/conf.d/
+
+# Copiar archivos de configuración
+cp ./nginx/conf.d/*.conf /etc/nginx/conf.d/
+
+# Verificar la configuración de Nginx
+echo -e "${YELLOW}Verificando configuración de Nginx...${NC}"
+nginx -t
+
+if [ $? -eq 0 ]; then
+    # Reiniciar Nginx
+    echo -e "${YELLOW}Reiniciando Nginx...${NC}"
+    systemctl restart nginx
+    echo -e "${GREEN}Nginx configurado correctamente${NC}"
+else
+    echo -e "${RED}Error en la configuración de Nginx${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Configuración de Nginx completada${NC}"
+echo -e "${GREEN}===========================================================${NC}"

@@ -1,0 +1,109 @@
+#!/bin/bash
+# Script para desplegar <%=projectName%> en el VPS
+# Versión: 1.0 - Despliegue básico
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Configuración
+PROJECT_NAME="<%=projectName%>"
+VPS_USER="root"  # Cambiar según sea necesario
+VPS_HOST="$PROJECT_NAME.ar"  # O la IP/dominio de tu VPS
+DEPLOY_PATH="/opt/$PROJECT_NAME"  # Ruta en el VPS donde se desplegará
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Iniciando despliegue de $PROJECT_NAME en $VPS_HOST${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# 1. Verificar que se ejecuta desde la carpeta raíz del proyecto
+if [ ! -d "./apps/$PROJECT_NAME" ]; then
+  echo -e "${RED}Error: Este script debe ejecutarse desde la carpeta raíz del proyecto${NC}"
+  echo -e "${YELLOW}Ejemplo: ./apps/$PROJECT_NAME/scripts/deploy-vps.sh${NC}"
+  exit 1
+fi
+
+# 2. Verificar que el proyecto está generado correctamente
+echo -e "${YELLOW}Verificando estructura del proyecto...${NC}"
+if [ ! -f "./apps/$PROJECT_NAME/docker-compose.local-prod.yml" ]; then
+  echo -e "${RED}Error: No se encontró docker-compose.local-prod.yml${NC}"
+  echo -e "${YELLOW}Asegúrate de haber generado el proyecto con: nx g project:create $PROJECT_NAME${NC}"
+  exit 1
+fi
+
+# 3. Crear directorio temporal para los archivos a transferir
+TEMP_DIR=$(mktemp -d)
+mkdir -p "$TEMP_DIR/deploy"
+
+echo -e "${YELLOW}Preparando archivos para transferir...${NC}"
+
+# 4. Copiar archivos necesarios
+cp "./apps/$PROJECT_NAME/docker-compose.local-prod.yml" "$TEMP_DIR/deploy/docker-compose.yml"
+cp -r "./apps/$PROJECT_NAME/init-scripts" "$TEMP_DIR/deploy/"
+cp -r "./apps/$PROJECT_NAME/bin" "$TEMP_DIR/deploy/"
+cp "./apps/$PROJECT_NAME/.env" "$TEMP_DIR/deploy/" 2>/dev/null || cp "./apps/$PROJECT_NAME/.env.example" "$TEMP_DIR/deploy/.env" 2>/dev/null
+
+# 5. Copiar scripts de VPS (estos deberían haber sido generados correctamente)
+if [ -d "./vps-infrastructure" ]; then
+  # Copiar configuraciones de Nginx
+  mkdir -p "$TEMP_DIR/deploy/nginx/conf.d"
+  cp "./vps-infrastructure/minimal/nginx/conf.d/project.conf" "$TEMP_DIR/deploy/nginx/conf.d/$PROJECT_NAME.ar.conf" 2>/dev/null
+  cp "./vps-infrastructure/minimal/nginx/conf.d/webapp.conf" "$TEMP_DIR/deploy/nginx/conf.d/webapp.$PROJECT_NAME.ar.conf" 2>/dev/null
+
+  # Copiar scripts de configuración
+  cp "./vps-infrastructure/scripts/setup-nginx.sh" "$TEMP_DIR/deploy/" 2>/dev/null
+  cp "./vps-infrastructure/scripts/setup-ssl.sh" "$TEMP_DIR/deploy/" 2>/dev/null
+  chmod +x "$TEMP_DIR/deploy/"*.sh 2>/dev/null
+else
+  echo -e "${YELLOW}Directorio vps-infrastructure no encontrado. Se usarán configuraciones básicas.${NC}"
+fi
+
+# 6. Transferir archivos al VPS
+echo -e "${YELLOW}Transfiriendo archivos al VPS...${NC}"
+ssh "$VPS_USER@$VPS_HOST" "mkdir -p $DEPLOY_PATH"
+rsync -avz --delete "$TEMP_DIR/deploy/" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+
+# 7. Configurar y ejecutar en el VPS
+echo -e "${YELLOW}Configurando el VPS...${NC}"
+ssh "$VPS_USER@$VPS_HOST" "cd $DEPLOY_PATH && \
+  # Instalar dependencias
+  if ! command -v docker &> /dev/null; then
+    curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh && rm get-docker.sh;
+  fi && \
+  if ! command -v docker-compose &> /dev/null; then
+    curl -L \"https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose && \
+    chmod +x /usr/local/bin/docker-compose && ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose;
+  fi && \
+  # Configurar Nginx si existe
+  if [ -f \"./setup-nginx.sh\" ]; then
+    chmod +x ./setup-nginx.sh && ./setup-nginx.sh;
+  fi && \
+  # Construir imágenes base
+  if [ -d \"./bin\" ]; then
+    cd ./bin && chmod +x *.sh && ./build-base-images.sh && cd ..;
+  fi && \
+  # Iniciar contenedores
+  docker-compose up -d"
+
+# 8. Limpiar archivos temporales
+rm -rf "$TEMP_DIR"
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Despliegue completado${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+echo ""
+echo -e "${YELLOW}Acceso a los servicios:${NC}"
+echo "- Web App: http://webapp.$PROJECT_NAME.ar"
+echo "- API: http://$PROJECT_NAME.ar:4001"
+echo "- RabbitMQ Admin: http://$PROJECT_NAME.ar:15673 (guest/guest)"
+echo ""
+echo -e "${YELLOW}Para configurar HTTPS:${NC}"
+echo "ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && ./setup-ssl.sh\""
+echo ""
+echo -e "${YELLOW}Para administrar remotamente:${NC}"
+echo "- Detener: ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && docker-compose down\""
+echo "- Iniciar: ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && docker-compose up -d\""
+echo "- Ver logs: ssh $VPS_USER@$VPS_HOST \"cd $DEPLOY_PATH && docker-compose logs -f\""

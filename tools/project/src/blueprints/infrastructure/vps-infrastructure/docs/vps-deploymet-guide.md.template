@@ -1,0 +1,134 @@
+# Guía de despliegue en VPS para <%=projectName%>
+
+Este documento proporciona instrucciones detalladas para desplegar <%=projectName%> en un VPS, así como una lista de verificación y resolución de problemas comunes.
+
+## Lista de verificación previa al despliegue
+
+- [ ] El VPS tiene Docker instalado (versión 20.10+)
+- [ ] El VPS tiene Docker Compose instalado (versión 2.0+)
+- [ ] El VPS tiene Nginx instalado
+- [ ] Los puertos 80, 443, 4001, 8081, 15673 están abiertos en el firewall
+- [ ] Los registros DNS para <%=projectName%>.ar y webapp.<%=projectName%>.ar apuntan a la IP del VPS
+- [ ] Tienes acceso SSH al VPS
+
+## Pasos de despliegue
+
+1. **Generar el proyecto actualizado**:
+   ```bash
+   nx g project:create <%=projectName%>
+   ```
+
+2. **Ejecutar el script de despliegue**:
+   ```bash
+   ./apps/<%=projectName%>/scripts/deploy-vps.sh
+   ```
+
+3. **Verificar que todo funciona**:
+   - Web App: http://webapp.<%=projectName%>.ar
+   - API: http://<%=projectName%>.ar:4001 o http://<%=projectName%>.ar
+   - RabbitMQ Admin: http://<%=projectName%>.ar:15673 o http://<%=projectName%>.ar/rabbitmq (guest/guest)
+
+## Resolución de problemas
+
+### El script de despliegue falla en el rsync
+
+**Problema**: No se pueden transferir archivos al VPS.
+
+**Solución**:
+1. Verifica tu conexión SSH: `ssh root@<%=projectName%>.ar`
+2. Asegúrate de que rsync está instalado en tu Mac: `brew install rsync`
+3. Verifica permisos: `chmod 600 ~/.ssh/id_rsa`
+
+### Los contenedores no se inician
+
+**Problema**: Docker Compose muestra errores o los contenedores no arrancan.
+
+**Solución**:
+1. Verifica los logs: `docker-compose logs`
+2. Asegúrate de que las imágenes base se construyeron correctamente: `docker images`
+3. Verifica espacio disponible: `df -h`
+4. Limpia Docker: `docker system prune -a`
+
+### Error 502 Bad Gateway en Nginx
+
+**Problema**: Nginx no puede conectarse a los contenedores.
+
+**Solución**:
+1. Verifica que los contenedores están funcionando: `docker ps`
+2. Revisa la configuración de Nginx: `nginx -t`
+3. Verifica los logs de Nginx: `tail -f /var/log/nginx/error.log`
+4. Asegúrate de que los puertos expuestos coinciden en la configuración
+
+### Certificado SSL no funciona
+
+**Problema**: HTTPS no funciona correctamente.
+
+**Solución**:
+1. Verifica que Certbot está instalado: `certbot --version`
+2. Ejecuta Certbot para obtener certificados:
+   ```bash
+   certbot --nginx -d <%=projectName%>.ar -d webapp.<%=projectName%>.ar
+   ```
+3. Verifica la renovación automática: `certbot renew --dry-run`
+
+## Mantenimiento
+
+### Actualizar el despliegue
+
+```bash
+# Actualizar el generador
+nx g project:create <%=projectName%>
+
+# Ejecutar el despliegue nuevamente
+./apps/<%=projectName%>/scripts/deploy-vps.sh
+```
+
+### Respaldo de la base de datos
+
+```bash
+# Acceder al VPS
+ssh root@<%=projectName%>.ar
+
+# Backup de la base de datos
+cd /opt/<%=projectName%>
+docker-compose exec postgres pg_dump -U postgres -d <%=projectName%> > <%=projectName%>_backup_$(date +%Y%m%d).sql
+```
+
+### Monitoreo básico
+
+```bash
+# Ver uso de recursos
+docker stats
+
+# Ver logs
+docker-compose logs -f
+
+# Monitorear Nginx
+tail -f /var/log/nginx/access.log
+```
+
+## Configuración de HTTPS (Let's Encrypt)
+
+Para configurar HTTPS usando Let's Encrypt:
+
+```bash
+# Acceder al VPS
+ssh root@<%=projectName%>.ar
+
+# Instalar Certbot
+apt-get update
+apt-get install -y certbot python3-certbot-nginx
+
+# Obtener certificados
+certbot --nginx -d <%=projectName%>.ar -d webapp.<%=projectName%>.ar
+
+# Verificar renovación automática
+certbot renew --dry-run
+```
+
+## Próximos pasos para mejoras
+
+1. Implementar certificados SSL con Let's Encrypt
+2. Configurar respaldo automático de la base de datos
+3. Implementar sistema de monitoreo con Prometheus/Grafana
+4. Configurar CI/CD a través de GitHub Actions
