@@ -27,6 +27,10 @@ export default async function (tree: Tree, options: CreateGeneratorSchema) {
   options.webAppNames = ['web-app'];
   options.nativeAppNames = ['native-app'];
   options.workerNames = ['worker-sample'];
+  options.domainName = "jupiter.ar";
+  options.sslOption = "letsencrypt";
+  options.webAppInternalPort = "3000";
+  options.appServerInternalPort = "4000";
 
    // Llamar a la nueva función para generar la infraestructura
   await generateInfrastructure(tree, options);

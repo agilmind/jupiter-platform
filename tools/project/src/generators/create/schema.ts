@@ -12,4 +12,8 @@ export interface CreateGeneratorSchema {
   webAppNames?: string[];
   nativeAppNames?: string[];
   workerNames?: string[];
+  domainName?: string;
+  sslOption?: string;
+  webAppInternalPort?: string;
+  appServerInternalPort?: string;
 }

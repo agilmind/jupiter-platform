@@ -1,0 +1,113 @@
+# /etc/nginx/sites-available/<%= projectName %>.conf
+
+# Define upstreams para los servicios Dockerizados
+# Nginx usará el DNS interno de Docker para resolver estos nombres
+upstream app_server_upstream {
+    # Puerto INTERNO del contenedor app-server
+    server <%= projectName %>-<%= appServerName %>:<%= appServerInternalPort || 3000 %>;
+}
+
+<% for (const webAppName of webAppNames) { %>
+upstream <%= webAppName %>_upstream {
+    # Puerto INTERNO del contenedor web-app
+    server <%= projectName %>-<%= webAppName %>:<%= webAppInternalPort || 80 %>;
+}
+<% } %>
+
+# --- Servidor HTTP (Redirección a HTTPS si se usa SSL) ---
+server {
+    listen 80;
+    server_name <%= domainName %> www.<%= domainName %>; # Escucha para el dominio
+
+    <% if (sslOption === 'letsencrypt') { %>
+    # Para la renovación de Let's Encrypt
+    location ~ /.well-known/acme-challenge {
+        allow all;
+        root /var/www/html; # Directorio estándar para challenges
+    }
+
+    location / {
+        # Redirige todo el tráfico HTTP a HTTPS
+        return 301 https://$host$request_uri;
+    }
+    <% } else { %>
+    # --- Configuración SIN SSL ---
+    # Asumimos que la primera webApp es la principal para '/'
+    location / {
+        proxy_pass http://<%= webAppNames[0] %>_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # Rutas para el API (app-server)
+    location /api/ { # O la ruta base de tu API
+        proxy_pass http://app_server_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # (Opcional) Rutas específicas para otras webApps si tienes más de una
+    # location /otra-app/ {
+    #     proxy_pass http://segundaWebApp_upstream;
+    #     # ... headers ...
+    # }
+
+    # (Opcional) Acceso directo a RabbitMQ Management (NO RECOMENDADO en producción abierta)
+    # location /rabbitmq/ {
+    #    proxy_pass http://<%= projectName %>-rabbitmq:15672;
+    #    # ... headers ...
+    # }
+    <% } %>
+}
+
+<% if (sslOption === 'letsencrypt') { %>
+# --- Servidor HTTPS (Configuración principal) ---
+server {
+    listen 443 ssl http2;
+    server_name <%= domainName %> www.<%= domainName %>;
+
+    # Rutas a los certificados (ajustar si usas certbot)
+    ssl_certificate /etc/letsencrypt/live/<%= domainName %>/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/<%= domainName %>/privkey.pem;
+
+    # Configuraciones de seguridad SSL (ejemplo, investigar mejores prácticas)
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+
+    # --- Ubicaciones (Locations) ---
+    # Asumimos que la primera webApp es la principal para '/'
+    location / {
+        proxy_pass http://<%= webAppNames[0] %>_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme; # Será 'https'
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # Rutas para el API (app-server)
+    location /api/ { # O la ruta base de tu API
+        proxy_pass http://app_server_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme; # Será 'https'
+    }
+
+    # (Opcional) Rutas específicas para otras webApps si tienes más de una
+    # location /otra-app/ {
+    #     proxy_pass http://segundaWebApp_upstream;
+    #     # ... headers ...
+    # }
+}
+<% } %>

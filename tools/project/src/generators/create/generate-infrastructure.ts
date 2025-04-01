@@ -16,7 +16,13 @@ import { CreateGeneratorSchema } from './schema';
  * @param options - Opciones del generador, incluyendo nombres de proyectos y aplicaciones
  */
 export async function generateInfrastructure(tree: Tree, options: CreateGeneratorSchema) {
-  const { projectName, appServerName, webAppNames, nativeAppNames, workerNames } = options;
+  const {
+    projectName,
+    appServerName,
+    webAppNames,
+    nativeAppNames,
+    workerNames,
+  } = options;
   const projectNameDashed = names(projectName).fileName;
 
   // Directorio base donde se encuentran los templates
@@ -24,6 +30,7 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
 
   // Objeto de sustituciones para los templates
   const substitutions = {
+    ...options,
     projectName: projectNameDashed,
     appServerName: names(appServerName).fileName,
     webAppName: webAppNames[0] || 'web-app',

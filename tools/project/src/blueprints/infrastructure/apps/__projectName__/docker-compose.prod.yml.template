@@ -1,4 +1,26 @@
 services:
+  # PgBouncer
+  pgbouncer:
+    image: edoburu/pgbouncer:latest # O una imagen de pgbouncer
+    container_name: <%= projectName %>-pgbouncer
+    restart: always
+    networks:
+      - app-network
+    environment:
+      # Configuración de PgBouncer - apunta al servicio 'postgres'
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=<%= projectName %>_db
+      - POOL_MODE=transaction # O session
+      - MAX_CLIENT_CONN=1000 # Ajustar según necesidad
+      - DEFAULT_POOL_SIZE=20 # Ajustar según necesidad
+    depends_on:
+      - postgres
+    # ports: # NO exponer normalmente, solo para debug si es necesario
+    #   - "6432:6432"
+
   # Database
   postgres:
     image: postgres:14-alpine
@@ -6,7 +28,7 @@ services:
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-<%=projectName%>}
+      - POSTGRES_DB=<%=projectName%>_db
     env_file:
       - .env
     volumes:
@@ -76,15 +98,19 @@ services:
 
   # App Server
   <%=appServerName%>:
-    build:
-      context: ../../
-      dockerfile: apps/<%=projectName%>/<%=appServerName%>/Dockerfile
+    # En producción, usar la imagen preconstruida en lugar de intentar construir
+    image: <%=projectName%>-<%=appServerName%>:prod
     container_name: <%=projectName%>-<%=appServerName%>
+    restart: always
+    pull_policy: never
+    networks:
+      - app-network
     environment:
       - NODE_ENV=production
       - PORT=4000
       - HOST=0.0.0.0
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@<%=projectName%>-postgres:5432/${POSTGRES_DB:-<%=projectName%>}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@pgbouncer:6432/<%= projectName %>_db # Puerto de PgBouncer
+      # - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@<%=projectName%>-postgres:5432/${POSTGRES_DB:-<%=projectName%>}
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@<%=projectName%>-rabbitmq:5672
       - RABBITMQ_HOST=<%=projectName%>-rabbitmq
       - SERVER_JS_PATH=/app/server/apps/<%=projectName%>/<%=appServerName%>/src/main.js
@@ -92,8 +118,6 @@ services:
       - SERVICE_NAME=<%=appServerName%>
     env_file:
       - .env
-    ports:
-      - "4000:4000"
     deploy:
       resources:
         limits:
@@ -114,25 +138,26 @@ services:
       retries: ${HEALTH_CHECK_RETRIES:-3}
       start_period: ${HEALTH_CHECK_START_PERIOD:-40s}
     depends_on:
+      - pgbouncer
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    restart: always
-    networks:
-      - app-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
-  # Web App
+  # Web Apps
+  <% for (const webAppName of webAppNames) { %>
   <%=webAppName%>:
-    build:
-      context: ../../
-      dockerfile: apps/<%=projectName%>/<%=webAppName%>/Dockerfile
+    image: <%=projectName%>-<%=webAppName%>:prod
     container_name: <%=projectName%>-<%=webAppName%>
+    restart: always
+    pull_policy: never
+    networks:
+      - app-network
     environment:
       - SERVER_PORT=4000
       - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
@@ -141,8 +166,6 @@ services:
       - SERVICE_NAME=<%=webAppName%>
     env_file:
       - .env
-    ports:
-      - "80:80"
     deploy:
       resources:
         limits:
@@ -165,25 +188,28 @@ services:
     depends_on:
       <%=appServerName%>:
         condition: service_healthy
-    restart: always
-    networks:
-      - app-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+  <% } %>
 
-  # Worker Service
+  # Workers
+  <% for (const workerName of workerNames) { %>
   <%=workerName%>:
-    build:
-      context: ../../
-      dockerfile: apps/<%=projectName%>/<%=workerName%>/Dockerfile
+    # En producción, usar la imagen preconstruida en lugar de intentar construir
+    image: <%=projectName%>-<%=workerName%>:prod
     container_name: <%=projectName%>-<%=workerName%>
+    restart: always
+    pull_policy: never
+    networks:
+      - app-network
     environment:
       - NODE_ENV=production
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@<%=projectName%>-rabbitmq:5672
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@<%=projectName%>-postgres:5432/${POSTGRES_DB:-<%=projectName%>}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@pgbouncer:6432/<%= projectName %>_db
+      # - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@<%=projectName%>-postgres:5432/${POSTGRES_DB:-<%=projectName%>}
       - RABBITMQ_HOST=<%=projectName%>-rabbitmq
       - APP_SERVER_HOST=<%=projectName%>-<%=appServerName%>
       - APP_SERVER_PORT=4000
@@ -212,18 +238,17 @@ services:
         condition: service_healthy
       <%=appServerName%>:
         condition: service_healthy
-    restart: always
-    networks:
-      - app-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+  <% } %>
 
 networks:
   app-network:
     driver: bridge
+    name: <%= projectName %>_app-network
     ipam:
       driver: default
       config:

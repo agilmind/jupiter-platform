@@ -1,0 +1,53 @@
+# .github/workflows/ci-build-test.yml
+name: CI Build Test - Jupiter App Server
+
+# Trigger: Ejecutar en cada push a la rama 'main'
+on:
+  push:
+    branches: [ main ]
+  # Permite ejecución manual desde la pestaña Actions (opcional, bueno para probar)
+  workflow_dispatch:
+
+jobs:
+  build_and_push_app_server:
+    runs-on: ubuntu-latest # Usar un runner estándar de Linux
+
+    # Permisos necesarios para que el job pueda leer el repo y escribir en Packages (GHCR)
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4 # Acción estándar para obtener el código
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3 # Configura herramientas de build avanzadas de Docker
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }} # Usuario que inició el workflow
+          password: ${{ secrets.GITHUB_TOKEN }} # Token temporal automático con los permisos definidos arriba
+
+      - name: Build and push jupiter-app-server image
+        run: |
+          # Generar un tag único basado en el hash corto del commit
+          IMAGE_TAG="sha-$(git rev-parse --short HEAD)"
+
+          # Construir el nombre completo de la imagen en GHCR
+          # Formato: ghcr.io/OWNER/REPO/IMAGE_NAME:TAG
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/jupiter-platform/jupiter-app-server"
+
+          echo "Building and pushing image: $IMAGE_NAME:$IMAGE_TAG"
+
+          docker buildx build --push \
+            --tag $IMAGE_NAME:$IMAGE_TAG \
+            --file apps/jupiter/app-server/Dockerfile \
+            --cache-from=type=gha \
+            --cache-to=type=gha,mode=max \
+            . # El '.' indica que el contexto de build es la raíz del repositorio
+
+      - name: Image Built and Pushed
+        run: echo "Image ghcr.io/${{ github.repository_owner }}/jupiter-platform/jupiter-app-server:sha-$(git rev-parse --short HEAD) pushed successfully."
