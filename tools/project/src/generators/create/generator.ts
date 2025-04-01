@@ -33,7 +33,7 @@ export default async function (tree: Tree, options: CreateGeneratorSchema) {
   options.appServerInternalPort = "4000";
   options.appServerPort = "4000";
   options.nodeVersion = "22.13.1";
-  options.appSourcePath = "app";
+  options.appSourcePath = path.relative(tree.root, normalizedOptions.projectRoot);
 
    // Llamar a la nueva función para generar la infraestructura
   await generateInfrastructure(tree, options);
