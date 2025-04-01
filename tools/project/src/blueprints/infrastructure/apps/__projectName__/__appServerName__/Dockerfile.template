@@ -4,12 +4,26 @@
 FROM node:<%= nodeVersion || '18' %> AS builder
 WORKDIR /app
 
+# --- Actualizar NPM dentro del contenedor ---
+RUN npm install -g npm@latest # O la versión específica >=11.2.0
+
+# --- Configurar Git para usar HTTPS con Token ---
+# Monta el secreto pasado desde buildx
+RUN --mount=type=secret,id=github_token \
+    git config --global url."https://oauth2:$(cat /run/secrets/github_token)@github.com/".insteadOf "ssh://git@github.com/" && \
+    # También puede ser útil reemplazar https://github.com/ por si acaso
+    git config --global url."https://oauth2:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/"
+
 # Copiar archivos de definición de paquetes y bloqueo PRIMERO desde la RAÍZ
 COPY package.json package-lock.json ./
 COPY .npmrc ./
 
 # Instalar TODAS las dependencias (incluyendo dev) necesarias para el build
 RUN npm ci
+
+# --- Limpiar configuración de Git (opcional pero bueno para seguridad) ---
+RUN git config --global --unset url."https://oauth2:$(cat /run/secrets/github_token)@github.com/".insteadOf "ssh://git@github.com/" && \
+    git config --global --unset url."https://oauth2:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/"
 
 # Copiar código fuente de la aplicación específica y archivos de config necesarios para build
 COPY <%= appSourcePath %>/src ./src
@@ -21,14 +35,15 @@ COPY <%= appSourcePath %>/tsconfig.json ./tsconfig.json
 # Ejecutar el build
 RUN npm run build
 
-# --- Opción A: Podar devDependencies ---
+# Podar devDependencies (esto eliminará haiku-generator)
 RUN npm prune --omit=dev
-# --- Fin Opción A ---
-
 
 # Etapa 2: Producción
 FROM node:<%= nodeVersion || '18' %>-alpine AS production
 WORKDIR /app
+
+# --- Actualizar NPM dentro del contenedor ---
+RUN npm install -g npm@latest # O la versión específica >=11.2.0
 
 # Instalar dependencias Alpine necesarias en runtime (ej. cliente postgres)
 # RUN apk add --no-cache libc6-compat openssl postgresql-client
