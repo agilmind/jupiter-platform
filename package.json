@@ -67,7 +67,7 @@
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^9.0.0",
     "fs-extra": "^11.3.0",
-    "haiku-generator": "github:garciafido/haiku-generator#main",
+    "haiku-generator": "git+https://github.com/garciafido/haiku-generator.git#main",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "jest-environment-node": "^29.7.0",

@@ -4,15 +4,11 @@
 FROM node:22.13.1 AS builder
 WORKDIR /app
 
-# --- Actualizar NPM dentro del contenedor ---
-RUN npm install -g npm@latest # O la versión específica >=11.2.0
+RUN npm install -g npm@latest
 
-# --- Configurar Git para usar HTTPS con Token ---
-# Monta el secreto pasado desde buildx
+# --- Configurar Git Credential Helper con Token ---
 RUN --mount=type=secret,id=github_token \
-    git config --global url."https://oauth2:$(cat /run/secrets/github_token)@github.com/".insteadOf "ssh://git@github.com/" && \
-    # También puede ser útil reemplazar https://github.com/ por si acaso
-    git config --global url."https://oauth2:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/"
+    git config --global credential.helper '!f() { echo "username=oauth2"; echo "password=$(cat /run/secrets/github_token)"; }; f'
 
 # Copiar archivos de definición de paquetes y bloqueo PRIMERO desde la RAÍZ
 COPY package.json package-lock.json ./
@@ -21,9 +17,8 @@ COPY .npmrc ./
 # Instalar TODAS las dependencias (incluyendo dev) necesarias para el build
 RUN npm ci
 
-# --- Limpiar configuración de Git (opcional pero bueno para seguridad) ---
-RUN git config --global --unset url."https://oauth2:$(cat /run/secrets/github_token)@github.com/".insteadOf "ssh://git@github.com/" && \
-    git config --global --unset url."https://oauth2:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/"
+# --- Limpiar Credential Helper (Opcional) ---
+RUN git config --global --unset credential.helper
 
 # Copiar código fuente de la aplicación específica y archivos de config necesarios para build
 COPY apps/jupiter/app-server/src ./src
