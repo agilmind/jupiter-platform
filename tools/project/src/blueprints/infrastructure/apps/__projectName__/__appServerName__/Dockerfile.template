@@ -1,77 +1,62 @@
-# Dockerfile para app-server en producción
-# Versión corregida con nombres de imágenes válidos
-
-# Etapa de construcción
-FROM <%=projectName%>-node-base:dev AS builder
+# Etapa 1: Construcción (usando una imagen Node completa para herramientas)
+FROM node:18 AS builder
+# O node:20, la versión que uses
 
 WORKDIR /app
 
-# Configurar npm para mayor resiliencia
-RUN npm config set fetch-retry-mintimeout 20000 \
-    && npm config set fetch-retry-maxtimeout 120000 \
-    && npm config set fetch-retries 5 \
-    && npm config set registry https://registry.npmjs.org/
+# Copiar archivos de definición de paquetes y bloqueo PRIMERO
+# Aprovecha el cacheo de Docker si estos no cambian
+COPY package.json yarn.lock ./
+# O copy package.json package-lock.json ./
 
-# Crear archivo .npmrc para prevenir problemas con repositorios privados
-RUN echo "registry=https://registry.npmjs.org/" > .npmrc
+# Instalar dependencias (incluyendo devDependencies necesarias para build)
+RUN yarn install --frozen-lockfile
+# O npm ci
 
-# Copiar package.json para modificarlo
-COPY package.json ./
+# Copiar el resto del código fuente de la aplicación específica
+# ¡IMPORTANTE! Asegúrate de que estas rutas son correctas desde el CONTEXTO RAÍZ
+COPY apps/<%=projectName%>/<%=appServerName%>/src ./src
+COPY apps/<%=projectName%>/<%=appServerName%>/prisma ./prisma
+COPY apps/<%=projectName%>/<%=appServerName%>/tsconfig.app.json ./tsconfig.app.json
+COPY apps/<%=projectName%>/<%=appServerName%>/tsconfig.json ./tsconfig.json
+# Añade cualquier otro archivo necesario para el build, ej: tsconfig.base.json si existe en la raíz
 
-# Eliminar dependencias problemáticas
-RUN node -e "const fs=require('fs'); \
-    const pkg=JSON.parse(fs.readFileSync('./package.json')); \
-    if(pkg.dependencies) { delete pkg.dependencies['haiku-generator']; } \
-    if(pkg.devDependencies) { delete pkg.devDependencies['haiku-generator']; } \
-    fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
+# Ejecutar el build (compilación TypeScript, generación Prisma, etc.)
+# Asume que tienes un script 'build' en tu package.json
+RUN yarn build
+# O npm run build
 
-# Copiar archivos necesarios para la compilación
-COPY package-lock.json ./
-COPY tsconfig.base.json ./
-COPY apps/<%=projectName%>/tsconfig.json ./apps/<%=projectName%>/
-COPY apps/<%=projectName%>/<%=appServerName%>/ ./apps/<%=projectName%>/<%=appServerName%>/
+# (Opcional) Podar dependencias de desarrollo si es posible ANTES de la etapa final
+# RUN npm prune --production
 
-# Instalar dependencias con reintentos
-RUN for i in 1 2 3 4 5; do \
-        echo "=== Intento $i de instalación de dependencias ==="; \
-        npm install --no-package-lock --no-audit --no-fund --omit=optional --ignore-scripts && break || \
-        echo "=== Intento $i falló, esperando antes de reintentar... ==="; \
-        sleep 15; \
-    done
-
-# Compilar TypeScript
-WORKDIR /app/apps/<%=projectName%>/<%=appServerName%>
-RUN echo "Compilando TypeScript para <%=appServerName%>..."
-RUN npx tsc -p tsconfig.json
-
-# Etapa de producción
-FROM <%=projectName%>-node-base:prod
+# Etapa 2: Producción (usando una imagen Node ligera y limpia)
+FROM node:18-alpine AS production
+# O node:20-alpine
 
 WORKDIR /app
 
-# Identificar el servicio
-ENV SERVICE_TYPE="app-server"
-ENV SERVICE_NAME="<%=appServerName%>"
-ENV NODE_ENV="production"
-
-# Copiar dependencias de producción
+# Copiar dependencias de producción desde la etapa 'builder'
+# Esto es más eficiente si pudiste hacer 'npm prune --production' arriba
+# COPY --from=builder /app/node_modules ./node_modules
+# Si no, copia todo node_modules y asegúrate que el build no necesite devDeps en runtime
 COPY --from=builder /app/node_modules ./node_modules
 
-# Copiar archivos compilados
-COPY --from=builder /app/dist/compiled/<%=appServerName%> ./server
+# Copiar artefactos construidos (ej. directorio 'dist') desde la etapa 'builder'
+COPY --from=builder /app/dist ./dist
 
-# Configurar variables de entorno
-ENV HOST=0.0.0.0
-ENV PORT=4000
-ENV RABBITMQ_HOST=<%=projectName%>-rabbitmq
-ENV SERVER_JS_PATH=/app/server/apps/<%=projectName%>/<%=appServerName%>/src/main.js
+# Copiar package.json (necesario para que 'npm start' funcione)
+COPY package.json .
 
-# Exponer puerto
-EXPOSE ${PORT}
+# Copiar otros assets necesarios en producción (ej. schema de prisma si se usa en runtime)
+COPY --from=builder /app/prisma ./prisma
 
-# Configurar healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-  CMD curl -f http://localhost:4000/health || exit 1
+# Exponer el puerto que usa la aplicación
+EXPOSE 3000 # O el puerto correcto
 
-# Comando de inicio
-CMD ["/usr/local/bin/start-service.sh"]
+# Usuario no root (¡Buena práctica!)
+# RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# USER appuser
+
+# Comando para iniciar la aplicación (usando el JS compilado en 'dist')
+CMD ["node", "dist/main.js"]
+# O CMD ["npm", "run", "start:prod"] si tienes un script definido
