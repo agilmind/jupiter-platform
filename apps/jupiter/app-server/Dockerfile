@@ -6,19 +6,12 @@ WORKDIR /app
 
 RUN npm install -g npm@latest
 
-# --- Configurar Git Credential Helper con Token ---
-RUN --mount=type=secret,id=github_token \
-    git config --global credential.helper '!f() { echo "username=oauth2"; echo "password=$(cat /run/secrets/github_token)"; }; f'
-
 # Copiar archivos de definición de paquetes y bloqueo PRIMERO desde la RAÍZ
 COPY package.json package-lock.json ./
 COPY .npmrc ./
 
 # Instalar TODAS las dependencias (incluyendo dev) necesarias para el build
 RUN npm ci
-
-# --- Limpiar Credential Helper (Opcional) ---
-RUN git config --global --unset credential.helper
 
 # Copiar código fuente de la aplicación específica y archivos de config necesarios para build
 COPY apps/jupiter/app-server/src ./src
