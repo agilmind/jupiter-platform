@@ -1,0 +1,36 @@
+# ===================================================================
+# Dockerfile base para servicios web con Nginx
+# ===================================================================
+
+# ------ Etapa base para Nginx ------
+FROM nginx:alpine AS nginx-base
+
+# Instalar herramientas necesarias
+RUN apk add --no-cache gettext curl bash
+
+# Copiar scripts de utilidades
+COPY bin/service-base.sh \
+     bin/start-service.sh \
+     /usr/local/bin/
+RUN chmod +x /usr/local/bin/service-base.sh \
+             /usr/local/bin/start-service.sh
+
+# Configuración para healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost/health || exit 1
+
+# ------ Etapa de Nginx para desarrollo ------
+FROM nginx-base AS nginx-dev
+
+# Configuración para desarrollo
+ENV NODE_ENV=development
+
+# ------ Etapa de Nginx para producción ------
+FROM nginx-base AS nginx-prod
+
+# Configuración para producción
+ENV NODE_ENV=production
+
+# Optimización de nginx para producción
+RUN sed -i 's/worker_processes  1/worker_processes  auto/' /etc/nginx/nginx.conf && \
+    sed -i 's/keepalive_timeout  65/keepalive_timeout  30/' /etc/nginx/nginx.conf

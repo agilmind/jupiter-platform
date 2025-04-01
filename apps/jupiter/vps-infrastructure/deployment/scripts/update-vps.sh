@@ -1,0 +1,213 @@
+#!/bin/bash
+# Script para actualizar jupiter en el VPS preservando datos
+# Versión: 1.0 - Actualización segura para entornos en producción
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Configuración
+PROJECT_NAME="jupiter"
+VPS_USER="deploy"  # Usuario dedicado para despliegues
+VPS_HOST="$PROJECT_NAME.ar"  # O la IP/dominio de tu VPS
+DEPLOY_PATH="/opt/$PROJECT_NAME"  # Ruta en el VPS donde se desplegará
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Iniciando actualización segura de $PROJECT_NAME en $VPS_HOST${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# 1. Verificar que se ejecuta desde la carpeta raíz del proyecto
+if [ ! -d "./apps/$PROJECT_NAME" ]; then
+  echo -e "${RED}Error: Este script debe ejecutarse desde la carpeta raíz del proyecto${NC}"
+  echo -e "${YELLOW}Ejemplo: bash ./apps/$PROJECT_NAME/vps-infrastructure/deployment/scripts/update-vps.sh${NC}"
+  exit 1
+fi
+
+# 2. Verificar que el proyecto está generado correctamente
+echo -e "${YELLOW}Verificando estructura del proyecto...${NC}"
+if [ ! -f "./apps/$PROJECT_NAME/docker-compose.local-prod.yml" ]; then
+  echo -e "${RED}Error: No se encontró docker-compose.local-prod.yml${NC}"
+  echo -e "${YELLOW}Asegúrate de haber generado el proyecto con: nx g project:create $PROJECT_NAME${NC}"
+  exit 1
+fi
+
+# 3. Verificar que el VPS tiene una instalación existente
+echo -e "${YELLOW}Verificando instalación existente en el VPS...${NC}"
+if ! ssh "$VPS_USER@$VPS_HOST" "[ -d $DEPLOY_PATH ]"; then
+  echo -e "${RED}Error: No se encontró una instalación existente en $DEPLOY_PATH${NC}"
+  echo -e "${YELLOW}Para una instalación inicial, usa deploy-vps.sh${NC}"
+  exit 1
+fi
+
+# 4. Preparar respaldo en el VPS
+echo -e "${YELLOW}Creando respaldo de la instalación actual...${NC}"
+BACKUP_DATE=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FOLDER="$PROJECT_NAME-backup-$BACKUP_DATE"
+
+# Crear respaldo de configuración y datos
+ssh "$VPS_USER@$VPS_HOST" "cd $DEPLOY_PATH && \
+    mkdir -p backups/$BACKUP_FOLDER && \
+    cp docker-compose.yml backups/$BACKUP_FOLDER/ && \
+    cp .env backups/$BACKUP_FOLDER/ 2>/dev/null || true && \
+    cp -r nginx backups/$BACKUP_FOLDER/ 2>/dev/null || true && \
+    sudo docker compose exec postgres pg_dump -U postgres $PROJECT_NAME > backups/$BACKUP_FOLDER/database-backup.sql 2>/dev/null || echo 'No se pudo hacer respaldo de BD'"
+
+echo -e "${GREEN}Respaldo creado en $DEPLOY_PATH/backups/$BACKUP_FOLDER${NC}"
+
+# 5. Crear directorio temporal para los archivos a transferir
+TEMP_DIR=$(mktemp -d)
+mkdir -p "$TEMP_DIR/deploy"
+echo -e "${YELLOW}Directorio temporal creado: $TEMP_DIR${NC}"
+
+# 6. Construir imágenes base localmente (esto es necesario para los builds)
+echo -e "${YELLOW}Construyendo imágenes base localmente...${NC}"
+cd "./apps/$PROJECT_NAME/bin" && bash build-base-images.sh && cd ../../..
+
+# 7. Construir las imágenes usando docker-compose.local-prod.yml
+echo -e "${YELLOW}Construyendo imágenes de servicio para actualización...${NC}"
+cd ./apps/$PROJECT_NAME
+
+# Definir nombres de imágenes
+APP_SERVER_IMG="$PROJECT_NAME-app-server:prod"
+WEBAPP_IMG="$PROJECT_NAME-webapp:prod"
+WORKER_IMG="$PROJECT_NAME-worker-sample:prod"
+
+echo -e "${YELLOW}Usando docker-compose para construir las imágenes...${NC}"
+docker compose -f docker-compose.local-prod.yml build
+
+# Etiquetar las imágenes construidas con nombres predecibles
+echo -e "${YELLOW}Etiquetando imágenes con nombres predecibles...${NC}"
+
+# Obtener los nombres de las imágenes construidas
+APP_SERVER_ACTUAL=$(docker compose -f docker-compose.local-prod.yml images app-server -q)
+WEBAPP_ACTUAL=$(docker compose -f docker-compose.local-prod.yml images web-app -q)
+WORKER_ACTUAL=$(docker compose -f docker-compose.local-prod.yml images worker-sample -q)
+
+echo "Imagen app-server: $APP_SERVER_ACTUAL"
+echo "Imagen web-app: $WEBAPP_ACTUAL"
+echo "Imagen worker-sample: $WORKER_ACTUAL"
+
+# Etiquetar las imágenes
+if [ ! -z "$APP_SERVER_ACTUAL" ]; then
+  docker tag $APP_SERVER_ACTUAL $APP_SERVER_IMG
+fi
+
+if [ ! -z "$WEBAPP_ACTUAL" ]; then
+  docker tag $WEBAPP_ACTUAL $WEBAPP_IMG
+fi
+
+if [ ! -z "$WORKER_ACTUAL" ]; then
+  docker tag $WORKER_ACTUAL $WORKER_IMG
+fi
+
+cd ../..
+
+# 8. Crear lista de imágenes para exportar
+echo -e "${YELLOW}Preparando imágenes para exportar...${NC}"
+IMAGE_LIST=(
+  "$APP_SERVER_IMG"
+  "$WEBAPP_IMG"
+  "$WORKER_IMG"
+)
+
+# 9. Exportar imágenes a un archivo tar
+echo -e "${YELLOW}Exportando imágenes a archivo tar...${NC}"
+echo -e "${YELLOW}Esto puede tomar varios minutos dependiendo del tamaño de las imágenes...${NC}"
+docker save -o "$TEMP_DIR/$PROJECT_NAME-images.tar" ${IMAGE_LIST[@]}
+if [ $? -ne 0 ]; then
+  echo -e "${RED}Error: Falló la exportación de imágenes${NC}"
+  exit 1
+fi
+
+# 10. Preparar scripts y archivos de configuración para actualización
+echo -e "${YELLOW}Preparando archivos para la actualización...${NC}"
+
+# Copiar script de actualización en el VPS
+cat > "$TEMP_DIR/update-server.sh" << 'EOF'
+#!/bin/bash
+# Script de actualización en el servidor
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+PROJECT_NAME=$(basename $(pwd))
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Actualizando $PROJECT_NAME en el servidor${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# Verificar que existen las nuevas imágenes
+if [ ! -f "$PROJECT_NAME-images.tar" ]; then
+  echo -e "${RED}Error: No se encontró el archivo de imágenes $PROJECT_NAME-images.tar${NC}"
+  exit 1
+fi
+
+# Cargar las nuevas imágenes
+echo -e "${YELLOW}Cargando nuevas imágenes...${NC}"
+docker load -i $PROJECT_NAME-images.tar
+
+# Verificar si hay contenedores en ejecución
+RUNNING_CONTAINERS=$(docker compose ps -q)
+if [ ! -z "$RUNNING_CONTAINERS" ]; then
+  echo -e "${YELLOW}Deteniendo contenedores actuales...${NC}"
+  docker compose down
+fi
+
+# Iniciar los contenedores con las nuevas imágenes
+echo -e "${YELLOW}Iniciando contenedores con las nuevas imágenes...${NC}"
+docker compose up -d
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Actualización completada${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+EOF
+
+chmod +x "$TEMP_DIR/update-server.sh"
+
+# 11. Transferir archivos al VPS
+echo -e "${YELLOW}Transfiriendo archivos para actualización...${NC}"
+echo -e "${YELLOW}Tamaño del archivo de imágenes: $(du -h "$TEMP_DIR/$PROJECT_NAME-images.tar" | cut -f1)${NC}"
+
+# Verificar si el archivo de imágenes ya existe
+if ssh "$VPS_USER@$VPS_HOST" "[ -f $DEPLOY_PATH/$PROJECT_NAME-images.tar ]"; then
+  echo -e "${YELLOW}El archivo de imágenes ya existe en el VPS.${NC}"
+  read -p "¿Deseas sobrescribirlo? (s/n): " OVERWRITE
+  if [[ "$OVERWRITE" == "s" || "$OVERWRITE" == "S" ]]; then
+    echo -e "${YELLOW}Transfiriendo archivo de imágenes...${NC}"
+    rsync -avz "$TEMP_DIR/$PROJECT_NAME-images.tar" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+  else
+    echo -e "${YELLOW}Se usará el archivo de imágenes existente${NC}"
+  fi
+else
+  echo -e "${YELLOW}Transfiriendo archivo de imágenes...${NC}"
+  rsync -avz "$TEMP_DIR/$PROJECT_NAME-images.tar" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+fi
+
+# Transferir script de actualización
+rsync -avz "$TEMP_DIR/update-server.sh" "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/"
+
+# 12. Ejecutar actualización en el VPS (sin borrar configuraciones existentes)
+echo -e "${YELLOW}Ejecutando actualización en el VPS...${NC}"
+ssh "$VPS_USER@$VPS_HOST" "cd $DEPLOY_PATH && chmod +x update-server.sh && ./update-server.sh"
+
+# 13. Limpiar archivos temporales
+rm -rf "$TEMP_DIR"
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Actualización completada${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+echo ""
+echo -e "${YELLOW}Acceso a los servicios:${NC}"
+echo "- Web App: https://webapp.$PROJECT_NAME.ar"
+echo "- API: https://$PROJECT_NAME.ar/api"
+echo "- RabbitMQ Admin: https://$PROJECT_NAME.ar/rabbitmq"
+echo ""
+echo -e "${YELLOW}Se ha creado un respaldo automático en:${NC}"
+echo "$DEPLOY_PATH/backups/$BACKUP_FOLDER"

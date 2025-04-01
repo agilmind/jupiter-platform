@@ -1,0 +1,208 @@
+services:
+  # App Server
+  app-server:
+    build:
+      context: ../../
+      dockerfile: apps/jupiter/app-server/Dockerfile.dev
+    container_name: jupiter-app-server
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - HOST=0.0.0.0
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@jupiter-postgres:5432/${POSTGRES_DB:-jupiter}}
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@jupiter-rabbitmq:5672
+      - RABBITMQ_HOST=jupiter-rabbitmq
+      - SERVICE_TYPE=app-server
+      - SERVICE_NAME=app-server
+    env_file:
+      - .env
+    ports:
+      - '4000:4000'
+      - '9229:9229' # Puerto para debugging
+    volumes:
+      - ../../apps/jupiter/app-server:/app/apps/jupiter/app-server
+      - ../../libs:/app/libs
+      - ../../node_modules:/app/node_modules
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4000/health']
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-40s}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Web App
+  web-app:
+    build:
+      context: ../../
+      dockerfile: apps/jupiter/web-app/Dockerfile.dev
+    container_name: jupiter-web-app
+    environment:
+      - SERVER_PORT=4000
+      - APP_SERVER_HOST=jupiter-app-server
+      - APP_SERVER_PORT=4000
+      - SERVICE_TYPE=web-app
+      - SERVICE_NAME=web-app
+    env_file:
+      - .env
+    ports:
+      - '3000:80'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost/health']
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-20s}
+    depends_on:
+      app-server:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+          cpus: '0.5'
+        reservations:
+          memory: 100M
+          cpus: '0.1'
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Worker Service
+  worker-sample:
+    build:
+      context: ../../
+      dockerfile: apps/jupiter/worker-sample/Dockerfile.dev
+    container_name: jupiter-worker-sample
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@jupiter-rabbitmq:5672
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@jupiter-postgres:5432/${POSTGRES_DB:-jupiter}}
+      - RABBITMQ_HOST=jupiter-rabbitmq
+      - APP_SERVER_HOST=jupiter-app-server
+      - APP_SERVER_PORT=4000
+      - SERVICE_TYPE=worker
+      - SERVICE_NAME=worker-sample
+    env_file:
+      - .env
+    ports:
+      - '9230:9230' # Puerto para debugging del worker
+    volumes:
+      - ../../apps/jupiter/worker-sample:/app/apps/jupiter/worker-sample
+      - ../../libs:/app/libs
+      - ../../node_modules:/app/node_modules
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      app-server:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+          cpus: '0.8'
+        reservations:
+          memory: 200M
+          cpus: '0.2'
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: jupiter-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-jupiter}
+    env_file:
+      - .env
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+          cpus: '0.5'
+        reservations:
+          memory: 200M
+          cpus: '0.2'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: ${HEALTH_CHECK_INTERVAL:-10s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
+      retries: ${HEALTH_CHECK_RETRIES:-5}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-20s}
+    restart: unless-stopped
+    networks:
+      - app-network
+    user: postgres
+
+  # Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: jupiter-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
+    env_file:
+      - .env
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      # Eliminar ambos archivos de configuración
+      # - ./rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/conf.d/rabbitmq.conf:ro
+      # - ./rabbitmq-config/definitions.json:/etc/rabbitmq/conf.d/definitions.json:ro
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+          cpus: '0.5'
+        reservations:
+          memory: 200M
+          cpus: '0.2'
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: ${HEALTH_CHECK_INTERVAL:-10s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
+      retries: ${HEALTH_CHECK_RETRIES:-5}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-30s}
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  rabbitmq_data:
+    driver: local

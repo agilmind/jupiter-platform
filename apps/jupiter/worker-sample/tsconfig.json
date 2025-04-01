@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2022",
+    "outDir": "../../../dist/compiled/worker-sample",
+    "sourceMap": true,
+    "types": ["node", "jest"],
+    "noImplicitAny": false,
+    "skipLibCheck": true
+  },
+  "exclude": ["node_modules", "tmp", "**/*.spec.ts"],
+  "include": ["**/*.ts"]
+}

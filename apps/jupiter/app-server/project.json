@@ -1,0 +1,37 @@
+{
+  "name": "jupiter-app-server",
+  "root": "apps/jupiter/app-server",
+  "sourceRoot": "apps/jupiter/app-server/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/jupiter/app-server",
+        "main": "apps/jupiter/app-server/src/main.ts",
+        "tsConfig": "apps/jupiter/app-server/tsconfig.app.json",
+        "assets": ["apps/jupiter/app-server/src/assets"]
+      },
+      "configurations": {
+        "production": {
+          "optimization": true,
+          "extractLicenses": true,
+          "inspect": false,
+          "fileReplacements": [
+            {
+              "replace": "apps/jupiter/app-server/src/environments/environment.ts",
+              "with": "apps/jupiter/app-server/src/environments/environment.prod.ts"
+            }
+          ]
+        }
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "options": {
+        "buildTarget": "app-server:build"
+      }
+    }
+  }
+}

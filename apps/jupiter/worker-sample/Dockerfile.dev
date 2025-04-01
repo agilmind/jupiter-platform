@@ -1,0 +1,54 @@
+# Dockerfile para worker en desarrollo
+# Versión corregida con nombres de imágenes correctos
+
+FROM jupiter-node-base:dev
+
+WORKDIR /app
+
+# Identificar el servicio
+ENV SERVICE_TYPE="worker"
+ENV SERVICE_NAME="worker-sample"
+ENV NODE_ENV="development"
+
+# Preparar directorios para los package.json
+RUN mkdir -p ./apps/jupiter/worker-sample \
+    ./libs/jupiter/shared \
+    ./libs/jupiter/api-interfaces
+
+# Copiar package.json de la aplicación y el proyecto
+COPY package.json package-lock.json ./
+COPY apps/jupiter/worker-sample/package.json ./apps/jupiter/worker-sample/
+
+# Copiar package.json de las libs usando file-utils
+RUN /usr/local/bin/file-utils.sh copy-if-exists libs/jupiter/shared/package.json ./libs/jupiter/shared/
+RUN /usr/local/bin/file-utils.sh copy-if-exists libs/jupiter/api-interfaces/package.json ./libs/jupiter/api-interfaces/
+
+# Eliminar dependencias problemáticas
+RUN node -e "const fs=require('fs'); \
+    const pkg=JSON.parse(fs.readFileSync('./package.json')); \
+    if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; \
+    if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; \
+    fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
+
+# Instalar dependencias (con caché de Docker)
+RUN npm install
+RUN npm install --save-dev @types/amqplib
+
+# Copiar archivos de configuración
+COPY tsconfig.base.json ./
+COPY apps/jupiter/tsconfig.json ./apps/jupiter/
+
+# Configurar prisma si es necesario
+RUN cd ./apps/jupiter/worker-sample && \
+    if [ -f "./prisma/schema.prisma" ]; then \
+      npx prisma generate; \
+    fi
+
+# Configurar Debug
+ENV HOST="0.0.0.0"
+ENV DEBUG_PORT="9230"
+EXPOSE ${DEBUG_PORT}
+
+# Usar el script de inicio unificado
+WORKDIR /app/apps/jupiter/worker-sample
+CMD ["/usr/local/bin/start-service.sh"]

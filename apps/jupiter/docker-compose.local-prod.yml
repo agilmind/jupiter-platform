@@ -1,0 +1,161 @@
+services:
+  # App Server
+  app-server:
+    build:
+      context: ../../
+      dockerfile: apps/jupiter/app-server/Dockerfile
+    container_name: jupiter-app-server-local-prod
+    environment:
+      - NODE_ENV=production
+      - PORT=4001 # Puerto diferente para no colisionar con desarrollo
+      - HOST=0.0.0.0
+      # Usamos pgBouncer en lugar de PostgreSQL directamente
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@jupiter-pgbouncer-local:6432/${POSTGRES_DB:-jupiter}
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@jupiter-rabbitmq-local:5672
+      - RABBITMQ_HOST=jupiter-rabbitmq-local
+      - SERVICE_TYPE=app-server
+      - SERVICE_NAME=app-server
+    expose:
+      - '4001' # Solo exponemos internamente, Nginx hará proxy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4001/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - jupiter_network
+    depends_on:
+      - pgbouncer
+      - rabbitmq
+
+  # Web App
+  web-app:
+    build:
+      context: ../../
+      dockerfile: apps/jupiter/web-app/Dockerfile
+    container_name: jupiter-web-app-local-prod
+    environment:
+      - SERVER_PORT=4001
+      - APP_SERVER_HOST=jupiter-app-server-local-prod
+      - APP_SERVER_PORT=4001
+      - SERVICE_TYPE=web-app
+      - SERVICE_NAME=web-app
+    ports:
+      - '8081:80' # Puerto diferente para no colisionar con desarrollo
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - jupiter_network
+    depends_on:
+      - app-server
+
+  # Worker
+  worker-sample:
+    build:
+      context: ../../
+      dockerfile: apps/jupiter/worker-sample/Dockerfile
+    container_name: jupiter-worker-sample-local-prod
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@jupiter-pgbouncer-local:6432/${POSTGRES_DB:-jupiter}
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@jupiter-rabbitmq-local:5672
+      - RABBITMQ_HOST=jupiter-rabbitmq-local
+      - APP_SERVER_HOST=jupiter-app-server-local-prod
+      - APP_SERVER_PORT=4001
+      - SERVICE_TYPE=worker
+      - SERVICE_NAME=worker-sample
+    restart: unless-stopped
+    networks:
+      - jupiter_network
+    depends_on:
+      - pgbouncer
+      - rabbitmq
+      - app-server
+
+  # PostgreSQL
+  postgres:
+    image: postgres:14-alpine
+    container_name: jupiter-postgres-local-prod
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-jupiter}
+    expose:
+      - '5432' # Solo exposición interna
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Script de inicialización
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - jupiter_network
+    restart: unless-stopped
+
+  # PgBouncer - Connection pooling para PostgreSQL
+  pgbouncer:
+    image: edoburu/pgbouncer:1.18.0
+    container_name: jupiter-pgbouncer-local
+    environment:
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - DB_HOST=jupiter-postgres-local-prod
+      - DB_NAME=${POSTGRES_DB:-jupiter}
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=100
+      - DEFAULT_POOL_SIZE=20
+      - SERVER_RESET_QUERY=DISCARD ALL
+      - MAX_DB_CONNECTIONS=0
+      - MAX_USER_CONNECTIONS=0
+    expose:
+      - '6432' # Solo exposición interna
+    networks:
+      - jupiter_network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: jupiter-rabbitmq-local
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
+    expose:
+      - '5672' # AMQP expuesto internamente
+    ports:
+      - '15673:15672' # Puerto de administración visible externamente
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - jupiter_network
+    restart: unless-stopped
+
+networks:
+  jupiter_network:
+    driver: bridge
+    name: jupiter_network
+
+volumes:
+  postgres_data:
+    name: jupiter_postgres_data
+  rabbitmq_data:
+    name: jupiter_rabbitmq_data

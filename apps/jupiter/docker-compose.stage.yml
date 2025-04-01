@@ -1,0 +1,127 @@
+services:
+  # App Server
+  app-server:
+    build:
+      context: ../../
+      dockerfile: apps/jupiter/app-server/Dockerfile
+      args:
+        NODE_ENV: staging
+    container_name: jupiter-app-server
+    environment:
+      - NODE_ENV=staging
+      - PORT=${SERVER_PORT}
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    ports:
+      - '${SERVER_PORT}:${SERVER_PORT}'
+    restart: always
+    depends_on:
+      - postgres
+      - rabbitmq
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 500M
+    networks:
+      - app-network
+
+  # Web App
+  web-app:
+    build:
+      context: ../../
+      dockerfile: apps/jupiter/web-app/Dockerfile
+    container_name: jupiter-web-app
+    environment:
+      - SERVER_PORT=${SERVER_PORT}
+    ports:
+      - '80:80'
+    restart: always
+    depends_on:
+      - app-server
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 200M
+    networks:
+      - app-network
+
+  # Worker Service
+  worker-sample:
+    build:
+      context: ../../
+      dockerfile: apps/jupiter/worker-sample/Dockerfile
+      args:
+        NODE_ENV: staging
+    container_name: jupiter-worker-sample
+    environment:
+      - NODE_ENV=staging
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - DATABASE_URL=${DATABASE_URL}
+    restart: always
+    depends_on:
+      - rabbitmq
+      - app-server
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 300M
+    networks:
+      - app-network
+
+  # Database
+  postgres:
+    image: postgres:14
+    container_name: jupiter-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 500M
+    networks:
+      - app-network
+
+  # Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: jupiter-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: always
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 300M
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  rabbitmq_data:

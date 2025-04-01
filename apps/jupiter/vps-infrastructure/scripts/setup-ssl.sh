@@ -1,0 +1,113 @@
+#!/bin/bash
+# Script para configurar SSL con Let's Encrypt
+# Se ejecutará con sudo cuando sea necesario
+
+# Colores para consola
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Configuración
+PROJECT_NAME="jupiter"
+DOMAINS=("$PROJECT_NAME.ar" "webapp.$PROJECT_NAME.ar")
+
+echo -e "${BLUE}===========================================================${NC}"
+echo -e "${BLUE}Configurando SSL para $PROJECT_NAME${NC}"
+echo -e "${BLUE}===========================================================${NC}"
+
+# Verificar que el usuario tiene permisos sudo
+if ! sudo -v &> /dev/null; then
+    echo -e "${RED}Este script requiere que el usuario tenga permisos sudo${NC}"
+    exit 1
+fi
+
+# Verificar que Nginx está instalado usando sudo
+if ! sudo which nginx &> /dev/null; then
+    echo -e "${YELLOW}Nginx no parece estar instalado. Instalando...${NC}"
+    sudo apt-get update
+    sudo apt-get install -y nginx
+
+    if ! sudo which nginx &> /dev/null; then
+        echo -e "${RED}Error: No se pudo instalar Nginx.${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}Nginx está instalado.${NC}"
+fi
+
+# Instalar Certbot si no está instalado
+if ! sudo which certbot &> /dev/null; then
+    echo -e "${YELLOW}Certbot no está instalado. Instalando...${NC}"
+    sudo apt-get update
+    sudo apt-get install -y certbot python3-certbot-nginx
+
+    if ! sudo which certbot &> /dev/null; then
+        echo -e "${RED}Error: No se pudo instalar Certbot.${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}Certbot ya está instalado${NC}"
+fi
+
+# Verificar que los dominios están configurados en Nginx
+for domain in "${DOMAINS[@]}"; do
+    if ! sudo grep -q "server_name.*$domain" /etc/nginx/conf.d/*.conf 2>/dev/null; then
+        echo -e "${RED}Error: El dominio $domain no está configurado en Nginx.${NC}"
+        echo -e "${YELLOW}Asegúrate de haber ejecutado setup-nginx.sh antes.${NC}"
+        exit 1
+    fi
+done
+
+# Construir la lista de dominios para Certbot
+DOMAIN_ARGS=""
+for domain in "${DOMAINS[@]}"; do
+    DOMAIN_ARGS="$DOMAIN_ARGS -d $domain"
+done
+
+# Obtener certificados
+echo -e "${YELLOW}Obteniendo certificados para ${DOMAINS[*]}...${NC}"
+sudo certbot --nginx $DOMAIN_ARGS --non-interactive --agree-tos --email admin@$PROJECT_NAME.ar
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Certificados obtenidos correctamente${NC}"
+else
+    echo -e "${RED}Error al obtener certificados. Comprueba los logs de Certbot.${NC}"
+    sudo certbot --nginx $DOMAIN_ARGS
+    exit 1
+fi
+
+# Verificar la renovación automática
+echo -e "${YELLOW}Verificando renovación automática...${NC}"
+sudo certbot renew --dry-run
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Renovación automática configurada correctamente${NC}"
+else
+    echo -e "${RED}Error al configurar la renovación automática${NC}"
+    exit 1
+fi
+
+# Verificar la configuración de Nginx
+echo -e "${YELLOW}Verificando configuración de Nginx...${NC}"
+sudo nginx -t
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Configuración de Nginx correcta${NC}"
+    sudo systemctl restart nginx
+else
+    echo -e "${RED}Error en la configuración de Nginx${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}===========================================================${NC}"
+echo -e "${GREEN}Configuración SSL completada${NC}"
+echo -e "${GREEN}===========================================================${NC}"
+echo ""
+echo -e "${YELLOW}Los servicios ahora están disponibles en:${NC}"
+echo "- Web App: https://webapp.$PROJECT_NAME.ar"
+echo "- API: https://$PROJECT_NAME.ar/api"
+echo "- RabbitMQ Admin: https://$PROJECT_NAME.ar/rabbitmq"
+echo ""
+echo -e "${YELLOW}Renovación automática configurada. Los certificados se renovarán automáticamente.${NC}"

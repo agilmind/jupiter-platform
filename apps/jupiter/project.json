@@ -1,0 +1,62 @@
+{
+  "name": "jupiter",
+  "root": "apps/jupiter",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/jupiter",
+        "command": "docker compose -f docker-compose.dev.yml up --build"
+      }
+    },
+    "dev:down": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/jupiter",
+        "command": "docker compose -f docker-compose.dev.yml down"
+      }
+    },
+    "dev:clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/jupiter",
+        "commands": [
+          "docker system prune -a --volumes --force",
+          "docker compose -f docker-compose.dev.yml down --rmi all --volumes --remove-orphans",
+          "docker network prune --force --filter 'label=com.docker.compose.project=jupiter'",
+          "docker volume prune --force --filter 'label=com.docker.compose.project=jupiter'"
+        ],
+        "parallel": false
+      }
+    },
+    "prod": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/jupiter",
+        "command": "docker compose -f docker-compose.local-prod.yml up -d --build"
+      }
+    },
+    "prod:down": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/jupiter",
+        "command": "docker compose -f docker-compose.local-prod.yml down"
+      }
+    },
+    "prod:clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/jupiter",
+        "commands": [
+          "docker system prune -a --volumes --force",
+          "docker compose -f docker-compose.local-prod.yml down --rmi all --volumes --remove-orphans",
+          "docker network prune --force --filter 'label=com.docker.compose.project=jupiter'",
+          "docker volume prune --force --filter 'label=com.docker.compose.project=jupiter'"
+        ],
+        "parallel": false
+      }
+    }
+  },
+  "tags": ["scope:jupiter"]
+}

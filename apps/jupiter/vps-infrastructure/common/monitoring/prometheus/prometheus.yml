@@ -1,0 +1,62 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# Reglas de alerta
+rule_files:
+  - '/etc/prometheus/rules/*rules.yml'
+
+# Configuración de AlertManager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Configuración de los trabajos de recolección
+scrape_configs:
+  # Métricas del propio Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Métricas del sistema host
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Métricas de PostgreSQL
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Métricas de RabbitMQ
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq-exporter:9419']
+
+  # Métricas del app-server
+  - job_name: 'app-server'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['jupiter-app-server:4000']
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # Métricas del worker
+  - job_name: 'worker'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['jupiter-worker-sample:9230']
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # Métricas de Docker
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    metrics_path: '/metrics'
+    params:
+      collect[]:
+        - 'container'

@@ -1,0 +1,39 @@
+# ===================================================================
+# Dockerfile base para servicios Node.js
+# Este Dockerfile define las etapas y configuraciones comunes
+# ===================================================================
+
+# ------ Etapa base común para desarrollo y construcción ------
+FROM node:22-alpine AS node-base
+
+# Configuración de npm
+RUN npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm config set fetch-retries 5 \
+    && npm config set registry https://registry.npmjs.org/
+
+# Instalar herramientas comunes
+RUN apk add --no-cache git openssh curl bash
+
+# Copiar scripts de utilidades
+COPY bin/file-utils.sh \
+     bin/service-base.sh \
+     bin/start-service.sh \
+     /usr/local/bin/
+RUN chmod +x /usr/local/bin/file-utils.sh \
+             /usr/local/bin/service-base.sh \
+             /usr/local/bin/start-service.sh
+
+WORKDIR /app
+
+# ------ Etapa de desarrollo ------
+FROM node-base AS node-dev
+
+# Instalar herramientas adicionales para desarrollo
+RUN npm install -g ts-node-dev
+
+# ------ Etapa de producción ------
+FROM node-base AS node-prod
+
+# Configuración específica para producción
+ENV NODE_ENV=production

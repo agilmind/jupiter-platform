@@ -1,0 +1,261 @@
+services:
+  # PgBouncer
+  pgbouncer:
+    image: edoburu/pgbouncer:latest # O una imagen de pgbouncer
+    container_name: jupiter-pgbouncer
+    restart: always
+    networks:
+      - app-network
+    environment:
+      # Configuración de PgBouncer - apunta al servicio 'postgres'
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=jupiter_db
+      - POOL_MODE=transaction # O session
+      - MAX_CLIENT_CONN=1000 # Ajustar según necesidad
+      - DEFAULT_POOL_SIZE=20 # Ajustar según necesidad
+    depends_on:
+      - postgres
+    # ports: # NO exponer normalmente, solo para debug si es necesario
+    #   - "6432:6432"
+
+  # Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: jupiter-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=jupiter_db
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: ${HEALTH_CHECK_INTERVAL:-10s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
+      retries: ${HEALTH_CHECK_RETRIES:-5}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-20s}
+    restart: always
+    networks:
+      - app-network
+    user: postgres
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: jupiter-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
+    env_file:
+      - .env
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      # Eliminar o comentar la línea que monta la configuración
+      # - ./rabbitmq-config:/etc/rabbitmq/conf.d
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: ${HEALTH_CHECK_INTERVAL:-10s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
+      retries: ${HEALTH_CHECK_RETRIES:-5}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-30s}
+    restart: always
+    networks:
+      - app-network
+    ports:
+      - "15672:15672"  # Management UI (opcional)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # App Server
+  app-server:
+    # En producción, usar la imagen preconstruida en lugar de intentar construir
+    image: jupiter-app-server:prod
+    container_name: jupiter-app-server
+    restart: always
+    pull_policy: never
+    networks:
+      - app-network
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@pgbouncer:6432/jupiter_db # Puerto de PgBouncer
+      # - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@jupiter-postgres:5432/${POSTGRES_DB:-jupiter}
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@jupiter-rabbitmq:5672
+      - RABBITMQ_HOST=jupiter-rabbitmq
+      - SERVER_JS_PATH=/app/server/apps/jupiter/app-server/src/main.js
+      - SERVICE_TYPE=app-server
+      - SERVICE_NAME=app-server
+    env_file:
+      - .env
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 1G
+          cpus: '1'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-40s}
+    depends_on:
+      - pgbouncer
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Web Apps
+  <% for (const webAppName of webAppNames) { %>
+  web-app:
+    image: jupiter-web-app:prod
+    container_name: jupiter-web-app
+    restart: always
+    pull_policy: never
+    networks:
+      - app-network
+    environment:
+      - SERVER_PORT=4000
+      - APP_SERVER_HOST=jupiter-app-server
+      - APP_SERVER_PORT=4000
+      - SERVICE_TYPE=web-app
+      - SERVICE_NAME=web-app
+    env_file:
+      - .env
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+          cpus: '0.5'
+        reservations:
+          memory: 200M
+          cpus: '0.2'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-20s}
+    depends_on:
+      app-server:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  <% } %>
+
+  # Workers
+  <% for (const workerName of workerNames) { %>
+  worker-sample:
+    # En producción, usar la imagen preconstruida en lugar de intentar construir
+    image: jupiter-worker-sample:prod
+    container_name: jupiter-worker-sample
+    restart: always
+    pull_policy: never
+    networks:
+      - app-network
+    environment:
+      - NODE_ENV=production
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@jupiter-rabbitmq:5672
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@pgbouncer:6432/jupiter_db
+      # - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@jupiter-postgres:5432/${POSTGRES_DB:-jupiter}
+      - RABBITMQ_HOST=jupiter-rabbitmq
+      - APP_SERVER_HOST=jupiter-app-server
+      - APP_SERVER_PORT=4000
+      - WORKER_JS_PATH=/app/worker/apps/jupiter/worker-sample/src/main.js
+      - SERVICE_TYPE=worker
+      - SERVICE_NAME=worker-sample
+    env_file:
+      - .env
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      app-server:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  <% } %>
+
+networks:
+  app-network:
+    driver: bridge
+    name: jupiter_app-network
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  rabbitmq_data:
+    driver: local

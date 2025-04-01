@@ -1,0 +1,11 @@
+version: '3.8'
+
+# Docker Compose mínimo (solo proxy y utilidades básicas)
+services:
+  # Nginx - Proxy inverso
+  nginx:
+    image: nginx:alpine
+    container_name: jupiter-nginx
+    # Configuración mínima
+    # ...
+# Networks pendientes

@@ -1,0 +1,193 @@
+# Guía de Despliegue en VPS
+
+Este documento explica las diferentes opciones de despliegue en VPS para proyectos generados con nuestro generador.
+
+## Opciones de Configuración
+
+El sistema ofrece tres configuraciones diferentes para adaptarse a distintas necesidades:
+
+### 1. Minimal (Básica)
+
+**Características:**
+
+- Configuración simple pero completa
+- Nginx como punto de entrada
+- PostgreSQL local
+- RabbitMQ local
+- Sin monitoreo avanzado
+
+**Ideal para:**
+
+- Entornos de desarrollo
+- Proyectos pequeños
+- Servidores con recursos limitados
+- Pruebas iniciales
+
+### 2. Hybrid (Con Monitoreo)
+
+**Características:**
+
+- Todo lo de Minimal
+- Sistema de monitoreo completo:
+  - Prometheus para recolección de métricas
+  - Grafana para visualización
+  - AlertManager para alertas
+  - Exporters para servicios (PostgreSQL, RabbitMQ, Node)
+- Acceso a herramientas a través de subdominios seguros
+
+**Ideal para:**
+
+- Entornos de producción de tamaño mediano
+- Proyectos que requieren monitoreo avanzado
+- Observabilidad de la infraestructura
+
+### 3. Complete (Alta Disponibilidad)
+
+**Características:**
+
+- Todo lo de Hybrid
+- Alta disponibilidad
+- Replicación de servicios
+- Balanceo de carga
+- Clustering
+- Backups automatizados
+
+**Ideal para:**
+
+- Entornos de producción críticos
+- Proyectos empresariales
+- Aplicaciones que requieren máxima disponibilidad
+
+## Comandos de Despliegue
+
+### Despliegue Inicial
+
+Para realizar el primer despliegue de un proyecto:
+
+```bash
+# 1. Generar el proyecto
+nx g project:create jupiter
+
+# 2. Desplegar según la configuración deseada:
+
+# Minimal (Básica)
+bash ./apps/jupiter/vps-infrastructure/deployment/scripts/minimal/deploy-minimal.sh
+
+# Hybrid (Con Monitoreo)
+bash ./apps/jupiter/vps-infrastructure/deployment/scripts/hybrid/deploy-hybrid.sh
+
+# Complete (Alta Disponibilidad)
+bash ./apps/jupiter/vps-infrastructure/deployment/scripts/complete/deploy-complete.sh
+```
+
+### Actualización
+
+Para actualizar una instalación existente:
+
+```bash
+# 1. Generar el proyecto con cambios
+nx g project:create jupiter
+
+# 2. Actualizar según la configuración:
+
+# Minimal (Básica)
+bash ./apps/jupiter/vps-infrastructure/deployment/scripts/minimal/update-minimal.sh
+
+# Hybrid (Con Monitoreo)
+bash ./apps/jupiter/vps-infrastructure/deployment/scripts/hybrid/update-hybrid.sh
+
+# Complete (Alta Disponibilidad)
+bash ./apps/jupiter/vps-infrastructure/deployment/scripts/complete/update-complete.sh
+```
+
+### Herramientas Adicionales
+
+```bash
+# Crear un respaldo completo
+bash ./apps/jupiter/vps-infrastructure/deployment/scripts/utils/backup-vps.sh
+
+# Restaurar desde un respaldo
+bash ./apps/jupiter/vps-infrastructure/deployment/scripts/utils/restore-vps.sh ruta/al/respaldo
+
+# Añadir monitoreo a una instalación Minimal existente
+bash ./apps/jupiter/vps-infrastructure/scripts/monitoring/setup-monitoring.sh
+
+# Resetear completamente el VPS (¡SOLO PARA PRUEBAS!)
+bash ./apps/jupiter/vps-infrastructure/deployment/scripts/utils/reset-vps.sh
+```
+
+## Flujo de Trabajo Recomendado
+
+1. **Desarrollo inicial**:
+
+   - Usar configuración Minimal para pruebas rápidas
+   - Desplegar con `deploy-minimal.sh`
+
+2. **Preparación para producción**:
+
+   - Migrar a Hybrid para añadir monitoreo
+   - Usar `setup-monitoring.sh` o desplegar desde cero con `deploy-hybrid.sh`
+
+3. **Escalar para alta disponibilidad**:
+
+   - Cuando se necesite mayor confiabilidad
+   - Migrar a Complete con `deploy-complete.sh`
+
+4. **Mantenimiento**:
+   - Realizar respaldos periódicos con `backup-vps.sh`
+   - Actualizar con los scripts correspondientes
+
+## Protección de Datos en Producción
+
+Todos los scripts de despliegue incluyen:
+
+- Advertencias claras antes de sobrescribir datos existentes
+- Backup automático de la configuración actual
+- Confirmación obligatoria para operaciones destructivas
+
+Los scripts de actualización están diseñados para preservar:
+
+- Datos de bases de datos
+- Configuraciones personalizadas
+- Estado de los servicios
+
+## Acceso a los Servicios
+
+Después del despliegue, se puede acceder a los servicios a través de:
+
+- **Frontend**: https://jupiter.ar
+- **API**: https://jupiter.ar/api
+- **RabbitMQ Admin**: https://jupiter.ar/rabbitmq
+
+Para configuración Hybrid y Complete:
+
+- **Grafana**: https://grafana.vps.jupiter.ar
+- **Prometheus**: https://prometheus.vps.jupiter.ar
+- **AlertManager**: https://alertmanager.vps.jupiter.ar
+
+## Solución de Problemas
+
+Si encuentras problemas durante el despliegue:
+
+1. Verificar logs:
+
+   ```bash
+   ssh deploy@jupiter.ar "cd /opt/jupiter && docker compose logs"
+   ```
+
+2. Revisar estado de los servicios:
+
+   ```bash
+   ssh deploy@jupiter.ar "cd /opt/jupiter && docker compose ps"
+   ```
+
+3. Restaurar desde backup si es necesario:
+   ```bash
+   bash ./apps/jupiter/vps-infrastructure/deployment/scripts/utils/restore-vps.sh ruta/al/respaldo
+   ```
+
+Para información más detallada, consulta las guías específicas:
+
+- [Guía de Minimal](./minimal-guide.md)
+- [Guía de Hybrid](./hybrid-guide.md)
+- [Guía de Monitoreo](./monitoring-guide.md)

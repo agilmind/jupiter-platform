@@ -1,0 +1,58 @@
+# Dockerfile para app-server en desarrollo
+# Usando imagen base con nombre correcto
+
+FROM jupiter-node-base:dev AS base
+
+WORKDIR /app
+
+# Identificar el servicio
+ENV SERVICE_TYPE="app-server"
+ENV SERVICE_NAME="app-server"
+ENV NODE_ENV="development"
+
+# Preparar directorios para los package.json
+RUN mkdir -p ./apps/jupiter/app-server \
+    ./libs/jupiter/shared \
+    ./libs/jupiter/api-interfaces
+
+# Copiar package.json de la aplicación y el proyecto
+COPY package.json package-lock.json ./
+COPY apps/jupiter/app-server/package.json ./apps/jupiter/app-server/
+
+# Copiar package.json de las libs usando file-utils
+RUN /usr/local/bin/file-utils.sh copy-if-exists libs/jupiter/shared/package.json ./libs/jupiter/shared/
+RUN /usr/local/bin/file-utils.sh copy-if-exists libs/jupiter/api-interfaces/package.json ./libs/jupiter/api-interfaces/
+
+# Eliminar dependencias problemáticas
+RUN node -e "const fs=require('fs'); \
+    const pkg=JSON.parse(fs.readFileSync('./package.json')); \
+    if(pkg.dependencies && pkg.dependencies['haiku-generator']) delete pkg.dependencies['haiku-generator']; \
+    if(pkg.devDependencies && pkg.devDependencies['haiku-generator']) delete pkg.devDependencies['haiku-generator']; \
+    fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
+
+# Instalar dependencias (con caché de Docker)
+RUN npm install
+
+# Copiar archivos de configuración
+COPY tsconfig.base.json ./
+COPY apps/jupiter/tsconfig.json ./apps/jupiter/
+
+# Configurar prisma si es necesario
+RUN cd ./apps/jupiter/app-server && \
+    if [ -f "./prisma/schema.prisma" ]; then \
+      npx prisma generate; \
+    fi
+
+# Configurar puertos
+ENV HOST="0.0.0.0"
+ENV PORT="4000"
+EXPOSE ${PORT}
+EXPOSE 9229
+
+# Configurar healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD curl -f http://localhost:4000/health || exit 1
+
+# Usar el script de inicio unificado
+WORKDIR /app/apps/jupiter/app-server
+CMD ["/usr/local/bin/start-service.sh"]

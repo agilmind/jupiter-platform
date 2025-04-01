@@ -1,0 +1,52 @@
+{
+  "name": "jupiter-worker-sample",
+  "root": "apps/jupiter/worker-sample",
+  "sourceRoot": "apps/jupiter/worker-sample/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/jupiter/worker-sample",
+        "main": "apps/jupiter/worker-sample/src/main.ts",
+        "tsConfig": "apps/jupiter/worker-sample/tsconfig.app.json",
+        "assets": ["apps/jupiter/worker-sample/src/assets"]
+      },
+      "configurations": {
+        "production": {
+          "optimization": true,
+          "extractLicenses": true,
+          "inspect": false,
+          "fileReplacements": [
+            {
+              "replace": "apps/jupiter/worker-sample/src/environments/environment.ts",
+              "with": "apps/jupiter/worker-sample/src/environments/environment.prod.ts"
+            }
+          ]
+        }
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "options": {
+        "buildTarget": "worker-sample:build"
+      }
+    },
+    "lint": {
+      "executor": "@nx/linter:eslint",
+      "options": {
+        "lintFilePatterns": ["apps/jupiter/worker-sample/**/*.ts"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["coverage/apps/jupiter/worker-sample"],
+      "options": {
+        "jestConfig": "apps/jupiter/worker-sample/jest.config.js",
+        "passWithNoTests": true
+      }
+    }
+  },
+  "tags": ["type:worker", "scope:jupiter"]
+}

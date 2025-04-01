@@ -1,0 +1,61 @@
+{
+  "name": "jupiter-web-app",
+  "root": "apps/jupiter/web-app",
+  "sourceRoot": "apps/jupiter/web-app",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/vite:build",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/jupiter/web-app",
+        "configFile": "apps/jupiter/web-app/vite.config.ts",
+        "root": "apps/jupiter/web-app",
+        "emptyOutDir": true
+      },
+      "configurations": {
+        "development": {
+          "mode": "development"
+        },
+        "production": {
+          "mode": "production"
+        }
+      }
+    },
+    "serve": {
+      "executor": "@nx/vite:dev-server",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "web-app:build",
+        "configFile": "apps/jupiter/web-app/vite.config.ts",
+        "root": "apps/jupiter/web-app"
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "web-app:build:development",
+          "hmr": true
+        },
+        "production": {
+          "buildTarget": "web-app:build:production",
+          "hmr": false
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/linter:eslint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["apps/jupiter/web-app/**/*.{ts,tsx,js,jsx}"]
+      }
+    },
+    "test": {
+      "executor": "@nx/vite:test",
+      "outputs": ["coverage/apps/jupiter/web-app"],
+      "options": {
+        "passWithNoTests": true
+      }
+    }
+  },
+  "tags": ["type:app", "scope:jupiter"]
+}
