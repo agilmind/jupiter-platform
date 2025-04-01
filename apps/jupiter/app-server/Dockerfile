@@ -1,69 +1,62 @@
-# Dockerfile.template para aplicaciones App Server
+# Dockerfile.template para aplicaciones App Server (con manejo de npm y devDeps)
 
-# Etapa 1: Construcción (usando una imagen Node completa para herramientas)
+# Etapa 1: Construcción
 FROM node:22.13.1 AS builder
-
 WORKDIR /app
 
-# Copiar archivos de definición de paquetes y bloqueo PRIMERO
-# Aprovecha el cacheo de Docker si estos no cambian
+# Copiar archivos de definición de paquetes y bloqueo PRIMERO desde la RAÍZ
 COPY package.json package-lock.json ./
 
-# Instalar dependencias (incluyendo devDependencies necesarias para build)
+# Instalar TODAS las dependencias (incluyendo dev) necesarias para el build
 RUN npm ci
 
-# Copiar el resto del código fuente de la aplicación específica
-# Usamos placeholders que el generador NX reemplazará
+# Copiar código fuente de la aplicación específica y archivos de config necesarios para build
 COPY apps/jupiter/app-server/src ./src
 COPY apps/jupiter/app-server/prisma ./prisma
 COPY apps/jupiter/app-server/tsconfig.app.json ./tsconfig.app.json
 COPY apps/jupiter/app-server/tsconfig.json ./tsconfig.json
-# Considera si necesitas copiar tsconfig.base.json desde la raíz u otros archivos comunes
+# COPY tsconfig.base.json ./ # Si es necesario
 
-# Ejecutar el build (compilación TypeScript, generación Prisma, etc.)
-# Asume que tienes un script 'build' en tu package.json
+# Ejecutar el build
 RUN npm run build
 
-# (Opcional pero recomendado) Podar dependencias de desarrollo si es posible ANTES de la etapa final
-RUN npm prune --production
-# O si usas yarn v1: RUN yarn install --production --ignore-scripts --prefer-offline
+# --- Opción A: Podar devDependencies ---
+RUN npm prune --omit=dev
+# --- Fin Opción A ---
 
-# Etapa 2: Producción (usando una imagen Node ligera y limpia)
+
+# Etapa 2: Producción
 FROM node:22.13.1-alpine AS production
-
 WORKDIR /app
 
-# Instalar dependencias necesarias en Alpine (ej: cliente postgres, openssl)
-# Esto puede variar según las necesidades de tu aplicación y Prisma
+# Instalar dependencias Alpine necesarias en runtime (ej. cliente postgres)
 # RUN apk add --no-cache libc6-compat openssl postgresql-client
 
-# Crear usuario y grupo no root (¡Buena práctica!)
+# Crear usuario y grupo no root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copiar dependencias de producción desde la etapa 'builder'
+# --- Si usaste Opción A (npm prune) arriba ---
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+COPY --chown=appuser:appgroup package.json . # Todavía necesario para scripts
+# --- Fin Opción A ---
 
-# Copiar artefactos construidos (ej. directorio 'dist') desde la etapa 'builder'
+# --- Opción B: Reinstalar solo producción (Alternativa a Opción A) ---
+# COPY --chown=appuser:appgroup package.json package-lock.json ./
+# RUN npm ci --omit=dev
+# --- Fin Opción B ---
+
+# Copiar artefactos construidos
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
 
-# Copiar package.json (necesario para scripts npm/yarn start)
-COPY --chown=appuser:appgroup package.json .
-
-# Copiar otros assets necesarios en producción (ej. schema de prisma si se usa en runtime)
-# Prisma recomienda copiar el schema y el cliente generado
+# Copiar assets de producción (prisma)
 COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
-# Puede que también necesites el cliente Prisma que se generó en node_modules
 # COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Cambiar propiedad del directorio de trabajo
+# Cambiar usuario
 USER appuser
 
-# Exponer el puerto que usa la aplicación
-# Puerto por defecto o puedes hacerlo una variable: 4000
+# Exponer puerto
 EXPOSE 4000
 
-# Comando para iniciar la aplicación (usando el JS compilado en 'dist')
+# Comando de inicio
 CMD ["node", "dist/main.js"]
-# O si tienes un script de producción específico:
-# CMD ["yarn", "start:prod"]
-# CMD ["npm", "run", "start:prod"]
