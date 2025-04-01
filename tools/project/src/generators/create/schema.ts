@@ -16,4 +16,7 @@ export interface CreateGeneratorSchema {
   sslOption?: string;
   webAppInternalPort?: string;
   appServerInternalPort?: string;
+  nodeVersion?: string;
+  appSourcePath?: string;
+  appServerPort?: string;
 }

@@ -31,6 +31,9 @@ export default async function (tree: Tree, options: CreateGeneratorSchema) {
   options.sslOption = "letsencrypt";
   options.webAppInternalPort = "3000";
   options.appServerInternalPort = "4000";
+  options.appServerPort = "4000";
+  options.nodeVersion = "22.13.1";
+  options.appSourcePath = "app";
 
    // Llamar a la nueva función para generar la infraestructura
   await generateInfrastructure(tree, options);
