@@ -10,9 +10,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Instalar dependencias (incluyendo devDependencies necesarias para build)
-RUN yarn install --frozen-lockfile
-# O descomentar si usas npm:
-# RUN npm ci
+RUN npm ci
 
 # Copiar el resto del código fuente de la aplicación específica
 # Usamos placeholders que el generador NX reemplazará
@@ -24,12 +22,10 @@ COPY apps/jupiter/app-server/tsconfig.json ./tsconfig.json
 
 # Ejecutar el build (compilación TypeScript, generación Prisma, etc.)
 # Asume que tienes un script 'build' en tu package.json
-RUN yarn build
-# O descomentar si usas npm:
-# RUN npm run build
+RUN npm run build
 
 # (Opcional pero recomendado) Podar dependencias de desarrollo si es posible ANTES de la etapa final
-# RUN npm prune --production
+RUN npm prune --production
 # O si usas yarn v1: RUN yarn install --production --ignore-scripts --prefer-offline
 
 # Etapa 2: Producción (usando una imagen Node ligera y limpia)
@@ -45,10 +41,7 @@ WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Copiar dependencias de producción desde la etapa 'builder'
-# Si hiciste 'prune' o 'yarn install --production' arriba, esto es más eficiente
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
-# Si no, copia todo node_modules y asegúrate que el build no necesite devDeps en runtime
-# COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
 
 # Copiar artefactos construidos (ej. directorio 'dist') desde la etapa 'builder'
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
