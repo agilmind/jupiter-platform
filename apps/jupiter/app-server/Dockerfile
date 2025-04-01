@@ -7,9 +7,7 @@ WORKDIR /app
 
 # Copiar archivos de definición de paquetes y bloqueo PRIMERO
 # Aprovecha el cacheo de Docker si estos no cambian
-COPY package.json yarn.lock ./
-# O descomentar si usas npm:
-# COPY package.json package-lock.json ./
+COPY package.json package-lock.json ./
 
 # Instalar dependencias (incluyendo devDependencies necesarias para build)
 RUN yarn install --frozen-lockfile
