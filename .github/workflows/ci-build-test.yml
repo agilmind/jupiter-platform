@@ -43,7 +43,7 @@ jobs:
           echo "Building and pushing image: $IMAGE_NAME:$IMAGE_TAG"
           docker buildx build --push \
             --tag $IMAGE_NAME:$IMAGE_TAG \
-            --file <%= appSourcePath %>/Dockerfile \
+            --file apps/jupiter/app-server/Dockerfile \
             --cache-from=type=gha \
             --cache-to=type=gha,mode=max \
             .
