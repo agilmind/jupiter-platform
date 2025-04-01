@@ -18,10 +18,10 @@ RUN yarn install --frozen-lockfile
 
 # Copiar el resto del código fuente de la aplicación específica
 # Usamos placeholders que el generador NX reemplazará
-COPY apps/jupiter/src ./src
-COPY apps/jupiter/prisma ./prisma
-COPY apps/jupiter/tsconfig.app.json ./tsconfig.app.json
-COPY apps/jupiter/tsconfig.json ./tsconfig.json
+COPY apps/jupiter/app-server/src ./src
+COPY apps/jupiter/app-server/prisma ./prisma
+COPY apps/jupiter/app-server/tsconfig.app.json ./tsconfig.app.json
+COPY apps/jupiter/app-server/tsconfig.json ./tsconfig.json
 # Considera si necesitas copiar tsconfig.base.json desde la raíz u otros archivos comunes
 
 # Ejecutar el build (compilación TypeScript, generación Prisma, etc.)
