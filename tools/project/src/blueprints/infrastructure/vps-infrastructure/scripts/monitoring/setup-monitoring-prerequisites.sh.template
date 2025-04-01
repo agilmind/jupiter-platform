@@ -1,6 +1,6 @@
 #!/bin/bash
-# Script para configurar los prerrequisitos del monitoreo
-# Versión: 1.0
+# Script para configurar los prerrequisitos del monitoreo (simplificado)
+# Versión: 1.1
 # Este script debe ejecutarse ANTES de copiar los archivos de configuración Nginx
 
 set -e  # Exit on error
@@ -30,38 +30,14 @@ if ! command -v nginx &> /dev/null; then
     exit 1
 fi
 
-# Crear archivos necesarios antes de cualquier configuración
-
-# 1. Crear configuración SSL params específica para este proyecto
+# Verificar directorio de configuración Nginx
 NGINX_CONF_DIR="/etc/nginx/conf.d"
 if [ ! -d "$NGINX_CONF_DIR" ]; then
     echo -e "${RED}Error: Directorio de configuración de Nginx no encontrado${NC}"
     exit 1
 fi
 
-# Crear archivo SSL params
-SSL_PARAMS_FILE="$NGINX_CONF_DIR/ssl-params-$PROJECT_NAME.conf"
-echo -e "${YELLOW}Creando archivo de parámetros SSL: $SSL_PARAMS_FILE${NC}"
-cat > "$SSL_PARAMS_FILE" << 'EOF'
-# Configuración optimizada de SSL
-ssl_protocols TLSv1.2 TLSv1.3;
-ssl_prefer_server_ciphers on;
-ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
-ssl_session_cache shared:SSL:10m;
-ssl_session_timeout 1d;
-ssl_session_tickets off;
-ssl_stapling on;
-ssl_stapling_verify on;
-resolver 8.8.8.8 8.8.4.4 valid=300s;
-resolver_timeout 5s;
-add_header Strict-Transport-Security "max-age=63072000; includeSubdomains; preload";
-add_header X-Frame-Options DENY;
-add_header X-Content-Type-Options nosniff;
-add_header X-XSS-Protection "1; mode=block";
-EOF
-echo -e "${GREEN}Archivo ssl-params-$PROJECT_NAME.conf creado${NC}"
-
-# 2. Crear configuración de caché específica para este proyecto
+# Crear o actualizar configuración de caché
 NGINX_CACHE_CONF="$NGINX_CONF_DIR/cache-zones-$PROJECT_NAME.conf"
 echo -e "${YELLOW}Creando configuración de caché: $NGINX_CACHE_CONF${NC}"
 cat > "$NGINX_CACHE_CONF" << EOF

@@ -1,162 +1,103 @@
 # Guía de continuidad para Claude - Infraestructura VPS
 
-## Contexto del proyecto
+## Estado actual y problemas identificados
 
-Estamos desarrollando una infraestructura de VPS para proyectos generados con un generador basado en NX. Toda la implementación debe ser genérica utilizando variables de template como `<%=projectName%>` que se reemplazan durante la generación.
+Estamos implementando una configuración Hybrid que incluye monitoreo (Prometheus/Grafana/AlertManager). Hemos realizado una limpieza completa del sistema y estamos intentando una instalación limpia, pero hemos encontrado un nuevo problema:
 
-## Estado actual del desarrollo
+```
+[emerg] 161625#161625: host not found in upstream "jupiter-alertmanager" in /etc/nginx/conf.d/alertmanager.conf:26
+nginx: configuration file /etc/nginx/nginx.conf test failed
+```
 
-Hemos implementado una infraestructura funcional "Minimal" para desplegar proyectos en VPS con:
-- Configuración Docker Compose para entornos de desarrollo y producción
-- Scripts de despliegue y configuración automatizados
-- Configuración de Nginx para enrutamiento y SSL
-- Seguridad básica con aislamiento de servicios internos
-- Acceso a API a través de URL amigables (ej: project.ar/api) en lugar de puertos
+Este error ocurre porque la configuración de Nginx está tratando de acceder a contenedores que aún no existen. Es un problema de secuencia: necesitamos iniciar los contenedores ANTES de configurar Nginx.
 
-## Plan de desarrollo actual
+## Identificación de problemas anteriores
 
-Estamos avanzando hacia una solución más robusta basada en el plan del documento project-plan.md. La prioridad actual es:
+1. **Referencias a archivos .template**:
+   - Los scripts generados no deben hacer referencia a los archivos con extensión `.template`
+   - ✅ Corregido en todos los archivos
 
-1. **Implementar sistema de monitoreo completo con:**
-   - Prometheus para recolección de métricas
-   - Grafana para visualización
-   - AlertManager para gestión de alertas
-   - Node Exporter, PostgreSQL Exporter y RabbitMQ Exporter para métricas de servicios
-   - Acceso a través de subdominios específicos (grafana.vps.jupiter.ar, prometheus.vps.jupiter.ar)
-   - Autenticación y seguridad para herramientas expuestas
+2. **Conflictos de configuración SSL**:
+   - Directivas SSL duplicadas entre nginx.conf global y ssl-params.conf
+   - ✅ Resuelto eliminando las configuraciones antiguas durante la limpieza
 
-2. **Implementar sistema de logging centralizado:**
-   - Loki para recolección y almacenamiento de logs
-   - Integración con Grafana para visualización
-   - Tracing distribuido con Jaeger/OpenTelemetry
-   - Mecanismo de correlation IDs para seguimiento entre servicios
+3. **Orden de operaciones incorrecto**:
+   - Nginx necesita que los contenedores Docker estén en ejecución para validar los hosts upstream
+   - ❌ Nuevo problema por resolver
 
-3. **Capacidad de operación multimodal:**
-   - Modos de funcionamiento: apagado/ligero/completo
-   - Scripts para cambiar entre modos
-   - Configuración de retención de datos según el modo
+## Nueva secuencia propuesta
 
-## Principios del desarrollo
+La secuencia correcta debería ser:
 
-1. **Todo debe ser un archivo .template**:
-   - Todos los archivos (scripts, configuraciones, etc.) deben ser archivos .template
-   - Cada archivo debe estar ubicado en su directorio correspondiente dentro de la estructura
-   - No se debe generar contenido dinámicamente con `cat >` dentro de scripts
+1. Iniciar contenedores de la aplicación principal
+2. Iniciar contenedores de monitoreo
+3. Configurar y recargar Nginx
+4. Configurar SSL
+5. Configurar autenticación
 
-2. **Estructura clara de directorios**:
-   - Los scripts van en `vps-infrastructure/scripts/`
-   - Los archivos de configuración van en sus respectivos directorios (nginx/conf.d/, etc.)
-   - Los documentos van en `vps-infrastructure/docs/`
-   - El monitoreo va en `vps-infrastructure/complete/monitoring/`
-
-3. **Generalización completa**:
-   - Todas las referencias específicas deben usar variables como `<%=projectName%>`
-   - Todas las URLs deben usar variables o variables de entorno
-   - Se debe usar envsubst para sustituir variables en archivos de configuración
-
-4. **Separación de responsabilidades**:
-   - Los scripts de despliegue solo transfieren archivos, no los generan
-   - Cada archivo de configuración tiene su propio .template
-
-## Estructura actual de directorios
+## Estructura actual
 
 ```
 vps-infrastructure/
-├── complete/         # Todo en un solo VPS
-│   ├── docker-compose.multi.yml.template
-│   ├── docker-compose.yml.template
-│   ├── monitoring/
-│   │   ├── alertmanager
-│   │   ├── grafana
-│   │   │   ├── dashboards
-│   │   │   └── provisioning
-│   │   └── prometheus
-│   │       └── prometheus.yml.template
-│   ├── nginx/
-│   │   ├── conf.d/
-│   │   │   ├── default.conf.template
-│   │   │   └── multi-env.conf.template
-│   │   └── ssl/
-│   ├── postgres/
-│   └── rabbitmq/
-├── hybrid/           # Algunos servicios en cloud
-│   ├── docker-compose.yml.template
-│   ├── monitoring/
-│   ├── nginx/
-│   └── pgbouncer/
-├── minimal/          # Infraestructura mínima (principalmente Nginx)
-│   ├── docker-compose.yml.template
-│   └── nginx/
-│       ├── conf.d/
-│       │   ├── project.conf.template   # Configuración con soporte para /api
-│       │   └── webapp.conf.template
-│       └── ssl/
-├── deployment/
-│   ├── environments/ # Variables por entorno
-│   └── scripts/      # Scripts de despliegue
-│       ├── deploy-vps.sh.template      # Script mejorado para despliegue en VPS
-│       └── setup-ssl.sh.template
-├── docs/            # Documentación
-│   ├── claude-continuity.md.template
-│   ├── vps-deployment-guide.md.template
-│   └── project-plan.md.template
-└── scripts/         # Scripts utilitarios
-    ├── snapshot-environment.sh.template
-    ├── setup-nginx.sh.template
-    └── fix-docker-network.sh.template  # Script para resolver problemas de red Docker
-```
-
-## Componentes en desarrollo
-
-Estamos ampliando la estructura para incluir:
-
-```
-vps-infrastructure/
-├── complete/
+├── common/                                  # Componentes compartidos
 │   ├── monitoring/
 │   │   ├── alertmanager/
-│   │   │   └── alertmanager.yml.template
 │   │   ├── grafana/
-│   │   │   ├── dashboards/
-│   │   │   │   ├── node-exporter.json.template
-│   │   │   │   ├── postgres.json.template
-│   │   │   │   └── rabbitmq.json.template
-│   │   │   └── provisioning/
-│   │   │       ├── dashboards/
-│   │   │       └── datasources/
-│   │   ├── exporters/
-│   │   │   ├── node-exporter/
-│   │   │   ├── postgres-exporter/
-│   │   │   └── rabbitmq-exporter/
-│   │   ├── loki/
-│   │   │   └── loki-config.yml.template
-│   │   ├── jaeger/
-│   │   │   └── jaeger.yml.template
 │   │   └── prometheus/
-│   │       ├── prometheus.yml.template
-│   │       └── rules/
-│   │           ├── alerting-rules.yml.template
-│   │           └── recording-rules.yml.template
-│   └── nginx/
-│       ├── conf.d/
-│       │   ├── grafana.conf.template
-│       │   ├── prometheus.conf.template
-│       │   └── monitoring.conf.template
+│   └── docker-compose.monitoring.yml
+├── deployment/
+│   └── scripts/
+│       ├── minimal/
+│       │   ├── deploy-minimal.sh
+│       │   └── update-minimal.sh
+│       ├── hybrid/
+│       │   ├── deploy-hybrid.sh
+│       │   └── update-hybrid.sh
+│       └── utils/
+│           ├── reset-vps.sh
+│           ├── backup-vps.sh
+│           └── restore-vps.sh
+├── scripts/
+│   ├── monitoring/
+│   │   ├── setup-monitoring.sh
+│   │   ├── setup-monitoring-auth.sh
+│   │   ├── setup-monitoring-prerequisites.sh
+│   │   └── setup-monitoring-mode.sh
 ```
 
-## Flujo de trabajo para continuación
+## Archivos de configuración Nginx actuales
 
-Si necesitas retomar esta conversación con Claude:
-1. Comparte este documento
-2. Explica que estás continuando el desarrollo de la infraestructura VPS
-3. Menciona que estamos implementando el sistema de monitoreo y logging
-4. Especifica en qué componente específico quedamos trabajando
-5. Comparte también cualquier archivo nuevo que hayamos creado
+```
+./nginx/conf.d/alertmanager.conf
+./nginx/conf.d/grafana.conf
+./nginx/conf.d/prometheus.conf
+```
 
-## Notas adicionales
+## Próximas acciones
 
-- Estamos trabajando con un VPS de Hostinger (KVM 4: 200GB disco, 16GB RAM, 4 núcleos)
-- Postfix está configurado para enviar alertas por email
-- Las herramientas de monitoreo deben estar accesibles a través de subdominios específicos
-- Se requiere autenticación para proteger las herramientas de monitoreo
-- El sistema debe poder funcionar en tres modos: apagado, ligero y completo
+1. **Modificar la secuencia de despliegue**:
+   - Iniciar servicios principales y de monitoreo primero
+   - Luego configurar Nginx y SSL
+
+2. **Enfoque alternativo a considerar**:
+   - Modificar archivos de configuración Nginx para usar direcciones IP o localhost con puertos mapeados
+   - Esto permitiría configurar Nginx antes de iniciar los contenedores
+
+3. **Documentación de la solución final**:
+   - Actualizar guías y scripts con la secuencia correcta
+   - Asegurar que los scripts funcionan correctamente en orden
+
+## Notas importantes
+
+- No usar NUNCA referencias a archivos .template en scripts y documentación
+- Los nombres de los servicios Docker deben coincidir exactamente con los usados en las configuraciones Nginx
+- Probar cada paso individualmente para asegurar que funciona
+- Documentar claramente la secuencia correcta para futuros despliegues
+
+## Muy Importante
+
+No quiero ninguna solución rápida en el server.
+Quiero modificar los templates, generar, y ejecutar scripts.
+Ninguna línea de comando suelta, todo en su correspondiente script.
+Si es necesario correr un script en el server, se escribe su template, se copia al server y se ejecuto manualmente.
+Si el script es peligroso porque puede ser dañino si se corre en otro momento, debe advertirlo claramente y pedir escribir palabar para que no se ejecute por accidente y su nombre debe ser claro.
