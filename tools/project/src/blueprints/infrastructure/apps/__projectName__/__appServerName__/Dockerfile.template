@@ -6,6 +6,7 @@ WORKDIR /app
 
 # Copiar archivos de definición de paquetes y bloqueo PRIMERO desde la RAÍZ
 COPY package.json package-lock.json ./
+COPY .npmrc ./
 
 # Instalar TODAS las dependencias (incluyendo dev) necesarias para el build
 RUN npm ci
@@ -37,7 +38,7 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # --- Si usaste Opción A (npm prune) arriba ---
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
-COPY --chown=appuser:appgroup package.json . # Todavía necesario para scripts
+COPY --chown=appuser:appgroup package.json .
 # --- Fin Opción A ---
 
 # --- Opción B: Reinstalar solo producción (Alternativa a Opción A) ---

@@ -17,6 +17,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # --- PASO NUEVO: Actualizar NPM en el Runner ---
+      - name: Set up Node.js (and get npm)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22' # O la versión que uses, ej: 'lts/*'
+      - name: Update npm to latest (or specific version)
+        run: npm install -g npm@latest # O usa npm@11.2.0 para ser específico
+      # --- FIN PASO NUEVO ---
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -34,10 +43,10 @@ jobs:
           echo "Building and pushing image: $IMAGE_NAME:$IMAGE_TAG"
           docker buildx build --push \
             --tag $IMAGE_NAME:$IMAGE_TAG \
-            --file apps/jupiter/app-server/Dockerfile \
+            --file <%= appSourcePath %>/Dockerfile \
             --cache-from=type=gha \
             --cache-to=type=gha,mode=max \
-            . # Contexto es la raíz del repo
+            .
 
       - name: Image Built and Pushed
         run: echo "Image ghcr.io/${{ github.repository_owner }}/jupiter-platform/jupiter-app-server:sha-$(git rev-parse --short HEAD) pushed successfully."
