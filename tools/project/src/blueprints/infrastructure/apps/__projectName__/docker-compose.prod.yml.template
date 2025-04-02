@@ -97,7 +97,7 @@ services:
         max-file: "3"
 
   # App Server
-  <%=appServerName%>:
+  <%= projectName %>-<%=appServerName%>:
     # En producción, usar la imagen preconstruida en lugar de intentar construir
     image: ghcr.io/garciafido/jupiter-platform/<%=appServerName%>:latest
     container_name: <%=projectName%>-<%=appServerName%>
@@ -151,7 +151,7 @@ services:
 
   # Web Apps
   <% for (const webAppName of webAppNames) { %>
-  <%=webAppName%>:
+  <%= projectName %>-<%=webAppName%>:
     image: ghcr.io/garciafido/jupiter-platform/<%=webAppName%>:latest
     container_name: <%=projectName%>-<%=webAppName%>
     restart: always
@@ -196,7 +196,7 @@ services:
 
   # Workers
   <% for (const workerName of workerNames) { %>
-  <%=workerName%>:
+  <%= projectName %>-<%=workerName%>:
     # En producción, usar la imagen preconstruida en lugar de intentar construir
     image: ghcr.io/garciafido/jupiter-platform/<%=workerName%>:latest
     container_name: <%=projectName%>-<%=workerName%>

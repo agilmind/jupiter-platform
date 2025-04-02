@@ -97,7 +97,7 @@ services:
         max-file: '3'
 
   # App Server
-  app-server:
+  jupiter-app-server:
     # En producción, usar la imagen preconstruida en lugar de intentar construir
     image: ghcr.io/garciafido/jupiter-platform/app-server:latest
     container_name: jupiter-app-server
@@ -151,7 +151,7 @@ services:
 
   # Web Apps
 
-  web-app:
+  jupiter-web-app:
     image: ghcr.io/garciafido/jupiter-platform/web-app:latest
     container_name: jupiter-web-app
     restart: always
@@ -195,7 +195,7 @@ services:
 
   # Workers
 
-  worker-sample:
+  jupiter-worker-sample:
     # En producción, usar la imagen preconstruida en lugar de intentar construir
     image: ghcr.io/garciafido/jupiter-platform/worker-sample:latest
     container_name: jupiter-worker-sample
