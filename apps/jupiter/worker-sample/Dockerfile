@@ -18,7 +18,7 @@ COPY tsconfig.base.json tsconfig.base.json
 # Copy source code for the specific worker and potentially shared libs
 # Adjust these COPY commands based on actual dependencies needed for the build
 COPY apps/jupiter/worker-sample ./apps/jupiter/worker-sample
-COPY libs ./libs # Copy all libs, or be more specific if possible
+COPY libs ./libs
 
 # Install ALL dependencies
 RUN npm ci

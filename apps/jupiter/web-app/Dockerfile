@@ -19,7 +19,7 @@ COPY tsconfig.base.json tsconfig.base.json
 # Copy source code for the specific app and potentially shared libs
 # Adjust these COPY commands based on actual dependencies needed for the build
 COPY apps/jupiter/web-app ./apps/jupiter/web-app
-COPY libs ./libs # Copy all libs, or be more specific if possible
+COPY libs ./libs
 
 # Install ALL dependencies (including devDependencies needed for build)
 # Using npm ci for reproducible builds based on package-lock.json
