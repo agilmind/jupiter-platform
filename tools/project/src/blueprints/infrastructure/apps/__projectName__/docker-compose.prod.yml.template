@@ -1,6 +1,6 @@
 services:
   # PgBouncer
-  pgbouncer:
+  <%= projectName %>-pgbouncer:
     image: edoburu/pgbouncer:latest # O una imagen de pgbouncer
     container_name: <%= projectName %>-pgbouncer
     restart: always
@@ -17,12 +17,12 @@ services:
       - MAX_CLIENT_CONN=1000 # Ajustar según necesidad
       - DEFAULT_POOL_SIZE=20 # Ajustar según necesidad
     depends_on:
-      - postgres
+      - <%= projectName %>-postgres
     # ports: # NO exponer normalmente, solo para debug si es necesario
     #   - "6432:6432"
 
   # Database
-  postgres:
+  <%= projectName %>-postgres:
     image: postgres:14-alpine
     container_name: <%=projectName%>-postgres
     environment:
@@ -59,7 +59,7 @@ services:
         max-file: "3"
 
   # Message Queue
-  rabbitmq:
+  <%= projectName %>-rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: <%=projectName%>-rabbitmq
     environment:
@@ -137,11 +137,11 @@ services:
       retries: ${HEALTH_CHECK_RETRIES:-3}
       start_period: ${HEALTH_CHECK_START_PERIOD:-40s}
     depends_on:
-      pgbouncer:
+      <%= projectName %>-pgbouncer:
         condition: service_started
-      postgres:
+      <%= projectName %>-postgres:
         condition: service_healthy
-      rabbitmq:
+      <%= projectName %>-rabbitmq:
         condition: service_healthy
     logging:
       driver: "json-file"
@@ -185,7 +185,7 @@ services:
       retries: ${HEALTH_CHECK_RETRIES:-3}
       start_period: ${HEALTH_CHECK_START_PERIOD:-20s}
     depends_on:
-      <%=appServerName%>:
+      <%= projectName %>-<%=appServerName%>:
         condition: service_healthy
     logging:
       driver: "json-file"
@@ -230,11 +230,11 @@ services:
         max_attempts: 3
         window: 120s
     depends_on:
-      postgres:
+      <%= projectName %>-postgres:
         condition: service_healthy
-      rabbitmq:
+      <%= projectName %>-rabbitmq:
         condition: service_healthy
-      <%=appServerName%>:
+      <%= projectName %>-<%=appServerName%>:
         condition: service_healthy
     logging:
       driver: "json-file"
