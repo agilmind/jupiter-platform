@@ -68,7 +68,7 @@ jobs:
         with:
           context: . # Build context is the root of the repo
           # Dynamically set the Dockerfile path based on the matrix variable
-          file: apps/jupiter/${{ matrix.app }}/Dockerfile
+          file: apps/jupiter/jupiter/${{ matrix.app }}/Dockerfile
           push: true
           # Dynamically create the image tag using the matrix variable and short SHA
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_PREFIX }}${{ matrix.app }}:sha-${{ steps.vars.outputs.sha_short }}
