@@ -1,7 +1,7 @@
 # Dockerfile.template (Rutas de producción corregidas)
 
 # Etapa 1: Construcción
-FROM node:<%= nodeVersion || '18' %> AS builder
+FROM node:<%= nodeVersion || '22' %> AS builder
 WORKDIR /app
 
 # Instalar tree para depuración (Podrías quitarlo ahora si quieres)

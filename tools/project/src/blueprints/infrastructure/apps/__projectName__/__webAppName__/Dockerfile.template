@@ -5,7 +5,7 @@
 #---------------------------------------------
 # Use the Node.js version relevant for your project build tools (NX, TypeScript, etc.)
 # Consider using a template variable like <%= nodeVersion || '20' %> if your generator supports it
-FROM node:20 AS builder
+FROM node:<%= nodeVersion || '22' %> AS builder
 
 WORKDIR /app
 

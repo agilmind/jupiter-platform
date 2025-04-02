@@ -15,9 +15,7 @@ COPY eslint.config.mjs ./
 RUN npm ci
 
 COPY apps ./apps
-# Copiar libs si existe
 COPY libs ./libs
-COPY tsconfig.base.json ./
 
 # Copiar prisma inicial
 COPY apps/jupiter/app-server/prisma ./prisma

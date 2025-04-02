@@ -5,15 +5,17 @@
 #---------------------------------------------
 # Use the Node.js version relevant for your project build tools
 # Consider using a template variable like 22.13.1
-FROM node:20 AS builder
+FROM node:22.13.1 AS builder
 
 WORKDIR /app
+
+RUN npm install -g npm@latest
 
 # Copy configuration files first
 COPY package.json package-lock.json* ./
 COPY tsconfig.base.json tsconfig.base.json
-# COPY eslint.config.mjs eslint.config.mjs
-# COPY .npmrc .npmrc
+COPY eslint.config.mjs eslint.config.mjs
+COPY .npmrc .npmrc
 
 # Copy source code for the specific worker and potentially shared libs
 # Adjust these COPY commands based on actual dependencies needed for the build
@@ -38,8 +40,6 @@ RUN npm prune --omit=dev
 FROM node:20-alpine AS production
 
 WORKDIR /app
-
-RUN npm install -g npm@latest
 
 # Create a non-root user and group for security
 RUN addgroup -S nodejs && adduser -S nodejs -G nodejs

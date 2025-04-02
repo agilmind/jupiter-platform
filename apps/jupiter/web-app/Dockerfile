@@ -5,7 +5,7 @@
 #---------------------------------------------
 # Use the Node.js version relevant for your project build tools (NX, TypeScript, etc.)
 # Consider using a template variable like 22.13.1 if your generator supports it
-FROM node:20 AS builder
+FROM node:22.13.1 AS builder
 
 WORKDIR /app
 
@@ -13,10 +13,9 @@ RUN npm install -g npm@latest
 
 # Copy configuration files first for better layer caching
 COPY package.json package-lock.json* ./
-# Copy other potential root configuration files if needed by the build process
 COPY tsconfig.base.json tsconfig.base.json
-# COPY eslint.config.mjs eslint.config.mjs
-# COPY .npmrc .npmrc
+COPY eslint.config.mjs eslint.config.mjs
+COPY .npmrc .npmrc
 
 # Copy source code for the specific app and potentially shared libs
 # Adjust these COPY commands based on actual dependencies needed for the build
