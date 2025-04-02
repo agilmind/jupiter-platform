@@ -15,6 +15,7 @@ RUN npm install -g npm@latest
 COPY package.json package-lock.json* ./
 COPY tsconfig.base.json tsconfig.base.json
 COPY eslint.config.mjs eslint.config.mjs
+COPY nx.json nx.json
 COPY .npmrc .npmrc
 
 # Copy source code for the specific app and potentially shared libs
