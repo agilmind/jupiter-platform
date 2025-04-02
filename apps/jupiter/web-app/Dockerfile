@@ -9,6 +9,8 @@ FROM node:20 AS builder
 
 WORKDIR /app
 
+RUN npm install -g npm@latest
+
 # Copy configuration files first for better layer caching
 COPY package.json package-lock.json* ./
 # Copy other potential root configuration files if needed by the build process

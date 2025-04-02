@@ -39,6 +39,8 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
+RUN npm install -g npm@latest
+
 # Create a non-root user and group for security
 RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
 
