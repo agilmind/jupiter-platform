@@ -12,8 +12,8 @@ COPY eslint.config.mjs ./
 RUN npm ci
 
 COPY apps ./apps
-COPY libs ./libs # Si existe
-COPY tsconfig.base.json ./ # Asegurarse que se copia si no está en la línea anterior
+COPY libs ./libs
+COPY tsconfig.base.json ./
 
 # Ejecutar el build específico
 RUN npx nx build <%= appServerProjectName || 'jupiter-app-server' %>
