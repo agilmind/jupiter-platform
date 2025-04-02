@@ -19,5 +19,6 @@ export interface CreateGeneratorSchema {
   nodeVersion?: string;
   appSourcePath?: string;
   appServerPort?: string;
+  workerPort?: string;
   appServerProjectName?: string;
 }

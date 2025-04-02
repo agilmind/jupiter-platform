@@ -30,6 +30,7 @@ export default async function (tree: Tree, options: CreateGeneratorSchema) {
   options.domainName = "jupiter.ar";
   options.sslOption = "letsencrypt";
   options.webAppInternalPort = "3000";
+  options.workerPort = "3001";
   options.appServerInternalPort = "4000";
   options.appServerPort = "4000";
   options.nodeVersion = "22.13.1";

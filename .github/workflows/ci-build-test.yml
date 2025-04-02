@@ -1,49 +1,80 @@
-name: CI Build Test - Jupiter App Server
+name: CI - Build & Test Jupiter Platform Images
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual trigger
+
+env:
+  REGISTRY: ghcr.io
+  # IMAGE_NAME_PREFIX: ${{ github.repository_owner }}/jupiter-platform/ # owner/repo/
+  # Use github.repository which is owner/repo
+  IMAGE_NAME_PREFIX: ${{ github.repository }}/
 
 jobs:
-  build_and_push_app_server:
+  build-and-push-images: # Renamed job for clarity
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
-      packages: write
+      packages: write # Needed to push to GHCR
+
+    strategy:
+      fail-fast: false # Important: Allows other matrix jobs to continue if one fails
+      matrix:
+        # Define the applications to build
+        app: [jupiter-app-server, jupiter-webapp, jupiter-worker-sample]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - name: Update npm to latest
-        run: npm install -g npm@latest
+          node-version: '20' # Or your project's required version
+          cache: 'npm'
+
+      # No need to update npm globally here if the Dockerfile handles it internally
+      # - name: Update npm to latest
+      #   run: npm install -g npm@latest
+
+      # It's good practice to run npm ci here IF your Docker build needs node_modules
+      # from the host BEFORE starting the build (e.g., for linting, non-docker tests)
+      # If all work happens INSIDE Docker, this might be optional outside Docker build.
+      # However, it primes the cache used by setup-node.
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Set up QEMU (for multi-platform builds, optional but good practice)
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
+        id: buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push jupiter-app-server image
-        # --- YA NO NECESITA env: y GH_PAT ---
-        run: |
-          IMAGE_TAG="sha-$(git rev-parse --short HEAD)"
-          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/jupiter-platform/jupiter-app-server"
-          echo "Building and pushing image: $IMAGE_NAME:$IMAGE_TAG"
-          docker buildx build --push \
-            --tag $IMAGE_NAME:$IMAGE_TAG \
-            --file apps/jupiter/app-server/Dockerfile \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
-            .
+      - name: Get short SHA
+        id: vars
+        run: echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
-      - name: Image Built and Pushed
-        run: echo "Image ghcr.io/${{ github.repository_owner }}/jupiter-platform/jupiter-app-server:sha-$(git rev-parse --short HEAD) pushed successfully."
+      - name: Build and push ${{ matrix.app }}
+        uses: docker/build-push-action@v6 # Use latest version
+        with:
+          context: . # Build context is the root of the repo
+          # Dynamically set the Dockerfile path based on the matrix variable
+          file: apps/jupiter/${{ matrix.app }}/Dockerfile
+          push: true
+          # Dynamically create the image tag using the matrix variable and short SHA
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_PREFIX }}${{ matrix.app }}:sha-${{ steps.vars.outputs.sha_short }}
+          # Optional: Enable build caching using GitHub Actions cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Optional: Add build arguments if needed by any Dockerfile
+          # build-args: |
+          #   SOME_ARG=some_value
