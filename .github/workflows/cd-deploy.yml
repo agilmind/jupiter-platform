@@ -1,0 +1,23 @@
+name: CD - Deploy to Jupiter Server
+
+# Trigger: Permite iniciar este workflow manualmente desde la pestaña Actions en GitHub
+on:
+  workflow_dispatch:
+    # Opcional: Más adelante podríamos añadir 'inputs' aquí si quisiéramos
+    # pasarle información al workflow al iniciarlo manualmente, como un tag específico.
+
+jobs:
+  deploy:
+    name: Deploy to Production (jupiter.ar)
+    runs-on: ubuntu-latest # Usamos un runner estándar de GitHub
+
+    steps:
+      # Paso 1 (Placeholder): Solo para verificar que el workflow se inicia
+      - name: Start Deployment
+        run: echo "Workflow de despliegue iniciado manualmente..."
+
+      # --- Aquí añadiremos los próximos pasos ---
+      # Paso 2: Configurar Clave SSH (usando secrets)
+      # Paso 3: Conectar a jupiter.ar via SSH
+      # Paso 4: Ejecutar el script de despliegue remoto (deploy.sh)
+      # ------------------------------------------
