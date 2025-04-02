@@ -11,20 +11,13 @@ WORKDIR /app
 
 RUN npm install -g npm@latest
 
-# Copy configuration files first
-COPY package.json package-lock.json* ./
-COPY tsconfig.base.json tsconfig.base.json
-COPY eslint.config.mjs eslint.config.mjs
-COPY nx.json nx.json
-COPY .npmrc .npmrc
+COPY package.json package-lock.json .npmrc nx.json tsconfig.base.json ./
+COPY eslint.config.mjs ./
 
-# Copy source code for the specific worker and potentially shared libs
-# Adjust these COPY commands based on actual dependencies needed for the build
-COPY apps/jupiter/worker-sample ./apps/jupiter/worker-sample
-COPY libs ./libs
-
-# Install ALL dependencies
 RUN npm ci
+
+COPY apps ./apps
+COPY libs ./libs
 
 # Build the specific worker application using NX
 RUN npx nx build worker-sample

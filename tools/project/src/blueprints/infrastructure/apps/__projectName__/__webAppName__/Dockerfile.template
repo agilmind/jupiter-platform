@@ -11,21 +11,13 @@ WORKDIR /app
 
 RUN npm install -g npm@latest
 
-# Copy configuration files first for better layer caching
-COPY package.json package-lock.json* ./
-COPY tsconfig.base.json tsconfig.base.json
-COPY eslint.config.mjs eslint.config.mjs
-COPY nx.json nx.json
-COPY .npmrc .npmrc
+COPY package.json package-lock.json .npmrc nx.json tsconfig.base.json ./
+COPY eslint.config.mjs ./
 
-# Copy source code for the specific app and potentially shared libs
-# Adjust these COPY commands based on actual dependencies needed for the build
-COPY apps/<%= projectName %>/<%= webAppName %> ./apps/<%= projectName %>/<%= webAppName %>
-COPY libs ./libs
-
-# Install ALL dependencies (including devDependencies needed for build)
-# Using npm ci for reproducible builds based on package-lock.json
 RUN npm ci
+
+COPY apps ./apps
+COPY libs ./libs
 
 # Build the specific webapp using NX
 # This generates static files typically in dist/apps/<%= projectName %>/<%= webAppName %>/
