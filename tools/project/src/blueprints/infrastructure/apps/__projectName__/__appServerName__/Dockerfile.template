@@ -1,3 +1,5 @@
+# Dockerfile.template (Añadiendo listados para depuración)
+
 # Etapa 1: Construcción
 FROM node:<%= nodeVersion || '18' %> AS builder
 WORKDIR /app
@@ -10,10 +12,18 @@ COPY eslint.config.mjs ./
 RUN npm ci
 
 COPY apps ./apps
-COPY libs ./libs
+COPY libs ./libs # Si existe
+COPY tsconfig.base.json ./ # Asegurarse que se copia si no está en la línea anterior
 
 # Ejecutar el build específico
 RUN npx nx build <%= appServerProjectName || 'jupiter-app-server' %>
+
+# --- PASOS DE DEPURACIÓN ---
+RUN echo ">>> Listing /app contents after build:" && ls -la /app
+RUN echo ">>> Listing /app/dist contents:" && ls -la /app/dist
+RUN echo ">>> Listing /app/dist/apps contents (if dist exists):" && ls -la /app/dist/apps || echo "/app/dist/apps not found"
+RUN echo ">>> Listing /app/prisma contents:" && ls -la /app/prisma || echo "/app/prisma not found"
+# --- FIN PASOS DE DEPURACIÓN ---
 
 # Comentar temporalmente si es necesario depurar
 # RUN npm prune --omit=dev
@@ -21,22 +31,15 @@ RUN npx nx build <%= appServerProjectName || 'jupiter-app-server' %>
 # Etapa 2: Producción
 FROM node:<%= nodeVersion || '18' %>-alpine AS production
 WORKDIR /app
-
-# --- Actualizar NPM dentro del contenedor ---
-RUN npm install -g npm@latest # O la versión específica >=11.2.0
-
-# Crear usuario y grupo no root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copiar dependencias (revisar si prune está comentado)
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
 
-# --- Corregir Ruta de Salida ---
-# Reemplaza 'dist/apps/...' con el valor REAL de 'outputPath' en project.json
+# Usa la ruta que crees correcta según project.json (la verificaremos con los logs)
 COPY --from=builder --chown=appuser:appgroup /app/dist/apps/<%= appServerProjectName || 'jupiter-app-server' %> ./dist
 
-# Copiar package.json y prisma
 COPY --chown=appuser:appgroup package.json .
+# Usa la ruta que debería ser correcta
 COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
 
 USER appuser
