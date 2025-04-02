@@ -15,7 +15,8 @@ RUN npm ci
 # Copiar toda la carpeta 'apps' y 'libs' (si tienes libs) y archivos de config raíz
 # Esto es más simple y asegura que NX tenga todo el contexto del workspace
 COPY apps ./apps
-COPY libs ./libs  # Si tienes libs
+# Copiar libs si existe
+COPY libs ./libs
 COPY nx.json ./nx.json
 COPY tsconfig.base.json ./tsconfig.base.json
 # Copia cualquier otro archivo raíz necesario (ej. .env si afecta al build)
