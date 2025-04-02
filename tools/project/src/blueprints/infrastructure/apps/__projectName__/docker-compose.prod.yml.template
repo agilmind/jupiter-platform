@@ -99,10 +99,9 @@ services:
   # App Server
   <%=appServerName%>:
     # En producción, usar la imagen preconstruida en lugar de intentar construir
-    image: <%=projectName%>-<%=appServerName%>:prod
+    image: ghcr.io/garciafido/jupiter-platform/<%=appServerName%>:latest
     container_name: <%=projectName%>-<%=appServerName%>
     restart: always
-    pull_policy: never
     networks:
       - app-network
     environment:
@@ -138,7 +137,8 @@ services:
       retries: ${HEALTH_CHECK_RETRIES:-3}
       start_period: ${HEALTH_CHECK_START_PERIOD:-40s}
     depends_on:
-      - pgbouncer
+      pgbouncer:
+        condition: service_started
       postgres:
         condition: service_healthy
       rabbitmq:
@@ -152,10 +152,9 @@ services:
   # Web Apps
   <% for (const webAppName of webAppNames) { %>
   <%=webAppName%>:
-    image: <%=projectName%>-<%=webAppName%>:prod
+    image: ghcr.io/garciafido/jupiter-platform/<%=webAppName%>:latest
     container_name: <%=projectName%>-<%=webAppName%>
     restart: always
-    pull_policy: never
     networks:
       - app-network
     environment:
@@ -199,10 +198,9 @@ services:
   <% for (const workerName of workerNames) { %>
   <%=workerName%>:
     # En producción, usar la imagen preconstruida en lugar de intentar construir
-    image: <%=projectName%>-<%=workerName%>:prod
+    image: ghcr.io/garciafido/jupiter-platform/<%=workerName%>:latest
     container_name: <%=projectName%>-<%=workerName%>
     restart: always
-    pull_policy: never
     networks:
       - app-network
     environment:

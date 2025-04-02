@@ -43,7 +43,7 @@ services:
           memory: 512M
           cpus: '0.5'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: ${HEALTH_CHECK_INTERVAL:-10s}
       timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
       retries: ${HEALTH_CHECK_RETRIES:-5}
@@ -53,10 +53,10 @@ services:
       - app-network
     user: postgres
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # Message Queue
   rabbitmq:
@@ -80,7 +80,7 @@ services:
           memory: 512M
           cpus: '0.5'
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
       interval: ${HEALTH_CHECK_INTERVAL:-10s}
       timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
       retries: ${HEALTH_CHECK_RETRIES:-5}
@@ -89,20 +89,19 @@ services:
     networks:
       - app-network
     ports:
-      - "15672:15672"  # Management UI (opcional)
+      - '15672:15672' # Management UI (opcional)
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # App Server
   app-server:
     # En producción, usar la imagen preconstruida en lugar de intentar construir
-    image: jupiter-app-server:prod
+    image: ghcr.io/garciafido/jupiter-platform/app-server:latest
     container_name: jupiter-app-server
     restart: always
-    pull_policy: never
     networks:
       - app-network
     environment:
@@ -132,30 +131,30 @@ services:
         max_attempts: 3
         window: 120s
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:4000/health']
       interval: ${HEALTH_CHECK_INTERVAL:-30s}
       timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
       retries: ${HEALTH_CHECK_RETRIES:-3}
       start_period: ${HEALTH_CHECK_START_PERIOD:-40s}
     depends_on:
-      - pgbouncer
+      pgbouncer:
+        condition: service_started
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # Web Apps
-  <% for (const webAppName of webAppNames) { %>
+
   web-app:
-    image: jupiter-web-app:prod
+    image: ghcr.io/garciafido/jupiter-platform/web-app:latest
     container_name: jupiter-web-app
     restart: always
-    pull_policy: never
     networks:
       - app-network
     environment:
@@ -180,7 +179,7 @@ services:
         max_attempts: 3
         window: 120s
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost/health']
       interval: ${HEALTH_CHECK_INTERVAL:-30s}
       timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
       retries: ${HEALTH_CHECK_RETRIES:-3}
@@ -189,20 +188,18 @@ services:
       app-server:
         condition: service_healthy
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
-  <% } %>
+        max-size: '10m'
+        max-file: '3'
 
   # Workers
-  <% for (const workerName of workerNames) { %>
+
   worker-sample:
     # En producción, usar la imagen preconstruida en lugar de intentar construir
-    image: jupiter-worker-sample:prod
+    image: ghcr.io/garciafido/jupiter-platform/worker-sample:latest
     container_name: jupiter-worker-sample
     restart: always
-    pull_policy: never
     networks:
       - app-network
     environment:
@@ -239,11 +236,10 @@ services:
       app-server:
         condition: service_healthy
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
-  <% } %>
+        max-size: '10m'
+        max-file: '3'
 
 networks:
   app-network:

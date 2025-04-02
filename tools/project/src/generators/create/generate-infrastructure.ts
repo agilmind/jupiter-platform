@@ -9,7 +9,7 @@ import {
 import * as path from 'path';
 import * as fs from 'fs';
 import { CreateGeneratorSchema } from './schema';
-
+import * as ejs from 'ejs';
 /**
  * Genera la infraestructura para un nuevo proyecto
  * @param tree - El árbol de archivos de NX
@@ -55,25 +55,41 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
     const filePath = path.join(projectTemplateDir, file);
     const stats = fs.statSync(filePath);
 
+    // Determinar la ruta de destino, quitando .template si existe
+    const targetFileName = file.endsWith('.template') ? file.slice(0, -'.template'.length) : file;
+    const targetFilePath = joinPathFragments(projectTargetDir, targetFileName);
+
     // Si es un archivo
     if (stats.isFile()) {
-      // Leer el contenido del archivo
-      let content = fs.readFileSync(filePath, 'utf8');
-
-      // Reemplazar variables
-      Object.entries(substitutions).forEach(([key, value]) => {
-        const regex = new RegExp(`<%=\\s*${key}\\s*%>`, 'g');
-        content = content.replace(regex, value);
-      });
-
-      // Escribir en el árbol
-      const targetFilePath = joinPathFragments(projectTargetDir, file.replace('.template', ''));
-      tree.write(targetFilePath, content);
+      // Si es un archivo .template, procesarlo con EJS
+      if (file.endsWith('.template')) {
+        const templateContent = fs.readFileSync(filePath, 'utf8');
+        try {
+          // *** USAR EJS PARA RENDERIZAR ***
+          const processedContent = ejs.render(
+            templateContent,
+            substitutions, // El objeto con todas las variables y arrays disponibles
+            { filename: filePath } // Ayuda a EJS a mostrar mejores errores
+          );
+          // Escribir el resultado procesado
+          tree.write(targetFilePath, processedContent);
+        } catch (error) {
+          console.error(`ERROR procesando template ${filePath}:`, error);
+          throw error; // Detener la ejecución si hay un error en la plantilla
+        }
+      } else {
+        // Si NO es .template, simplemente copiarlo tal cual
+        const content = fs.readFileSync(filePath);
+        tree.write(targetFilePath, content);
+      }
     }
-    // Si es un directorio que no empieza con __
+    // Si es un directorio que no empieza con __, ignorarlo aquí
+    // ya que los subdirectorios específicos (appServer, webApp, etc.)
+    // se manejan después con generateFiles.
     else if (stats.isDirectory() && !file.startsWith('__')) {
-      // Procesar directorio recursivamente (si es necesario)
-      // Aquí podrías implementar una función recursiva para subdirectorios
+       // Puedes añadir lógica para copiar recursivamente si es necesario,
+       // pero parece que tus generateFiles posteriores cubren los directorios importantes.
+       console.log(`Skipping directory in manual processing: ${file}`);
     }
   });
 
