@@ -63,12 +63,23 @@ jobs:
         id: vars
         run: echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
+      - name: List Jupiter Apps Directory Structure # <--- NUEVO PASO DE DEBUGGING
+        run: |
+          echo "Listing contents of ./apps/jupiter/:"
+          ls -la ./apps/jupiter
+          echo "Recursive listing of ./apps/jupiter/:"
+          # Intentar ls -R (más común). Si falla, tree podría necesitar instalación.
+          ls -R ./apps/jupiter || echo "ls -R failed, tree might be needed if installed."
+          # Opcional, si ls -R no es suficiente y tree está disponible:
+          # sudo apt-get update && sudo apt-get install -y tree
+          # tree ./apps/jupiter
+
       - name: Build and push ${{ matrix.app }}
         uses: docker/build-push-action@v6 # Use latest version
         with:
           context: . # Build context is the root of the repo
           # Dynamically set the Dockerfile path based on the matrix variable
-          file: apps/jupiter/jupiter/${{ matrix.app }}/Dockerfile
+          file: apps/jupiter/${{ matrix.app }}/Dockerfile
           push: true
           # Dynamically create the image tag using the matrix variable and short SHA
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_PREFIX }}${{ matrix.app }}:sha-${{ steps.vars.outputs.sha_short }}
