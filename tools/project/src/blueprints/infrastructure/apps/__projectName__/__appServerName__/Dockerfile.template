@@ -1,11 +1,11 @@
-# Dockerfile.template (Depuración con tree y verificación de prisma)
+# Dockerfile.template (Rutas de producción corregidas)
 
 # Etapa 1: Construcción
 FROM node:<%= nodeVersion || '18' %> AS builder
 WORKDIR /app
 
-# Instalar tree para depuración
-RUN apt-get update && apt-get install -y tree && rm -rf /var/lib/apt/lists/*
+# Instalar tree para depuración (Podrías quitarlo ahora si quieres)
+# RUN apt-get update && apt-get install -y tree && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g npm@latest
 
@@ -19,20 +19,16 @@ COPY apps ./apps
 COPY libs ./libs
 COPY tsconfig.base.json ./
 
-# --- Verificar copia de Prisma ---
-RUN echo ">>> Listing /app contents BEFORE copying prisma:" && ls -la /app
+# Copiar prisma inicial
 COPY <%= appSourcePath %>/prisma ./prisma
-RUN echo ">>> Listing /app contents AFTER copying prisma:" && ls -la /app
-RUN echo ">>> Listing /app/prisma contents:" && ls -la /app/prisma || echo "/app/prisma not found (after copy)"
-# --- Fin verificación ---
 
 # Ejecutar el build específico
 RUN npx nx build <%= appServerProjectName || 'jupiter-app-server' %>
 
-# --- PASOS DE DEPURACIÓN (con tree) ---
-RUN echo ">>> Listing /app contents after build:" && ls -la /app
-RUN echo ">>> Tree view of /app/dist:" && tree /app/dist || echo "/app/dist not found or tree command failed"
-RUN echo ">>> Listing /app/prisma contents after build:" && ls -la /app/prisma || echo "/app/prisma not found (after build)"
+# --- PASOS DE DEPURACIÓN (Puedes quitarlos si confías) ---
+# RUN echo ">>> Listing /app contents after build:" && ls -la /app
+# RUN echo ">>> Tree view of /app/dist:" && tree /app/dist || echo "/app/dist not found or tree command failed"
+# RUN echo ">>> Listing /app/prisma contents after build:" && ls -la /app/prisma || echo "/app/prisma not found (after build)"
 # --- FIN PASOS DE DEPURACIÓN ---
 
 # RUN npm prune --omit=dev
@@ -42,15 +38,19 @@ FROM node:<%= nodeVersion || '18' %>-alpine AS production
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
+# Copiar dependencias (revisar si prune está comentado)
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
 
-# --- AJUSTAR ESTA RUTA BASADO EN LA SALIDA DE 'tree /app/dist' ---
-COPY --from=builder --chown=appuser:appgroup /app/dist/apps/jupiter ./dist # Provisionalmente apuntando a 'jupiter'
+# --- Corregir Ruta de Salida y Quitar Comentario ---
+# Copia el CONTENIDO de la salida del build a ./dist en la imagen final
+COPY --from=builder --chown=appuser:appgroup /app/dist/apps/<%= appServerProjectName || 'jupiter-app-server' %>/ ./dist/
 
+# Copiar package.json y prisma
 COPY --chown=appuser:appgroup package.json .
-# --- Usar la ruta que debería ser correcta (verificar con ls after copy) ---
+# Usar la ruta que debería ser correcta
 COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
 
 USER appuser
 EXPOSE <%= appServerPort || 3000 %>
-CMD ["node", "dist/main.js"]
+# Ajustar CMD si tu main.js no está directamente en dist
+CMD ["node", "dist/src/main.js"] # O simplemente "dist/main.js" si tsc aplana la estructura src
