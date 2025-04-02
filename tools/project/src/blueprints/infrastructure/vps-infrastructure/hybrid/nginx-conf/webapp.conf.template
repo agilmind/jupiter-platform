@@ -6,26 +6,15 @@ server {
     # Escuchar en puerto 80 para IPv4 y IPv6
     listen 80;
     listen [::]:80;
-
-    # Dominio para el que aplica esta configuración
-    # ¡Asegúrate que la variable 'projectName' se sustituya correctamente!
     server_name webapp.<%= projectName %>.ar;
-    # Si siempre será 'jupiter.ar', puedes ponerlo directamente:
-    # server_name webapp.jupiter.ar;
 
-    # Ubicación para los logs de este sitio
+    resolver 127.0.0.11 valid=5s; # Usa el DNS interno de Docker, re-chequea cada 5s
+
     access_log /var/log/nginx/webapp.access.log;
-    error_log /var/log/nginx/webapp.error.log warn; # Loguear errores y advertencias
+    error_log /var/log/nginx/webapp.error.log warn;
 
-    # ----- Proxy Reverso para la API Backend -----
     location /api/ {
-        # Reescribir la URL quitando /api/ antes de pasarla al backend
-        # Ejemplo: webapp.jupiter.ar/api/users -> http://backend/users
         rewrite ^/api/(.*)$ /$1 break;
-
-        # Pasar la solicitud al contenedor app-server en su puerto interno (4000)
-        # ¡Asegúrate que las variables 'projectName' y 'appServerName' sean correctas!
-        # El nombre aquí debe ser el NOMBRE DEL SERVICIO en docker-compose.prod.yml
         proxy_pass http://<%= projectName %>-<%= appServerName %>:4000;
 
         # Cabeceras importantes para pasar al backend
@@ -45,10 +34,6 @@ server {
 
     # ----- Proxy Reverso para el Frontend (React App) -----
     location / {
-        # Pasar la solicitud al contenedor web-app
-        # ¡Asegúrate que las variables 'projectName' y 'webAppName' sean correctas!
-        # El nombre aquí debe ser el NOMBRE DEL SERVICIO en docker-compose.prod.yml
-        # Asumimos que el contenedor web-app sirve en el puerto 80 (nginx interno)
         proxy_pass http://<%= projectName %>-<%= webAppName %>;
 
         # Cabeceras importantes para pasar al backend (frontend en este caso)
