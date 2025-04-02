@@ -21,7 +21,7 @@ COPY libs ./libs
 COPY <%= appSourcePath %>/prisma ./prisma
 
 # Ejecutar el build específico
-RUN npx nx build RUN npx nx build <%= projectName %>-<%= appServerName %>
+RUN npx nx build <%= projectName %>-<%= appServerName %>
 
 # --- PASOS DE DEPURACIÓN (Puedes quitarlos si confías) ---
 # RUN echo ">>> Listing /app contents after build:" && ls -la /app

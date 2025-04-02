@@ -21,7 +21,7 @@ COPY libs ./libs
 COPY apps/jupiter/app-server/prisma ./prisma
 
 # Ejecutar el build específico
-RUN npx nx build RUN npx nx build jupiter-app-server
+RUN npx nx build jupiter-app-server
 
 # --- PASOS DE DEPURACIÓN (Puedes quitarlos si confías) ---
 # RUN echo ">>> Listing /app contents after build:" && ls -la /app
