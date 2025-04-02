@@ -22,7 +22,7 @@ jobs:
       fail-fast: false # Important: Allows other matrix jobs to continue if one fails
       matrix:
         # Define the applications to build
-        app: [jupiter-app-server, jupiter-webapp, jupiter-worker-sample]
+        app: [app-server, web-app, worker-sample]
 
     steps:
       - name: Checkout repository
