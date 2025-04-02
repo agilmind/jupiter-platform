@@ -4,25 +4,30 @@ WORKDIR /app
 
 RUN npm install -g npm@latest
 
-# Copiar archivos de definición de paquetes y bloqueo PRIMERO desde la RAÍZ
+# Copiar archivos de definición de paquetes y bloqueo
 COPY package.json package-lock.json ./
 COPY .npmrc ./
 
-# Instalar TODAS las dependencias (incluyendo dev) necesarias para el build
+# Instalar dependencias
 RUN npm ci
 
-# Copiar código fuente de la aplicación específica y archivos de config necesarios para build
-COPY <%= appSourcePath %>/src ./src
-COPY <%= appSourcePath %>/prisma ./prisma
-COPY <%= appSourcePath %>/tsconfig.app.json ./tsconfig.app.json
-COPY <%= appSourcePath %>/tsconfig.json ./tsconfig.json
-COPY tsconfig.base.json ./
+# Copiar TODO el código fuente necesario para el build de app-server y sus dependencias locales
+# Copiar toda la carpeta 'apps' y 'libs' (si tienes libs) y archivos de config raíz
+# Esto es más simple y asegura que NX tenga todo el contexto del workspace
+COPY apps ./apps
+COPY libs ./libs  # Si tienes libs
+COPY nx.json ./nx.json
+COPY tsconfig.base.json ./tsconfig.base.json
+# Copia cualquier otro archivo raíz necesario (ej. .env si afecta al build)
 
-# Ejecutar el build
-RUN npm run build
+# --- Ejecutar el build específico para app-server ---
+# Reemplaza 'app-server' con el nombre real del proyecto si es diferente
+# Asume que el target de build se llama 'build' en project.json
+RUN npx nx build <%= appServerProjectName || 'jupiter-app-server' %>
 
-# Podar devDependencies (esto eliminará haiku-generator)
+# --- Comentar temporalmente para depurar si es necesario ---
 # RUN npm prune --omit=dev
+# --- Fin comentario temporal ---
 
 # Etapa 2: Producción
 FROM node:<%= nodeVersion || '18' %>-alpine AS production
@@ -34,10 +39,18 @@ RUN npm install -g npm@latest # O la versión específica >=11.2.0
 # Crear usuario y grupo no root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules # CUIDADO: Incluirá devDeps si comentaste npm prune
-COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
+# Copiar dependencias (considera si prune estaba comentado)
+COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+
+# --- Copiar la salida del build específico ---
+# La ruta de salida de NX suele ser dist/apps/nombre-proyecto
+# Verifica la opción 'outputPath' en el target 'build' de project.json
+COPY --from=builder --chown=appuser:appgroup /app/dist/apps/<%= appServerProjectName || 'jupiter-app-server' %> ./dist
+
+# Copiar package.json y prisma
 COPY --chown=appuser:appgroup package.json .
-COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
+COPY --from=builder --chown=appuser:appgroup /app/apps/<%= appServerProjectName || 'jupiter-app-server' %>/prisma ./prisma # Ajusta ruta si es necesario
+
 USER appuser
 EXPOSE <%= appServerPort || 3000 %>
 CMD ["node", "dist/main.js"]
