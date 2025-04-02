@@ -7,21 +7,18 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # IMAGE_NAME_PREFIX: ${{ github.repository_owner }}/jupiter-platform/ # owner/repo/
-  # Use github.repository which is owner/repo
-  IMAGE_NAME_PREFIX: ${{ github.repository }}/
+  IMAGE_NAME_PREFIX: ${{ github.repository }}/ # Formato owner/repo/
 
 jobs:
-  build-and-push-images: # Renamed job for clarity
+  build-and-push-images:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # Needed to push to GHCR
+      packages: write
 
     strategy:
-      fail-fast: false # Important: Allows other matrix jobs to continue if one fails
+      fail-fast: false
       matrix:
-        # Define the applications to build
         app: [app-server, web-app, worker-sample]
 
     steps:
@@ -31,21 +28,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Or your project's required version
+          node-version: '22' # Or your project's required version
           cache: 'npm'
 
-      # No need to update npm globally here if the Dockerfile handles it internally
-      # - name: Update npm to latest
-      #   run: npm install -g npm@latest
-
-      # It's good practice to run npm ci here IF your Docker build needs node_modules
-      # from the host BEFORE starting the build (e.g., for linting, non-docker tests)
-      # If all work happens INSIDE Docker, this might be optional outside Docker build.
-      # However, it primes the cache used by setup-node.
       - name: Install root dependencies
         run: npm ci
 
-      - name: Set up QEMU (for multi-platform builds, optional but good practice)
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
@@ -63,29 +52,34 @@ jobs:
         id: vars
         run: echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
-      - name: List Jupiter Apps Directory Structure # <--- NUEVO PASO DE DEBUGGING
+      # Preparar etiquetas Docker dinámicamente
+      - name: Prepare tags
+        id: docker_meta
+        # Genera las etiquetas basadas en el evento que disparó el workflow
         run: |
-          echo "Listing contents of ./apps/jupiter/:"
-          ls -la ./apps/jupiter
-          echo "Recursive listing of ./apps/jupiter/:"
-          # Intentar ls -R (más común). Si falla, tree podría necesitar instalación.
-          ls -R ./apps/jupiter || echo "ls -R failed, tree might be needed if installed."
-          # Opcional, si ls -R no es suficiente y tree está disponible:
-          # sudo apt-get update && sudo apt-get install -y tree
-          # tree ./apps/jupiter
+          IMAGE_BASE_NAME="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_PREFIX }}${{ matrix.app }}"
+          # 1. Siempre añade la etiqueta con el SHA corto
+          TAGS="${IMAGE_BASE_NAME}:sha-${{ steps.vars.outputs.sha_short }}"
+          # 2. Si es un push de tag Git, añade el nombre del tag Git
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            GIT_TAG=${{ github.ref#refs/tags/ }}
+            TAGS="${TAGS}\n${IMAGE_BASE_NAME}:${GIT_TAG}"
+          # 3. Si es un push a la rama main, añade 'latest'
+          elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
+            TAGS="${TAGS}\n${IMAGE_BASE_NAME}:latest"
+          fi
+          # Multiline string output para el siguiente paso
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "Generated tags:\n${TAGS}" # Log para verificar
 
       - name: Build and push ${{ matrix.app }}
-        uses: docker/build-push-action@v6 # Use latest version
+        uses: docker/build-push-action@v6
         with:
-          context: . # Build context is the root of the repo
-          # Dynamically set the Dockerfile path based on the matrix variable
+          context: .
+          # La ruta del Dockerfile sigue usando el nombre corto del directorio
           file: apps/jupiter/${{ matrix.app }}/Dockerfile
           push: true
-          # Dynamically create the image tag using the matrix variable and short SHA
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_PREFIX }}${{ matrix.app }}:sha-${{ steps.vars.outputs.sha_short }}
-          # Optional: Enable build caching using GitHub Actions cache
+          # Usa la salida del paso anterior que contiene todas las etiquetas generadas
+          tags: ${{ steps.docker_meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Optional: Add build arguments if needed by any Dockerfile
-          # build-args: |
-          #   SOME_ARG=some_value
