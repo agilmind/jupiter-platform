@@ -12,8 +12,8 @@ WORKDIR /app
 # Copy configuration files first
 COPY package.json package-lock.json* ./
 COPY tsconfig.base.json tsconfig.base.json
-# COPY eslint.config.mjs eslint.config.mjs
-# COPY .npmrc .npmrc
+COPY eslint.config.mjs eslint.config.mjs
+COPY .npmrc .npmrc
 
 # Copy source code for the specific worker and potentially shared libs
 # Adjust these COPY commands based on actual dependencies needed for the build
