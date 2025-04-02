@@ -2,7 +2,12 @@ name: CI - Build & Test Jupiter Platform Images
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main # Sigue ejecutándose en pushes a main
+    tags: # <-- AÑADE ESTA SECCIÓN COMPLETA
+      - 'v*' # Ejecutar en cualquier tag que empiece con 'v' (ej. v0.1.0, v1.2.3, v0.1.0-test)
+      # O podrías usar '*' para que se ejecute con CUALQUIER tag:
+      # - '*'
   workflow_dispatch: # Allows manual trigger
 
 env:
