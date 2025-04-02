@@ -19,8 +19,7 @@ COPY apps/jupiter/app-server/tsconfig.json ./tsconfig.json
 COPY tsconfig.base.json ./
 
 # Ejecutar el build
-#RUN npm run build
-RUN npm run build || (cat npm-debug.log* && exit 1)
+RUN npm run build
 
 # Podar devDependencies (esto eliminará haiku-generator)
 # RUN npm prune --omit=dev
