@@ -17,7 +17,7 @@ RUN npm ci
 COPY apps ./apps
 # Copiar libs si existe
 COPY libs ./libs
-COPY tsconfig.base.json ./ # Asegurar que se copia
+COPY tsconfig.base.json ./
 
 # --- Verificar copia de Prisma ---
 RUN echo ">>> Listing /app contents BEFORE copying prisma:" && ls -la /app
