@@ -16,8 +16,20 @@ jobs:
       - name: Start Deployment
         run: echo "Workflow de despliegue iniciado manualmente..."
 
+      # Paso 2: Configurar Agente SSH con la clave privada del secret
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0 # Acción para facilitar el uso de SSH
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} # Usa la clave privada del secret
+
+      # Paso 3: Probar la Conexión SSH al servidor
+      # Usamos los secrets para el usuario y host.
+      # '-o StrictHostKeyChecking=no' simplifica la primera conexión (menos seguro que añadir known_hosts)
+      - name: Test SSH Connection
+        run: |
+          echo "Intentando conectar a ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}..."
+          ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'echo ">> Conexión SSH exitosa! Hostname del servidor: $(hostname)"'
+
       # --- Aquí añadiremos los próximos pasos ---
-      # Paso 2: Configurar Clave SSH (usando secrets)
-      # Paso 3: Conectar a jupiter.ar via SSH
       # Paso 4: Ejecutar el script de despliegue remoto (deploy.sh)
       # ------------------------------------------
