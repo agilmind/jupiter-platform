@@ -4,26 +4,18 @@ WORKDIR /app
 
 RUN npm install -g npm@latest
 
-# Copiar archivos de definición de paquetes y bloqueo
-COPY package.json package-lock.json ./
-COPY .npmrc ./
+# Copiar archivos de configuración y manifiestos raíz
+COPY package.json package-lock.json .npmrc nx.json tsconfig.base.json ./
+COPY eslint.config.mjs ./
 
 # Instalar dependencias
 RUN npm ci
 
-# Copiar TODO el código fuente necesario para el build de app-server y sus dependencias locales
-# Copiar toda la carpeta 'apps' y 'libs' (si tienes libs) y archivos de config raíz
-# Esto es más simple y asegura que NX tenga todo el contexto del workspace
+# Copiar el código fuente de apps y libs
 COPY apps ./apps
-# Copiar libs si existe
 COPY libs ./libs
-COPY nx.json ./nx.json
-COPY tsconfig.base.json ./tsconfig.base.json
-# Copia cualquier otro archivo raíz necesario (ej. .env si afecta al build)
 
 # --- Ejecutar el build específico para app-server ---
-# Reemplaza 'app-server' con el nombre real del proyecto si es diferente
-# Asume que el target de build se llama 'build' en project.json
 RUN npx nx build jupiter-app-server
 
 # --- Comentar temporalmente para depurar si es necesario ---

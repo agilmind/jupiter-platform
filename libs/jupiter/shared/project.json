@@ -1,0 +1,35 @@
+{
+  "name": "jupiter-shared",
+  "root": "libs/jupiter/shared",
+  "sourceRoot": "libs/jupiter/shared/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/jupiter/shared",
+        "tsConfig": "libs/jupiter/shared/tsconfig.lib.json",
+        "packageJson": "libs/jupiter/shared/package.json",
+        "main": "libs/jupiter/shared/src/index.ts",
+        "assets": ["libs/jupiter/shared/*.md"]
+      }
+    },
+    "lint": {
+      "executor": "@nx/linter:eslint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/jupiter/shared/**/*.ts"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["coverage/libs/jupiter/shared"],
+      "options": {
+        "jestConfig": "libs/jupiter/shared/jest.config.js",
+        "passWithNoTests": true
+      }
+    }
+  },
+  "tags": ["type:lib", "scope:shared"]
+}

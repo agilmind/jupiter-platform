@@ -1,0 +1,27 @@
+{
+  "name": "jupiter-api-interfaces",
+  "root": "libs/jupiter/api-interfaces",
+  "sourceRoot": "libs/jupiter/api-interfaces/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/jupiter/api-interfaces",
+        "tsConfig": "libs/jupiter/api-interfaces/tsconfig.lib.json",
+        "packageJson": "libs/jupiter/api-interfaces/package.json",
+        "main": "libs/jupiter/api-interfaces/src/index.ts",
+        "assets": ["libs/jupiter/api-interfaces/*.md"]
+      }
+    },
+    "lint": {
+      "executor": "@nx/linter:eslint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/jupiter/api-interfaces/**/*.ts"]
+      }
+    }
+  },
+  "tags": ["type:lib", "scope:api"]
+}
