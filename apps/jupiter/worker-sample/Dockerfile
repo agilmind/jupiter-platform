@@ -20,7 +20,7 @@ COPY apps ./apps
 COPY libs ./libs
 
 # Build the specific worker application using NX
-RUN npx nx build worker-sample
+RUN npx nx build jupiter-worker-sample
 
 # Remove development dependencies after build is complete
 RUN npm prune --omit=dev

@@ -21,7 +21,7 @@ COPY libs ./libs
 COPY apps/jupiter/app-server/prisma ./prisma
 
 # Ejecutar el build específico
-RUN npx nx build jupiter-app-server
+RUN npx nx build RUN npx nx build jupiter-app-server
 
 # --- PASOS DE DEPURACIÓN (Puedes quitarlos si confías) ---
 # RUN echo ">>> Listing /app contents after build:" && ls -la /app
@@ -46,6 +46,4 @@ COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
 
 USER appuser
 EXPOSE 4000
-# El CMD sigue apuntando a dist/src/main.js porque copiamos el contenido
-# de /app/dist/apps/jupiter/app-server/ a /app/dist/
 CMD ["node", "dist/src/main.js"]

@@ -20,7 +20,7 @@ COPY apps ./apps
 COPY libs ./libs
 
 # Build the specific worker application using NX
-RUN npx nx build <%= workerName %>
+RUN npx nx build <%= projectName %>-<%= workerName %>
 
 # Remove development dependencies after build is complete
 RUN npm prune --omit=dev

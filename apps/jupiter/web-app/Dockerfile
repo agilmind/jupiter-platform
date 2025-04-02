@@ -21,7 +21,7 @@ COPY libs ./libs
 
 # Build the specific webapp using NX
 # This generates static files typically in dist/apps/jupiter/web-app/
-RUN npx nx build web-app
+RUN npx nx build jupiter-web-app
 
 # Optional: If you want to prune dev dependencies before copying node_modules
 # RUN npm prune --omit=dev
