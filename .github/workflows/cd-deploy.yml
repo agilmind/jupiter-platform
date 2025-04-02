@@ -12,35 +12,45 @@ jobs:
       - name: Start Deployment
         run: echo "Workflow de despliegue iniciado manualmente..."
 
-      # Paso 1: Checkout del código del repositorio en el runner
-      # Necesario para acceder al docker-compose.prod.yml
+      # Paso 1: Checkout del código (para acceder a los archivos compose y nginx)
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Paso 2: Configurar Agente SSH con la clave privada del secret
+      # Paso 2: Configurar Agente SSH
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # Paso 3: Crear directorio de configuración en el servidor (si no existe)
-      # Usa -p para evitar errores si ya existe
-      - name: Create Config Directory on Server
+      # Paso 3: Crear Directorios de Configuración en Servidor (incluyendo nginx-conf)
+      - name: Create Config Directories on Server
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "mkdir -p /home/deploy/jupiter_config"
+            "mkdir -p /home/deploy/jupiter_config/nginx-conf"
 
-      # Paso 4: Copiar archivo Docker Compose al servidor via SCP
-      # Origen: ruta relativa al checkout en el runner
-      # Destino: ruta absoluta en el servidor remoto
-      - name: Copy Docker Compose File to Server
+      # Paso 4: Copiar Archivo Docker Compose de Apps
+      - name: Copy App Docker Compose File to Server
         run: |
           scp -o StrictHostKeyChecking=no \
             ./apps/jupiter/docker-compose.prod.yml \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/docker-compose.prod.yml
 
-      # Paso 5: Ejecutar el script de despliegue en el servidor remoto
-      # El script ahora buscará el compose file en /home/deploy/jupiter_config
+      # Paso 5: Copiar Archivo Docker Compose de VPS (Nginx)
+      - name: Copy VPS Docker Compose File to Server
+        run: |
+          scp -o StrictHostKeyChecking=no \
+            ./apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/docker-compose.vps.yml
+
+      # Paso 6: Copiar Archivo de Configuración de Nginx
+      - name: Copy Nginx Config File to Server
+        run: |
+          scp -o StrictHostKeyChecking=no \
+            ./apps/jupiter/vps-infrastructure/hybrid/nginx-conf/webapp.conf \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/nginx-conf/webapp.conf
+
+      # Paso 7: Ejecutar el script de despliegue en el servidor remoto
+      # (El script ahora levantará ambos archivos compose)
       - name: Execute Deployment Script on Server
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \

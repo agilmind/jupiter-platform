@@ -1,0 +1,37 @@
+services:
+  # Nginx - Reverse Proxy
+  nginx:
+    image: nginx:stable-alpine # Usar imagen oficial y ligera
+    container_name: <%= projectName %>-nginx-proxy # Nombre descriptivo
+    restart: always
+    ports:
+      # Expone el puerto 80 del host al 80 del contenedor (para HTTP inicial)
+      - "80:80"
+      # Expone el puerto 443 (lo descomentaremos cuando configuremos HTTPS)
+      # - "443:443"
+    volumes:
+      # Monta el directorio que contendrá los archivos de configuración de Nginx generados.
+      # Asumimos que el generador creará una carpeta 'nginx-conf' junto a este docker-compose.yml
+      # y pondrá los .conf (como webapp.conf) dentro.
+      - ./nginx-conf:/etc/nginx/conf.d
+
+      # Volumen para certificados SSL (lo usaremos más adelante con HTTPS)
+      # - ./nginx-ssl:/etc/nginx/ssl
+
+      # Volumen para logs de Nginx (opcional, pero recomendado)
+      - ./nginx-logs:/var/log/nginx
+    networks:
+      # Conecta Nginx a la red donde corren tus otras aplicaciones
+      - app-network
+
+# Define la red de aplicaciones como externa, porque se crea en el otro docker-compose.prod.yml
+networks:
+  app-network:
+    external: true
+    # Asegúrate que este nombre coincide EXACTAMENTE con el definido en docker-compose.prod.yml
+    name: <%= projectName %>_app-network
+
+# Define los volúmenes que usaremos (si descomentas los mounts de arriba)
+volumes:
+  # nginx-ssl: # Para certificados
+  nginx-logs: # Para logs
