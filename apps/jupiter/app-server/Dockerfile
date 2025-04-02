@@ -44,6 +44,8 @@ COPY --from=builder --chown=appuser:appgroup /app/dist/apps/jupiter/app-server/ 
 COPY --chown=appuser:appgroup package.json .
 COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
 
+RUN apk add --no-cache curl
+
 USER appuser
 EXPOSE 4000
 CMD ["node", "dist/src/main.js"]
