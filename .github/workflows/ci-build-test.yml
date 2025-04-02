@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main # Sigue ejecutándose en pushes a main
-    tags: # <-- AÑADE ESTA SECCIÓN COMPLETA
+    tags:
       - 'v*' # Ejecutar en cualquier tag que empiece con 'v' (ej. v0.1.0, v1.2.3, v0.1.0-test)
       # O podrías usar '*' para que se ejecute con CUALQUIER tag:
       # - '*'
