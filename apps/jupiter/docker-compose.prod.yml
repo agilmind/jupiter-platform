@@ -245,10 +245,6 @@ networks:
   app-network:
     driver: bridge
     name: jupiter_app-network
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.28.0.0/16
 
 volumes:
   postgres_data:
