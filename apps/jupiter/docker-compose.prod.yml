@@ -117,6 +117,9 @@ services:
       - SERVICE_NAME=app-server
     env_file:
       - .env
+    ports:
+      # Mapea: localhost_del_host:puerto_host : puerto_interno_container
+      - '127.0.0.1:4000:4000'
     deploy:
       resources:
         limits:
@@ -165,6 +168,11 @@ services:
       - SERVICE_NAME=web-app
     env_file:
       - .env
+    ports:
+      # Mapea: localhost_del_host:puerto_host : puerto_interno_container
+      # Usamos puerto 3000 en el host para no chocar con el 80 que usará Nginx
+      # Mapea al puerto 80 interno de este contenedor (donde sirve Nginx de React)
+      - '127.0.0.1:3000:80'
     deploy:
       resources:
         limits:
