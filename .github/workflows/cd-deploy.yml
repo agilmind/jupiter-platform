@@ -49,6 +49,13 @@ jobs:
             ./apps/jupiter/vps-infrastructure/hybrid/nginx-conf/webapp.conf \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/nginx-conf/webapp.conf
 
+      - name: Copy Nginx SSL Options File to Server
+        run: |
+          scp -o StrictHostKeyChecking=no \
+            ./apps/jupiter/vps-infrastructure/hybrid/nginx-conf/options-ssl-nginx.conf \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/nginx-conf/options-ssl-nginx.conf
+
+
       # Paso 7: Ejecutar el script de despliegue en el servidor remoto
       # (El script ahora levantará ambos archivos compose)
       - name: Execute Deployment Script on Server
