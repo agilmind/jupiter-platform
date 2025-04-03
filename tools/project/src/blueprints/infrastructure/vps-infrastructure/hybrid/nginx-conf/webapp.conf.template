@@ -40,8 +40,8 @@ server {
     # --- Certificados SSL ---
     # Usar rutas absolutas a 'archive' que ya verificamos.
     # Asegúrate que <%= projectName %> se resuelve a 'jupiter'.
-    ssl_certificate /etc/letsencrypt/archive/webapp.<%= projectName %>.ar/fullchain1.pem;
-    ssl_certificate_key /etc/letsencrypt/archive/webapp.<%= projectName %>.ar/privkey1.pem;
+    ssl_certificate /etc/letsencrypt/live/webapp.<%= projectName %>.ar/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/webapp.<%= projectName %>.ar/privkey.pem;
 
     # --- Opciones SSL Seguras ---
     # Incluir archivo con configuraciones recomendadas
