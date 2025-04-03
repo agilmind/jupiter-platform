@@ -26,6 +26,11 @@ services:
 
 # Define los volúmenes nombrados para persistir datos importantes
 volumes:
-  certbot-etc: # Guarda certificados y cuenta de Let's Encrypt
-  certbot-www: # Usado para los archivos de desafío HTTP-01
-  # nginx-logs:  # Guarda logs de Nginx
+  certbot-etc:
+    external: true # <-- Añadir: Usa el volumen existente llamado 'certbot-etc'
+  certbot-www:
+    external: true # <-- Añadir: Usa el volumen existente llamado 'certbot-www'
+  nginx-logs:
+    # Nota: nginx-logs probablemente SÍ tenga prefijo si compose lo creó antes,
+    # si da error por este, quítale el external: true o créalo manualmente.
+    # external: true # Probablemente no necesario para nginx-logs
