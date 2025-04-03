@@ -1,6 +1,3 @@
-# tools/project/src/blueprints/infrastructure/vps-infrastructure/hybrid/docker-compose.yml.template
-version: '3.8'
-
 services:
   nginx:
     image: nginx:stable-alpine
