@@ -6,13 +6,9 @@ services:
     ports:
       - '443:443' # Solo probar 443
     volumes:
-      # Montar el DIRECTORIO con el config mínimo en conf.d
       - ./nginx-conf:/etc/nginx/conf.d:ro # <-- Volver a montar el directorio
-      # Montar volumen de certs como LECTURA/ESCRITURA para este test
       - certbot-etc:/etc/letsencrypt # <-- Sin :ro TEMPORALMENTE
-      # Quitar otros montajes si los quitaste antes
-      # - ./nginx-ssl:/etc/nginx/ssl:ro
-      # - nginx-logs:/var/log/nginx
+      - /home/deploy/jupiter_config/nginx-ssl:/etc/nginx/ssl:ro
     security_opt: # Mantener si crees que AppArmor puede ser factor
       - 'apparmor=unconfined'
 
