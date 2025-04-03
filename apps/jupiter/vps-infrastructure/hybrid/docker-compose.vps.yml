@@ -13,6 +13,9 @@ services:
       - ./nginx-conf:/etc/nginx/conf.d
       # - ./nginx-ssl:/etc/nginx/ssl
       - ./nginx-logs:/var/log/nginx
+    extra_hosts:
+      # Mapea host.docker.internal a la IP especial del gateway del host de Docker
+      - 'host.docker.internal:host-gateway'
 
 # Define los volúmenes que usaremos (si descomentas los mounts de arriba)
 volumes:
