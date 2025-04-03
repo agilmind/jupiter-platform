@@ -1,0 +1,28 @@
+# minimal-ssl.conf.template
+# Configuración MÍNIMA solo para probar lectura de certificado
+
+# Obligatorio para Nginx
+events {}
+
+http {
+    server {
+        listen 443 ssl http2;
+        listen [::]:443 ssl http2;
+        # Puedes poner un server_name genérico o el tuyo
+        server_name _;
+
+        # Cargar certificados desde ARCHIVE directamente
+        # Asegúrate que <%= projectName %> se resuelve a 'jupiter'
+        ssl_certificate /etc/letsencrypt/archive/webapp.<%= projectName %>.ar/fullchain1.pem;
+        ssl_certificate_key /etc/letsencrypt/archive/webapp.<%= projectName %>.ar/privkey1.pem;
+
+        # NO incluir options-ssl-nginx.conf
+        # NO incluir ssl_dhparam
+
+        # Solo devolver un OK simple
+        location / {
+            return 200 "Minimal HTTPS OK - Cert Loaded!";
+            add_header Content-Type text/plain;
+        }
+    }
+}

@@ -4,33 +4,29 @@ services:
     container_name: jupiter-nginx-proxy
     restart: always
     ports:
-      - '80:80'
+      # Solo probar 443 por ahora
       - '443:443'
     volumes:
-      - ./nginx-conf:/etc/nginx/conf.d:ro
-      - certbot-www:/var/www/certbot:ro
-      - certbot-etc:/etc/letsencrypt
-      - ./nginx-ssl:/etc/nginx/ssl:ro
-      - nginx-logs:/var/log/nginx
-    security_opt:
+      # Montar el archivo MÍNIMO directamente como nginx.conf principal
+      - ./nginx-conf/minimal-ssl.conf:/etc/nginx/nginx.conf:ro
+      # Montar volumen de certs como LECTURA/ESCRITURA para este test
+      - certbot-etc:/etc/letsencrypt # <-- Sin :ro TEMPORALMENTE
+      # Quitar otros montajes de Nginx por ahora si quieres simplificar más
+      # - ./nginx-ssl:/etc/nginx/ssl:ro
+      # - nginx-logs:/var/log/nginx
+    security_opt: # Mantener si crees que AppArmor puede seguir siendo factor
       - 'apparmor=unconfined'
 
-  # Nuevo servicio para Certbot
   certbot:
     image: certbot/certbot:latest
     container_name: jupiter-certbot
     volumes:
-      # Volumen compartido para desafíos ACME - Escritura para Certbot
       - certbot-www:/var/www/certbot
-      # Volumen compartido para certificados/configs - Escritura para Certbot
       - certbot-etc:/etc/letsencrypt
-    # Comando que se ejecuta al iniciar y luego cada 12h para intentar renovar.
-    # Usa el método webroot, que requiere que Nginx sirva los desafíos desde certbot-www.
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
-    # Nota: La obtención inicial del certificado se hará por separado.
+    entrypoint: 'sleep infinity' # No necesita hacer nada en este test
 
 # Define los volúmenes nombrados para persistir datos importantes
 volumes:
   certbot-etc: # Guarda certificados y cuenta de Let's Encrypt
   certbot-www: # Usado para los archivos de desafío HTTP-01
-  nginx-logs: # Guarda logs de Nginx
+  # nginx-logs:  # Guarda logs de Nginx
