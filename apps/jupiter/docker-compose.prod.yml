@@ -178,12 +178,6 @@ services:
         delay: 5s
         max_attempts: 3
         window: 120s
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost/health']
-      interval: ${HEALTH_CHECK_INTERVAL:-30s}
-      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
-      retries: ${HEALTH_CHECK_RETRIES:-3}
-      start_period: ${HEALTH_CHECK_START_PERIOD:-20s}
     depends_on:
       jupiter-app-server:
         condition: service_healthy
