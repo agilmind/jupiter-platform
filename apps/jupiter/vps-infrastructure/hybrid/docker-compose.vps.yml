@@ -12,7 +12,7 @@ services:
       # Monta volumen para desafíos ACME de Certbot - Solo lectura para Nginx
       - certbot-www:/var/www/certbot:ro
       # Monta volumen para certificados Let's Encrypt - Solo lectura para Nginx
-      - certbot-etc:/etc/letsencrypt:ro
+      - certbot-etc:/etc/letsencrypt
       # Monta volumen para logs de Nginx
       - nginx-logs:/var/log/nginx
     # Ya no necesita la red 'app-network'
