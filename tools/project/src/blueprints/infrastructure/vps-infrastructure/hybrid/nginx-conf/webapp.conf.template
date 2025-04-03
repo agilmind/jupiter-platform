@@ -1,6 +1,4 @@
 # ==============================================================================
-# tools/project/src/blueprints/infrastructure/vps-infrastructure/hybrid/nginx-conf/webapp.conf.template
-#
 # *** VERSIÓN TEMPORAL - SOLO HTTP ***
 # Propósito: Permitir que Nginx arranque y sirva los desafíos ACME de Let's Encrypt
 #            para poder obtener el certificado SSL inicial.
@@ -27,11 +25,11 @@ server {
         root /var/www/certbot;
     }
 
-    # --- Redirección a HTTPS (COMENTADA TEMPORALMENTE) ---
+    # --- Redirección a HTTPS (DESCOMENTADA YA) ---
     # No redirigir mientras obtenemos el certificado por HTTP.
-    # location / {
-    #     return 301 https://$host$request_uri;
-    # }
+    location / {
+        return 301 https://$host$request_uri;
+    }
 
     # --- Proxy Reverso para la API Backend (por HTTP) ---
     location /api/ {
@@ -74,34 +72,33 @@ server {
     error_log /var/log/nginx/webapp.error.log warn; # Loguear errores y advertencias
 }
 
-# --- Bloque HTTPS Completo (COMENTADO POR AHORA) ---
-# No descomentar hasta tener los certificados generados por Certbot.
-#
-# server {
-#     listen 443 ssl http2;
-#     listen [::]:443 ssl http2;
-#     server_name webapp.<%= projectName %>.ar; # O webapp.jupiter.ar
-#
-#     ssl_certificate /etc/letsencrypt/live/webapp.<%= projectName %>.ar/fullchain.pem;
-#     ssl_certificate_key /etc/letsencrypt/live/webapp.<%= projectName %>.ar/privkey.pem;
-#
-#     include /etc/nginx/conf.d/options-ssl-nginx.conf; # Archivo con opciones SSL seguras
-#     # ssl_dhparam /etc/nginx/ssl/dhparam.pem; # Parámetros DH (opcional pero recomendado)
-#
-#     access_log /var/log/nginx/webapp.ssl.access.log;
-#     error_log /var/log/nginx/webapp.ssl.error.log warn;
-#
-#     location /api/ {
-#         rewrite ^/api/(.*)$ /$1 break;
-#         proxy_pass http://172.17.0.1:4000; # IP Gateway
-#         # ... proxy_set_header ... (igual que bloque HTTP, pero X-Forwarded-Proto será https)
-#         proxy_set_header X-Forwarded-Proto https;
-#     }
-#
-#     location / {
-#         proxy_pass http://172.17.0.1:3000; # IP Gateway
-#         # ... proxy_set_header ... (igual que bloque HTTP, pero X-Forwarded-Proto será https)
-#         proxy_set_header X-Forwarded-Proto https;
-#     }
-# }
-#
+# --- Bloque HTTPS Completo (DESCOMENTADO YA) ---
+# comentar para obtener los certificados por Certbot.
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name webapp.<%= projectName %>.ar; # O webapp.jupiter.ar
+
+    ssl_certificate /etc/letsencrypt/live/webapp.<%= projectName %>.ar/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/webapp.<%= projectName %>.ar/privkey.pem;
+
+    include /etc/nginx/conf.d/options-ssl-nginx.conf; # Archivo con opciones SSL seguras
+    # ssl_dhparam /etc/nginx/ssl/dhparam.pem; # Parámetros DH (opcional pero recomendado)
+
+    access_log /var/log/nginx/webapp.ssl.access.log;
+    error_log /var/log/nginx/webapp.ssl.error.log warn;
+
+    location /api/ {
+        rewrite ^/api/(.*)$ /$1 break;
+        proxy_pass http://172.17.0.1:4000; # IP Gateway
+        # ... proxy_set_header ... (igual que bloque HTTP, pero X-Forwarded-Proto será https)
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    location / {
+        proxy_pass http://172.17.0.1:3000; # IP Gateway
+        # ... proxy_set_header ... (igual que bloque HTTP, pero X-Forwarded-Proto será https)
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+
