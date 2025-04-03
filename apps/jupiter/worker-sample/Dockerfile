@@ -22,6 +22,11 @@ COPY libs ./libs
 # Build the specific worker application using NX
 RUN npx nx build jupiter-worker-sample
 
+# --- DEBUGGING: Verificar Salida del Build ---
+RUN echo ">>> Listando contenido de /app/dist/apps/jupiter/worker-sample DESPUÉS del build:"
+RUN ls -la /app/dist/apps/jupiter/worker-sample
+# --- FIN DEBUGGING ---
+
 # Remove development dependencies after build is complete
 RUN npm prune --omit=dev
 
