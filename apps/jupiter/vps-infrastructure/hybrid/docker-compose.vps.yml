@@ -1,23 +1,41 @@
+# tools/project/src/blueprints/infrastructure/vps-infrastructure/hybrid/docker-compose.yml.template
+version: '3.8'
+
 services:
-  # Nginx - Reverse Proxy
   nginx:
-    image: nginx:stable-alpine # Usar imagen oficial y ligera
-    container_name: jupiter-nginx-proxy # Nombre descriptivo
+    image: nginx:stable-alpine
+    container_name: jupiter-nginx-proxy
     restart: always
     ports:
-      # Expone el puerto 80 del host al 80 del contenedor (para HTTP inicial)
       - '80:80'
-      # Expone el puerto 443 (lo descomentaremos cuando configuremos HTTPS)
-      # - "443:443"
+      - '443:443'
     volumes:
-      - ./nginx-conf:/etc/nginx/conf.d
-      # - ./nginx-ssl:/etc/nginx/ssl
-      - ./nginx-logs:/var/log/nginx
-    extra_hosts:
-      # Mapea host.docker.internal a la IP especial del gateway del host de Docker
-      - 'host.docker.internal:host-gateway'
+      # Monta configs generadas (ej. webapp.conf) - Solo lectura
+      - ./nginx-conf:/etc/nginx/conf.d:ro
+      # Monta volumen para desafíos ACME de Certbot - Solo lectura para Nginx
+      - certbot-www:/var/www/certbot:ro
+      # Monta volumen para certificados Let's Encrypt - Solo lectura para Nginx
+      - certbot-etc:/etc/letsencrypt:ro
+      # Monta volumen para logs de Nginx
+      - nginx-logs:/var/log/nginx
+    # Ya no necesita la red 'app-network'
 
-# Define los volúmenes que usaremos (si descomentas los mounts de arriba)
+  # Nuevo servicio para Certbot
+  certbot:
+    image: certbot/certbot:latest
+    container_name: jupiter-certbot
+    volumes:
+      # Volumen compartido para desafíos ACME - Escritura para Certbot
+      - certbot-www:/var/www/certbot
+      # Volumen compartido para certificados/configs - Escritura para Certbot
+      - certbot-etc:/etc/letsencrypt
+    # Comando que se ejecuta al iniciar y luego cada 12h para intentar renovar.
+    # Usa el método webroot, que requiere que Nginx sirva los desafíos desde certbot-www.
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+    # Nota: La obtención inicial del certificado se hará por separado.
+
+# Define los volúmenes nombrados para persistir datos importantes
 volumes:
-  # nginx-ssl: # Para certificados
-  nginx-logs: # Para logs
+  certbot-etc: # Guarda certificados y cuenta de Let's Encrypt
+  certbot-www: # Usado para los archivos de desafío HTTP-01
+  nginx-logs: # Guarda logs de Nginx
