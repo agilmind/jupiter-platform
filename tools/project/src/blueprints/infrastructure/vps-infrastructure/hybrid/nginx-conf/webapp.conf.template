@@ -21,39 +21,3 @@ server {
     }
 }
 
-# ---- Bloque HTTPS (Puerto 443) ----
-# Este bloque manejará el tráfico seguro una vez tengamos certificados
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name webapp.<%= projectName %>.ar; # O hardcodeado: webapp.jupiter.ar
-
-    # --- Configuración SSL (se llenará con Certbot) ---
-    # Estas rutas DEBEN coincidir con donde Certbot guarda los certs y Nginx los lee
-    ssl_certificate /etc/letsencrypt/live/webapp.<%= projectName %>.ar/fullchain.pem; # Ajustar dominio si es necesario
-    ssl_certificate_key /etc/letsencrypt/live/webapp.<%= projectName %>.ar/privkey.pem; # Ajustar dominio si es necesario
-
-    # Archivo con parámetros Diffie-Hellman (generar con: openssl dhparam -out dhparam.pem 4096)
-    # ssl_dhparam /etc/nginx/ssl/dhparam.pem; # Lo añadiremos después
-
-    # Configuración SSL recomendada (protocolos, ciphers, etc.) - Puedes añadirla después
-    include /etc/nginx/conf.d/options-ssl-nginx.conf; # Asumiendo que creamos este archivo con buenas prácticas
-
-    access_log /var/log/nginx/webapp.ssl.access.log;
-    error_log /var/log/nginx/webapp.ssl.error.log warn;
-
-    # Proxy para la API (igual que antes, pero bajo HTTPS)
-    location /api/ {
-        rewrite ^/api/(.*)$ /$1 break;
-        proxy_pass http://172.17.0.1:4000; # Usa la IP del gateway
-        # ... todas las directivas proxy_set_header ...
-        proxy_set_header X-Forwarded-Proto https; # Indicar que la conexión original fue HTTPS
-    }
-
-    # Proxy para el frontend (igual que antes, pero bajo HTTPS)
-    location / {
-        proxy_pass http://172.17.0.1:3000; # Usa la IP del gateway
-        # ... todas las directivas proxy_set_header ...
-         proxy_set_header X-Forwarded-Proto https; # Indicar que la conexión original fue HTTPS
-    }
-}
