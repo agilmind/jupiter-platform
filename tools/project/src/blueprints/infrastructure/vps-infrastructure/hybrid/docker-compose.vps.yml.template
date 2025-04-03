@@ -4,17 +4,16 @@ services:
     container_name: <%= projectName %>-nginx-proxy
     restart: always
     ports:
-      # Solo probar 443 por ahora
-      - "443:443"
+      - "443:443" # Solo probar 443
     volumes:
-      # Montar el archivo MÍNIMO directamente como nginx.conf principal
-      - ./nginx-conf/minimal-ssl.conf:/etc/nginx/nginx.conf:ro
+      # Montar el DIRECTORIO con el config mínimo en conf.d
+      - ./nginx-conf:/etc/nginx/conf.d:ro  # <-- Volver a montar el directorio
       # Montar volumen de certs como LECTURA/ESCRITURA para este test
       - certbot-etc:/etc/letsencrypt # <-- Sin :ro TEMPORALMENTE
-      # Quitar otros montajes de Nginx por ahora si quieres simplificar más
+      # Quitar otros montajes si los quitaste antes
       # - ./nginx-ssl:/etc/nginx/ssl:ro
       # - nginx-logs:/var/log/nginx
-    security_opt: # Mantener si crees que AppArmor puede seguir siendo factor
+    security_opt: # Mantener si crees que AppArmor puede ser factor
       - "apparmor=unconfined"
 
   certbot:
