@@ -1,4 +1,3 @@
-# tools/project/src/blueprints/infrastructure/vps-infrastructure/hybrid/nginx-conf/webapp.conf.template
 # Configuración de Nginx para webapp.jupiter.ar (Preparado para HTTPS y Certbot)
 
 # ---- Bloque HTTP (Puerto 80) ----
