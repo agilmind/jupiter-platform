@@ -41,6 +41,38 @@ if [ $? -ne 0 ]; then
 fi
 echo "[Deploy] Comando 'compose up' para ambos archivos ejecutado."
 
+
+# 4. Desplegar/Actualizar TODOS los Stacks
+echo "[Deploy] Actualizando todos los servicios (${APP_COMPOSE_FILE} + ${VPS_COMPOSE_FILE})..."
+cd "${CONFIG_DIR}"
+docker compose -f "${APP_COMPOSE_FILE}" -f "${VPS_COMPOSE_FILE}" up -d --remove-orphans
+if [ $? -ne 0 ]; then
+    echo "ERROR: Falló el comando 'docker compose -f prod -f vps up -d'"
+    # Podríamos no querer salir aquí si Nginx falla inicialmente por permisos
+    # exit 1
+    echo "ADVERTENCIA: 'compose up' devolvió error, puede ser por Nginx y permisos iniciales. Intentando corregir permisos..."
+fi
+echo "[Deploy] Comando 'compose up' para ambos archivos ejecutado."
+
+# --- CORRECCIÓN DE PERMISOS SSL (DESPUÉS de compose up) ---
+echo "[Deploy] Asegurando permisos correctos para Nginx en certificados SSL..."
+
+# Permisos para la clave privada (644)
+docker run --rm -v certbot-etc:/etc/letsencrypt alpine:latest \
+  sh -c "chmod 644 /etc/letsencrypt/archive/${APP_DOMAIN}/privkey*.pem || echo 'Advertencia: No se pudo cambiar permisos de privkey.'"
+
+# Permisos para directorios archive y live (755 - necesita 'x' para entrar)
+docker run --rm -v certbot-etc:/etc/letsencrypt alpine:latest \
+  sh -c "chmod 755 /etc/letsencrypt/archive/ /etc/letsencrypt/archive/${APP_DOMAIN}/ || echo 'Advertencia: No se pudo cambiar permisos de directorios archive.'"
+
+# --- Forzar Recarga/Reinicio de Nginx ---
+# Necesario para que Nginx tome los permisos corregidos si falló al iniciar
+echo "[Deploy] Recargando/Reiniciando Nginx para aplicar permisos..."
+# Intenta reload primero, si falla (ej. porque no está corriendo), intenta restart
+docker exec jupiter-nginx-proxy nginx -s reload || docker restart jupiter-nginx-proxy || echo "Nginx no pudo recargar/reiniciar (puede que ya esté parado)."
+
+
+
 # 5. Limpiar (Opcional)
 # echo "[Deploy] Limpiando imágenes Docker no usadas..."
 # docker image prune -af

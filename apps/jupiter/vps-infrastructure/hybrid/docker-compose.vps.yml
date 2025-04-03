@@ -13,9 +13,9 @@ services:
       - certbot-www:/var/www/certbot:ro
       # Monta volumen para certificados Let's Encrypt - Solo lectura para Nginx
       - certbot-etc:/etc/letsencrypt
+      - ./nginx-ssl:/etc/nginx/ssl:ro
       # Monta volumen para logs de Nginx
       - nginx-logs:/var/log/nginx
-    # Ya no necesita la red 'app-network'
 
   # Nuevo servicio para Certbot
   certbot:
