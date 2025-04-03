@@ -7,15 +7,13 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # Monta configs generadas (ej. webapp.conf) - Solo lectura
       - ./nginx-conf:/etc/nginx/conf.d:ro
-      # Monta volumen para desafíos ACME de Certbot - Solo lectura para Nginx
       - certbot-www:/var/www/certbot:ro
-      # Monta volumen para certificados Let's Encrypt - Solo lectura para Nginx
       - certbot-etc:/etc/letsencrypt
       - ./nginx-ssl:/etc/nginx/ssl:ro
-      # Monta volumen para logs de Nginx
       - nginx-logs:/var/log/nginx
+    security_opt:
+      - "apparmor=unconfined"
 
   # Nuevo servicio para Certbot
   certbot:
