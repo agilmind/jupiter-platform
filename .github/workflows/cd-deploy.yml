@@ -30,20 +30,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # *** NUEVO PASO DE DEBUG ***
-      - name: List generated files for verification
-        if: success() # Ejecutar siempre que los pasos anteriores tengan éxito
-        run: |
-          echo "--- Verifying file existence ---"
-          BASE_PATH="apps/jupiter/vps-infrastructure/hybrid"
-          echo "Listing content of [${BASE_PATH}]"
-          ls -la ${BASE_PATH}/
-          echo "Listing content of [${BASE_PATH}/nginx-conf/]"
-          ls -la ${BASE_PATH}/nginx-conf/
-          echo "Checking existence of deploy script template:"
-          ls -la tools/project/src/blueprints/infraestructure/vps-infraestructure/hybrid/deploy.sh
-          echo "--- Verification complete ---"
-
       # Paso 2: Configurar Agente SSH
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -56,23 +42,38 @@ jobs:
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
 
-      # Paso 4: Copiar Archivos de Configuración según el target
-      - name: Copy Configuration Files to Server
+      # --- PASO 4 REEMPLAZADO POR 4a y 4b ---
+
+      # Paso 4a: Copiar Archivos de Aplicación (Condicional)
+      - name: Copy App Docker Compose File to Server
+        # Solo se ejecuta si el target es 'applications' o 'all'
+        if: github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # <--- SIMPLIFICADO Y SIN WILDCARD / strip_components
-          #      Especificamos archivos explícitamente para 'infrastructure'
-          source: |
-            ${{ (github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all') && 'RUTA/REAL/A/docker-compose.prod.yml' || '' }} # <-- AÚN NECESITA RUTA REAL PARA APPS
-            ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml' || '' }}
-            ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/nginx-conf/webapp.conf' || '' }}
-            ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/nginx-conf/options-ssl-nginx.conf' || '' }}
+          # Asume que el archivo generado está en esta ruta estándar
+          source: "apps/jupiter/docker-compose.prod.yml"
           target: "/home/deploy/jupiter_config/"
-          # strip_components: 0 # Eliminado/Comentado
+
+      # Paso 4b: Copiar Archivos de Infraestructura (Condicional)
+      - name: Copy Infrastructure Files to Server
+        # Solo se ejecuta si el target es 'infrastructure' o 'all'
+        if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          # Especificamos archivos explícitamente usando las rutas confirmadas
+          source: |
+            apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml
+            apps/jupiter/vps-infrastructure/hybrid/nginx-conf/webapp.conf
+            apps/jupiter/vps-infrastructure/hybrid/nginx-conf/options-ssl-nginx.conf
+          target: "/home/deploy/jupiter_config/"
 
       # Paso 5: Copiar el deploy.sh al servidor
       - name: Copy Deploy Script to Server
@@ -82,8 +83,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # <--- USA LA RUTA DEL TEMPLATE - ¿ES CORRECTO O SE GENERA EN OTRO LADO?
-          source: "tools/project/src/blueprints/infraestructure/vps-infraestructure/hybrid/deploy.sh"
+          # <--- CORREGIDO: Ruta al script según 'ls' (asumiendo que ***.sh es deploy.sh)
+          source: "apps/jupiter/vps-infrastructure/hybrid/deploy.sh"
           target: "/home/deploy/"
 
       # Paso 6: Asegurar que deploy.sh sea ejecutable
