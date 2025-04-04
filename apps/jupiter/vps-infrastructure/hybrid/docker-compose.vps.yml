@@ -4,29 +4,51 @@ services:
     container_name: jupiter-nginx-proxy
     restart: always
     ports:
-      - '443:443' # Solo probar 443
+      # Solo 443 por ahora, ajustaremos para certbot luego
+      - '443:443'
+      # Si quieres HTTP->HTTPS redirect y certbot webroot, necesitarás puerto 80 también
+      # - '80:80'
     volumes:
-      - ./nginx-conf:/etc/nginx/conf.d:ro # <-- Volver a montar el directorio
-      - certbot-etc:/etc/letsencrypt # <-- Sin :ro TEMPORALMENTE
-      - /home/deploy/jupiter_config/nginx-ssl:/etc/nginx/ssl:ro
-    security_opt: # Mantener si crees que AppArmor puede ser factor
+      # Monta directorio de configs Nginx (donde está webapp.conf, etc.)
+      - ./nginx-conf:/etc/nginx/conf.d:ro
+      # Monta volumen de certs Let's Encrypt
+      - certbot-etc:/etc/letsencrypt:ro # <--- Puede ser :ro una vez que certbot funcione
+      # Monta directorio con dhparam.pem
+      - ./nginx-ssl:/etc/nginx/ssl:ro # Asumiendo que copias dhparam aquí
+      # Monta volumen para logs de Nginx (opcional pero útil)
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      # - certbot # Opcional, depende de si certbot necesita correr primero
+      pass
+    networks: # Opcional: Definir una red si es necesario
+      - default # O la red que uses
+    security_opt:
       - 'apparmor=unconfined'
 
   certbot:
+    # Usaremos la imagen con el plugin de Cloudflare cuando integremos la automatización
+    # image: certbot/dns-cloudflare:latest
+    # Por ahora, la imagen base está bien para que el contenedor simplemente exista
     image: certbot/certbot:latest
     container_name: jupiter-certbot
     volumes:
-      - certbot-www:/var/www/certbot
+      # Monta los volúmenes donde se guardarán los certificados y la cuenta LE
       - certbot-etc:/etc/letsencrypt
-    entrypoint: 'sleep infinity' # No necesita hacer nada en este test
+      # Monta un volumen para el desafío webroot (aunque no lo usemos con DNS challenge)
+      - certbot-www:/var/www/certbot
+    # Comando para mantener el contenedor vivo sin hacer nada hasta que lo usemos
+    # Si usas cron en host, 'sleep infinity' está bien.
+    # Si quieres que el contenedor ejecute la renovación, el comando sería diferente.
+    command: sleep infinity
+    networks: # Opcional: Misma red que Nginx si es necesario
+      - default
 
-# Define los volúmenes nombrados para persistir datos importantes
+# Define los volúmenes nombrados. Docker Compose los creará si no existen.
 volumes:
-  certbot-etc:
-    external: true # <-- Añadir: Usa el volumen existente llamado 'certbot-etc'
-  certbot-www:
-    external: true # <-- Añadir: Usa el volumen existente llamado 'certbot-www'
-  nginx-logs:
-    # Nota: nginx-logs probablemente SÍ tenga prefijo si compose lo creó antes,
-    # si da error por este, quítale el external: true o créalo manualmente.
-    # external: true # Probablemente no necesario para nginx-logs
+  certbot-etc: {} # <--- SIN external: true
+  certbot-www: {} # <--- SIN external: true
+  nginx-logs: {} # <--- Volumen para logs (opcional)
+
+networks: # Opcional: Define la red si no usas la default
+  default:
+    name: jupiter_vps_network # O el nombre que prefieras
