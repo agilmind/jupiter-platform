@@ -69,10 +69,19 @@ jobs:
           target: "/home/deploy/jupiter_config/nginx-conf/"
           overwrite: true
 
-      # Pasos 5 y 6 NUEVOS para actualizar deploy.sh usando tee
+      # Paso 5: Leer Contenido del Script de Despliegue (en el Runner)
       - name: Read Deploy Script Content
         id: deploy_script_content
         run: echo "script_content=$(cat apps/jupiter/vps-infrastructure/hybrid/deploy.sh | base64 -w 0)" >> $GITHUB_OUTPUT
+
+      - name: DEBUG Verify Script Content Read in Runner
+        if: success() # Ejecutar si el paso anterior tuvo éxito
+        run: |
+          echo "--- Verifying script content read by Step 5 ---"
+          echo "Base64 Encoded First 100 chars: ${{ steps.deploy_script_content.outputs.script_content KEEPNUL == null && '' || steps.deploy_script_content.outputs.script_content:0:100 }}"
+          echo "Attempting to decode and show first 5 lines:"
+          echo "${{ steps.deploy_script_content.outputs.script_content }}" | base64 -d | head -n 5
+          echo "--- Verification complete ---"
 
       # Paso 6: Sobrescribir/Crear deploy.sh en Servidor y Dar Permisos (sin cambios respecto a v15)
       - name: Update Deploy Script on Server
