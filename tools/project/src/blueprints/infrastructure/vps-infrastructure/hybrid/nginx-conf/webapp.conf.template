@@ -13,7 +13,7 @@ server {
 
     # Dominio(s)
     # Reemplaza <%= projectName %> o usa nombre fijo: webapp.jupiter.ar
-    server_name webapp.<%= projectName %>.ar;
+    server_name webapp.<%= domainName %>;
 
     # 1. Servir Desafío ACME
     # Esencial para que Certbot (--webroot) pueda validar/renovar
@@ -35,13 +35,13 @@ server {
     listen [::]:443 ssl http2;
     # Dominio(s)
     # Reemplaza <%= projectName %> o usa nombre fijo: webapp.jupiter.ar
-    server_name webapp.<%= projectName %>.ar;
+    server_name webapp.<%= domainName %>;
 
     # --- Certificados SSL ---
     # Usar rutas absolutas a 'archive' que ya verificamos.
     # Asegúrate que <%= projectName %> se resuelve a 'jupiter'.
-    ssl_certificate /etc/letsencrypt/live/webapp.<%= projectName %>.ar/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/webapp.<%= projectName %>.ar/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/webapp.<%= domainName %>/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/webapp.<%= domainName %>/privkey.pem;
 
     # --- Opciones SSL Seguras ---
     # Incluir archivo con configuraciones recomendadas

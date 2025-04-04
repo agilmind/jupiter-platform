@@ -1,64 +1,113 @@
+# .github/workflows/cd-deploy.yml
 name: CD - Deploy to Jupiter Server
 
 on:
   workflow_dispatch:
+    inputs:
+      deployment_target:
+        description: 'Target to deploy (infra=VPS; apps=Prod; all=Both)'
+        required: true
+        type: choice
+        options:
+          - infrastructure # <-- Despliega solo docker-compose.vps.yml
+          - applications   # <-- Despliega solo docker-compose.prod.yml
+          - all            # <-- Despliega ambos (comportamiento anterior)
+        default: 'all'
+      image_tag:
+        description: 'Image tag for applications (default: latest)'
+        required: false
+        default: 'latest'
 
 jobs:
   deploy:
-    name: Deploy to Production (jupiter.ar)
+    name: Deploy ${{ github.event.inputs.deployment_target }} to Production (jupiter.ar)
     runs-on: ubuntu-latest
 
     steps:
       - name: Start Deployment
-        run: echo "Workflow de despliegue iniciado manualmente..."
+        run: echo "Workflow de despliegue iniciado manualmente para [${{ github.event.inputs.deployment_target }}] con tag [${{ github.event.inputs.image_tag }}]..."
 
-      # Paso 1: Checkout del código (para acceder a los archivos compose y nginx)
+      # Paso 1: Checkout del código (para acceder a los archivos generados)
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Paso 2: Configurar Agente SSH
+      # Paso 2: Configurar Agente SSH (Sin cambios)
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # Paso 3: Crear Directorios de Configuración en Servidor (incluyendo nginx-conf)
-      - name: Create Config Directories on Server
+      # Paso 3: Crear Directorio de Configuración Base en Servidor (si no existe)
+      # <--- Cambio: Simplificado a un solo directorio base
+      - name: Create Base Config Directory on Server
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
 
-      # Paso 4: Copiar Archivo Docker Compose de Apps
-      - name: Copy App Docker Compose File to Server
-        run: |
-          scp -o StrictHostKeyChecking=no \
-            ./apps/jupiter/docker-compose.prod.yml \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/docker-compose.prod.yml
+      # Paso 4: Copiar Archivos de Configuración según el target
+      # <--- Cambio: Usamos scp-action para copiar condicionalmente
+      - name: Copy Configuration Files to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }} # Cambiado de SSH_USERNAME a SSH_USER para coincidir con tus secretos
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT:-22 }} # Usar secrets.SSH_PORT si existe, sino default 22
+          source: | # <-- Copia selectiva basada en la entrada
+            ${{ (github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/docker-compose.prod.yml' || '' }}
+            ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml' || '' }}
+            ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/nginx-conf/*' || '' }}
+          target: "/home/deploy/jupiter_config/"
+          strip_components: 3 # Ajusta si la estructura generada es diferente
 
-      # Paso 5: Copiar Archivo Docker Compose de VPS (Nginx)
-      - name: Copy VPS Docker Compose File to Server
-        run: |
-          scp -o StrictHostKeyChecking=no \
-            ./apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/docker-compose.vps.yml
+      # Paso 5: Copiar el NUEVO deploy.sh al servidor
+      # <--- Nuevo Paso: Copia el script de despliegue actualizado
+      - name: Copy Deploy Script to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT:-22 }}
+          # Asume que el script generado está en esta ruta relativa al checkout
+          source: "tools/project/src/blueprints/infraestructure/vps-infraestructure/hybrid/deploy.sh"
+          target: "/home/deploy/" # <-- Copiar directamente a /home/deploy/
 
-      # Paso 6: Copiar Archivo de Configuración de Nginx
-      - name: Copy Nginx Config File to Server
-        run: |
-          scp -o StrictHostKeyChecking=no \
-            ./apps/jupiter/vps-infrastructure/hybrid/nginx-conf/webapp.conf \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/nginx-conf/webapp.conf
-
-      - name: Copy Nginx SSL Options File to Server
-        run: |
-          scp -o StrictHostKeyChecking=no \
-            ./apps/jupiter/vps-infrastructure/hybrid/nginx-conf/options-ssl-nginx.conf \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/nginx-conf/options-ssl-nginx.conf
-
+      # Paso 6: Asegurar que deploy.sh sea ejecutable
+      # <--- Nuevo Paso: Establece permisos correctos para el script
+      - name: Make Deploy Script Executable
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT:-22 }}
+          script: |
+            sudo chmod +x /home/deploy/deploy.sh
+            sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh # O el grupo apropiado
 
       # Paso 7: Ejecutar el script de despliegue en el servidor remoto
-      # (El script ahora levantará ambos archivos compose)
+      # <--- Cambio: Ejecuta el script desde /home/deploy/ y pasa argumentos
       - name: Execute Deployment Script on Server
-        run: |
-          ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "/home/deploy/deploy.sh latest ${{ secrets.GHCR_TOKEN }}"
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT:-22 }}
+          script: |
+            # Construir argumentos para deploy.sh
+            DEPLOY_ARGS=""
+            if [ "${{ github.event.inputs.deployment_target }}" == "infrastructure" ]; then
+              DEPLOY_ARGS="--infra"
+            elif [ "${{ github.event.inputs.deployment_target }}" == "applications" ]; then
+              DEPLOY_ARGS="--apps"
+            elif [ "${{ github.event.inputs.deployment_target }}" == "all" ]; then
+              DEPLOY_ARGS="--all"
+            else
+              echo "Target inválido: ${{ github.event.inputs.deployment_target }}"
+              exit 1
+            fi
+
+            # Ejecutar el script actualizado desde /home/deploy/
+            sudo /home/deploy/deploy.sh $DEPLOY_ARGS --tag ${{ github.event.inputs.image_tag }} --token ${{ secrets.GHCR_TOKEN }}
