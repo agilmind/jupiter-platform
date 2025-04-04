@@ -1,3 +1,4 @@
+# .github/workflows/cd-deploy.yml
 name: CD - Deploy to Jupiter Server
 
 on:
@@ -24,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ... (Pasos 1 a 6 sin cambios respecto a Versión 10/11) ...
+      # ... (Pasos 1 a 6 sin cambios) ...
       - name: Checkout Code
         uses: actions/checkout@v4
       - name: Setup SSH Agent
@@ -36,7 +37,6 @@ jobs:
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
       - name: Copy App Docker Compose File to Server
-        # ... (Paso 4a sin cambios) ...
         if: github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
         with:
@@ -46,8 +46,8 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           source: "apps/jupiter/docker-compose.prod.yml"
           target: "/home/deploy/jupiter_config/"
+          overwrite: true # Añadido por si acaso
       - name: Copy VPS Docker Compose File to Server
-        # ... (Paso 4b.1 sin cambios) ...
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
         with:
@@ -59,9 +59,10 @@ jobs:
           target: "/home/deploy/jupiter_config/"
           overwrite: true
       - name: Copy Nginx Config Files to Server
-        # ... (Paso 4b.2 sin cambios) ...
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
-        uses: appleboy/scp-action@master
+        # Si era ssh-action para crear el dir nginx-conf, está mal aquí.
+        # Volviendo a la versión 9/10 donde este paso era scp:
+        uses: appleboy/scp-action@master # <--- Corregido a scp-action
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -71,7 +72,6 @@ jobs:
           target: "/home/deploy/jupiter_config/nginx-conf/"
           overwrite: true
       - name: Copy Deploy Script to Server
-        # ... (Paso 5 sin cambios) ...
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -82,7 +82,6 @@ jobs:
           target: "/home/deploy/"
           overwrite: true
       - name: Make Deploy Script Executable
-        # ... (Paso 6 sin cambios) ...
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -101,17 +100,20 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # <--- CAMBIO: Pasamos parámetros como variables de entorno
-          env:
-            DEPLOY_TARGET: ${{ github.event.inputs.deployment_target }}
-            IMAGE_TAG: ${{ github.event.inputs.image_tag }}
-            GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          # <--- CAMBIO: Ejecutamos sudo SÓLO con el path del script
+          # <--- CAMBIO: Quitamos el bloque 'env:'
+          # <--- CAMBIO: Exportamos variables dentro del script
           script: |
             echo ">>> Entering Step 7: Execute Deployment Script"
-            echo " Deployment Target (from env): $DEPLOY_TARGET"
-            echo " Image Tag (from env)        : $IMAGE_TAG"
+
+            # Exportar variables para que el script /home/deploy/deploy.sh las lea del entorno
+            export DEPLOY_TARGET="${{ github.event.inputs.deployment_target }}"
+            export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+            export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
+            # export DOMAIN_NAME="tu.dominio.real" # <-- Exporta si es necesario
+
+            echo " Deployment Target (exported): $DEPLOY_TARGET"
+            echo " Image Tag (exported)        : $IMAGE_TAG"
             echo "Running: sudo /home/deploy/deploy.sh"
-            # El script ahora leerá las variables de entorno DEPLOY_TARGET, IMAGE_TAG, GHCR_TOKEN
+            # El script ejecutado por sudo debería heredar estas variables exportadas
             sudo /home/deploy/deploy.sh
             echo "<<< Exiting Step 7"
