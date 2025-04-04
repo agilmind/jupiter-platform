@@ -24,19 +24,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ... (Pasos 1 a 5 sin cambios respecto a Versión 9/10) ...
-
-      # Paso 1: Checkout del código
+      # ... (Pasos 1 a 3 sin cambios) ...
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Paso 2: Configurar Agente SSH
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # Paso 3: Crear Directorio de Configuración Base en Servidor
       - name: Create Base Config Directory on Server
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
@@ -54,6 +50,15 @@ jobs:
           source: "apps/jupiter/docker-compose.prod.yml"
           target: "/home/deploy/jupiter_config/"
 
+      # *** NUEVO PASO DEBUG ANTES DE 4b.1 ***
+      - name: Verify Source docker-compose.vps.yml on Runner
+        if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
+        run: |
+          echo "--- Verifying content of source docker-compose.vps.yml ---"
+          cat apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml || echo "Source file not found!"
+          echo "--- Verification complete ---"
+
+
       # Paso 4b.1: Copiar docker-compose.vps.yml (Condicional)
       - name: Copy VPS Docker Compose File to Server
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
@@ -65,6 +70,8 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           source: "apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml"
           target: "/home/deploy/jupiter_config/"
+          # <--- AÑADIDO: Forzar sobrescritura
+          overwrite: true
 
       # Paso 4b.2: Copiar Archivos de Configuración Nginx (Condicional)
       - name: Copy Nginx Config Files to Server
@@ -77,6 +84,8 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           source: "apps/jupiter/vps-infrastructure/hybrid/nginx-conf/*"
           target: "/home/deploy/jupiter_config/nginx-conf/"
+          # <--- AÑADIDO: Forzar sobrescritura (por si acaso)
+          overwrite: true
 
       # Paso 5: Copiar el deploy.sh al servidor
       - name: Copy Deploy Script to Server
@@ -86,9 +95,9 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "apps/jupiter/vps-infrastructure/hybrid/deploy.sh"
+          source: "apps/jupiter/vps-infrastructure/hybrid/deploy.sh" # Ruta corregida
           target: "/home/deploy/"
-          overwrite: true
+          overwrite: true # Mantenemos overwrite
 
       # Paso 6: Asegurar que deploy.sh sea ejecutable
       - name: Make Deploy Script Executable
@@ -98,14 +107,9 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # <--- AÑADIDO DEBUGGING ECHO ---
           script: |
-            echo ">>> Entering Step 6: Make Deploy Script Executable"
-            echo "Running: chmod +x /home/deploy/deploy.sh"
             chmod +x /home/deploy/deploy.sh
-            echo "Running: chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh"
             chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
-            echo "<<< Exiting Step 6"
 
       # Paso 7: Ejecutar el script de despliegue en el servidor remoto
       - name: Execute Deployment Script on Server
@@ -115,9 +119,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # <--- AÑADIDO DEBUGGING ECHO ---
           script: |
-            echo ">>> Entering Step 7: Execute Deployment Script"
+            # ... (argument logic sin cambios) ...
             DEPLOY_ARGS=""
             if [ "${{ github.event.inputs.deployment_target }}" == "infrastructure" ]; then
               DEPLOY_ARGS="--infra"
@@ -129,7 +132,4 @@ jobs:
               echo "Target inválido: ${{ github.event.inputs.deployment_target }}"
               exit 1
             fi
-            # Enmascaramos el token en el log por seguridad
-            echo "Running: sudo /home/deploy/deploy.sh $DEPLOY_ARGS --tag ${{ github.event.inputs.image_tag }} --token ***"
             sudo /home/deploy/deploy.sh $DEPLOY_ARGS --tag ${{ github.event.inputs.image_tag }} --token ${{ secrets.GHCR_TOKEN }}
-            echo "<<< Exiting Step 7"
