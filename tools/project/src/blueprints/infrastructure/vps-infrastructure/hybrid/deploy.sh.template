@@ -89,17 +89,11 @@ fi
 cd "${CONFIG_DIR}"
 echo "[Deploy] Ejecutando: docker compose ${COMPOSE_FILES} up -d --remove-orphans"
 # <--- CAMBIO: Ejecutar docker compose SIN sudo si el usuario deploy está en el grupo docker
-# docker compose ${COMPOSE_FILES} up -d --remove-orphans
-# Si necesita sudo, mantenerlo:
-sudo docker compose ${COMPOSE_FILES} up -d --remove-orphans
+docker compose ${COMPOSE_FILES} up -d --remove-orphans
 EXIT_CODE=$?
 if [ $EXIT_CODE -ne 0 ]; then
-    echo "ERROR: Falló el comando 'docker compose up -d' con código $EXIT_CODE"
-    if [ "$DEPLOY_INFRA" = false ]; then
-        exit 1 # Salir si falló y NO era despliegue de infra
-    else
-        echo "ADVERTENCIA: 'compose up' falló, se intentará corregir permisos y recargar Nginx..."
-    fi
+    echo "ERROR FATAL: Falló el comando 'docker compose up -d' con código $EXIT_CODE. Abortando."
+    exit 1 # <-- SALIR SIEMPRE SI HAY ERROR
 fi
 echo "[Deploy] Comando 'compose up' ejecutado."
 
