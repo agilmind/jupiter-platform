@@ -19,26 +19,29 @@ on:
         default: 'latest'
 
 jobs:
-  deploy:
+  # --- Job Definition ---
+  deploy: # <-- Nivel de Job (Indentación correcta)
     name: Deploy ${{ github.event.inputs.deployment_target }} to Production (jupiter.ar)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # <-- 'runs-on' es VÁLIDO aquí
 
-    steps:
+    # --- Steps within the Job ---
+    steps: # <-- Nivel de Steps
       - name: Start Deployment
         run: echo "Workflow de despliegue iniciado manually para [${{ github.event.inputs.deployment_target }}] con tag [${{ github.event.inputs.image_tag }}]..."
 
-      # Paso 1: Checkout del código (para acceder a los archivos generados)
+      # Paso 1: Checkout del código
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # <-- 'uses' es VÁLIDO aquí
 
-      # Paso 2: Configurar Agente SSH (Sin cambios)
+      # Paso 2: Configurar Agente SSH
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # Paso 3: Crear Directorio de Configuración Base en Servidor (si no existe)
+      # Paso 3: Crear Directorio de Configuración Base en Servidor
       - name: Create Base Config Directory on Server
+        # <--- CORRECCIÓN de sintaxis multi-línea para 'run'
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
@@ -51,6 +54,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
+          # <--- CORRECCIÓN de sintaxis multi-línea para 'source'
           source: |
             ${{ (github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/docker-compose.prod.yml' || '' }}
             ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml' || '' }}
@@ -68,7 +72,7 @@ jobs:
           port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
           # Asume que el script generado está en esta ruta relativa al checkout
           source: "tools/project/src/blueprints/infraestructure/vps-infraestructure/hybrid/deploy.sh"
-          target: "/home/deploy/" # <-- Copiar directamente a /home/deploy/
+          target: "/home/deploy/"
 
       # Paso 6: Asegurar que deploy.sh sea ejecutable
       - name: Make Deploy Script Executable
@@ -78,6 +82,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
+          # <--- CORRECCIÓN de sintaxis multi-línea para 'script'
           script: |
             sudo chmod +x /home/deploy/deploy.sh
             sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh # O el grupo apropiado
@@ -90,6 +95,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
+          # <--- CORRECCIÓN de sintaxis multi-línea para 'script'
           script: |
             # Construir argumentos para deploy.sh
             DEPLOY_ARGS=""
