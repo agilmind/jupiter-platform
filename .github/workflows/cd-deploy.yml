@@ -24,8 +24,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Start Deployment
-        run: echo "Workflow de despliegue iniciado manually para [${{ github.event.inputs.deployment_target }}] con tag [${{ github.event.inputs.image_tag }}]..."
+      # ... (Pasos 1 a 3 sin cambios) ...
 
       # Paso 1: Checkout del código
       - name: Checkout Code
@@ -64,8 +63,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # <--- SIMPLIFICADO AL EXTREMO: Intentar copiar UN SOLO archivo
-          source: "apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml"
+          source: |
+            apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml
+            apps/jupiter/vps-infrastructure/hybrid/nginx-conf/webapp.conf
+            apps/jupiter/vps-infrastructure/hybrid/nginx-conf/options-ssl-nginx.conf
           target: "/home/deploy/jupiter_config/"
 
       # Paso 5: Copiar el deploy.sh al servidor
@@ -78,6 +79,8 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           source: "apps/jupiter/vps-infrastructure/hybrid/deploy.sh" # Ruta corregida
           target: "/home/deploy/"
+          # <--- AÑADIDO: Forzar sobrescritura del archivo destino
+          overwrite: true
 
       # Paso 6: Asegurar que deploy.sh sea ejecutable
       - name: Make Deploy Script Executable
@@ -88,11 +91,13 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
+            # Intentará cambiar permisos y propietario. Si la copia falló, estos pueden fallar también.
             sudo chmod +x /home/deploy/deploy.sh
             sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
 
       # Paso 7: Ejecutar el script de despliegue en el servidor remoto
       - name: Execute Deployment Script on Server
+        # ... (sin cambios) ...
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
