@@ -73,6 +73,8 @@ jobs:
       - name: Read Deploy Script Content
         id: deploy_script_content
         run: echo "script_content=$(cat apps/jupiter/vps-infrastructure/hybrid/deploy.sh | base64 -w 0)" >> $GITHUB_OUTPUT
+
+      # Paso 6: Sobrescribir/Crear deploy.sh en Servidor y Dar Permisos (sin cambios respecto a v15)
       - name: Update Deploy Script on Server
         uses: appleboy/ssh-action@master
         with:
@@ -97,20 +99,14 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # <--- CORRECCIÓN: QUITAMOS 'env:'
-          # <--- CORRECCIÓN: Añadimos 'export' dentro de 'script:'
           script: |
             echo ">>> Entering Step 7: Execute Deployment Script"
-
-            # Exportar variables para que el script /home/deploy/deploy.sh las lea del entorno
             export DEPLOY_TARGET="${{ github.event.inputs.deployment_target }}"
             export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
             export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
             # export DOMAIN_NAME="tu.dominio.real" # <-- Exporta si es necesario
-
             echo " Deployment Target (exported): $DEPLOY_TARGET"
             echo " Image Tag (exported)        : $IMAGE_TAG"
             echo "Running: sudo /home/deploy/deploy.sh"
-            # El script ejecutado por sudo debería heredar estas variables exportadas
             sudo /home/deploy/deploy.sh
             echo "<<< Exiting Step 7"
