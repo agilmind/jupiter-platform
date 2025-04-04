@@ -20,18 +20,18 @@ on:
 
 jobs:
   # --- Job Definition ---
-  deploy: # <-- Nivel de Job (Indentación correcta)
+  deploy:
     name: Deploy ${{ github.event.inputs.deployment_target }} to Production (jupiter.ar)
-    runs-on: ubuntu-latest # <-- 'runs-on' es VÁLIDO aquí
+    runs-on: ubuntu-latest
 
     # --- Steps within the Job ---
-    steps: # <-- Nivel de Steps
+    steps:
       - name: Start Deployment
         run: echo "Workflow de despliegue iniciado manually para [${{ github.event.inputs.deployment_target }}] con tag [${{ github.event.inputs.image_tag }}]..."
 
       # Paso 1: Checkout del código
       - name: Checkout Code
-        uses: actions/checkout@v4 # <-- 'uses' es VÁLIDO aquí
+        uses: actions/checkout@v4
 
       # Paso 2: Configurar Agente SSH
       - name: Setup SSH Agent
@@ -41,7 +41,6 @@ jobs:
 
       # Paso 3: Crear Directorio de Configuración Base en Servidor
       - name: Create Base Config Directory on Server
-        # <--- CORRECCIÓN de sintaxis multi-línea para 'run'
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
@@ -53,8 +52,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
-          # <--- CORRECCIÓN de sintaxis multi-línea para 'source'
+          # <--- SIMPLIFICADO: Pasa el secreto directamente. Si está vacío, la acción debería usar el default 22.
+          port: ${{ secrets.SSH_PORT }}
           source: |
             ${{ (github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/docker-compose.prod.yml' || '' }}
             ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml' || '' }}
@@ -69,7 +68,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
+          # <--- SIMPLIFICADO
+          port: ${{ secrets.SSH_PORT }}
           # Asume que el script generado está en esta ruta relativa al checkout
           source: "tools/project/src/blueprints/infraestructure/vps-infraestructure/hybrid/deploy.sh"
           target: "/home/deploy/"
@@ -81,8 +81,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
-          # <--- CORRECCIÓN de sintaxis multi-línea para 'script'
+          # <--- SIMPLIFICADO
+          port: ${{ secrets.SSH_PORT }}
           script: |
             sudo chmod +x /home/deploy/deploy.sh
             sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh # O el grupo apropiado
@@ -94,8 +94,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
-          # <--- CORRECCIÓN de sintaxis multi-línea para 'script'
+          # <--- SIMPLIFICADO
+          port: ${{ secrets.SSH_PORT }}
           script: |
             # Construir argumentos para deploy.sh
             DEPLOY_ARGS=""
