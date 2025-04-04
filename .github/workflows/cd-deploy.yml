@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ... (Pasos 1 a 5 sin cambios respecto a Versión 9) ...
+      # ... (Pasos 1 a 5 sin cambios respecto a Versión 9/10) ...
 
       # Paso 1: Checkout del código
       - name: Checkout Code
@@ -98,10 +98,14 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # <--- CAMBIO AQUÍ: Quitamos 'sudo'
+          # <--- AÑADIDO DEBUGGING ECHO ---
           script: |
+            echo ">>> Entering Step 6: Make Deploy Script Executable"
+            echo "Running: chmod +x /home/deploy/deploy.sh"
             chmod +x /home/deploy/deploy.sh
+            echo "Running: chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh"
             chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
+            echo "<<< Exiting Step 6"
 
       # Paso 7: Ejecutar el script de despliegue en el servidor remoto
       - name: Execute Deployment Script on Server
@@ -111,8 +115,9 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # 'sudo' aquí SÍ debería funcionar por la regla NOPASSWD específica para el script
+          # <--- AÑADIDO DEBUGGING ECHO ---
           script: |
+            echo ">>> Entering Step 7: Execute Deployment Script"
             DEPLOY_ARGS=""
             if [ "${{ github.event.inputs.deployment_target }}" == "infrastructure" ]; then
               DEPLOY_ARGS="--infra"
@@ -124,4 +129,7 @@ jobs:
               echo "Target inválido: ${{ github.event.inputs.deployment_target }}"
               exit 1
             fi
+            # Enmascaramos el token en el log por seguridad
+            echo "Running: sudo /home/deploy/deploy.sh $DEPLOY_ARGS --tag ${{ github.event.inputs.image_tag }} --token ***"
             sudo /home/deploy/deploy.sh $DEPLOY_ARGS --tag ${{ github.event.inputs.image_tag }} --token ${{ secrets.GHCR_TOKEN }}
+            echo "<<< Exiting Step 7"
