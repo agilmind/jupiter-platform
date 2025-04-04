@@ -1,4 +1,3 @@
-# .github/workflows/cd-deploy.yml
 name: CD - Deploy to Jupiter Server
 
 on:
@@ -9,9 +8,9 @@ on:
         required: true
         type: choice
         options:
-          - infrastructure # <-- Despliega solo docker-compose.vps.yml
-          - applications   # <-- Despliega solo docker-compose.prod.yml
-          - all            # <-- Despliega ambos (comportamiento anterior)
+          - infrastructure
+          - applications
+          - all
         default: 'all'
       image_tag:
         description: 'Image tag for applications (default: latest)'
@@ -19,12 +18,10 @@ on:
         default: 'latest'
 
 jobs:
-  # --- Job Definition ---
   deploy:
     name: Deploy ${{ github.event.inputs.deployment_target }} to Production (jupiter.ar)
     runs-on: ubuntu-latest
 
-    # --- Steps within the Job ---
     steps:
       - name: Start Deployment
         run: echo "Workflow de despliegue iniciado manually para [${{ github.event.inputs.deployment_target }}] con tag [${{ github.event.inputs.image_tag }}]..."
@@ -32,6 +29,20 @@ jobs:
       # Paso 1: Checkout del código
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # *** NUEVO PASO DE DEBUG ***
+      - name: List generated files for verification
+        if: success() # Ejecutar siempre que los pasos anteriores tengan éxito
+        run: |
+          echo "--- Verifying file existence ---"
+          BASE_PATH="apps/jupiter/vps-infrastructure/hybrid"
+          echo "Listing content of [${BASE_PATH}]"
+          ls -la ${BASE_PATH}/
+          echo "Listing content of [${BASE_PATH}/nginx-conf/]"
+          ls -la ${BASE_PATH}/nginx-conf/
+          echo "Checking existence of deploy script template:"
+          ls -la tools/project/src/blueprints/infraestructure/vps-infraestructure/hybrid/deploy.sh
+          echo "--- Verification complete ---"
 
       # Paso 2: Configurar Agente SSH
       - name: Setup SSH Agent
@@ -52,25 +63,26 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # <--- SIMPLIFICADO: Pasa el secreto directamente. Si está vacío, la acción debería usar el default 22.
           port: ${{ secrets.SSH_PORT }}
+          # <--- SIMPLIFICADO Y SIN WILDCARD / strip_components
+          #      Especificamos archivos explícitamente para 'infrastructure'
           source: |
-            ${{ (github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/docker-compose.prod.yml' || '' }}
+            ${{ (github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all') && 'RUTA/REAL/A/docker-compose.prod.yml' || '' }} # <-- AÚN NECESITA RUTA REAL PARA APPS
             ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml' || '' }}
-            ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/nginx-conf/*' || '' }}
+            ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/nginx-conf/webapp.conf' || '' }}
+            ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/nginx-conf/options-ssl-nginx.conf' || '' }}
           target: "/home/deploy/jupiter_config/"
-          strip_components: 3 # Ajusta si la estructura generada es diferente
+          # strip_components: 0 # Eliminado/Comentado
 
-      # Paso 5: Copiar el NUEVO deploy.sh al servidor
+      # Paso 5: Copiar el deploy.sh al servidor
       - name: Copy Deploy Script to Server
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # <--- SIMPLIFICADO
           port: ${{ secrets.SSH_PORT }}
-          # Asume que el script generado está en esta ruta relativa al checkout
+          # <--- USA LA RUTA DEL TEMPLATE - ¿ES CORRECTO O SE GENERA EN OTRO LADO?
           source: "tools/project/src/blueprints/infraestructure/vps-infraestructure/hybrid/deploy.sh"
           target: "/home/deploy/"
 
@@ -81,11 +93,10 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # <--- SIMPLIFICADO
           port: ${{ secrets.SSH_PORT }}
           script: |
             sudo chmod +x /home/deploy/deploy.sh
-            sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh # O el grupo apropiado
+            sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
 
       # Paso 7: Ejecutar el script de despliegue en el servidor remoto
       - name: Execute Deployment Script on Server
@@ -94,10 +105,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # <--- SIMPLIFICADO
           port: ${{ secrets.SSH_PORT }}
           script: |
-            # Construir argumentos para deploy.sh
             DEPLOY_ARGS=""
             if [ "${{ github.event.inputs.deployment_target }}" == "infrastructure" ]; then
               DEPLOY_ARGS="--infra"
@@ -109,6 +118,4 @@ jobs:
               echo "Target inválido: ${{ github.event.inputs.deployment_target }}"
               exit 1
             fi
-
-            # Ejecutar el script actualizado desde /home/deploy/
             sudo /home/deploy/deploy.sh $DEPLOY_ARGS --tag ${{ github.event.inputs.image_tag }} --token ${{ secrets.GHCR_TOKEN }}
