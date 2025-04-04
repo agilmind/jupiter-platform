@@ -1,9 +1,9 @@
-# .github/workflows/cd-deploy.yml
 name: CD - Deploy to Jupiter Server
 
 on:
   workflow_dispatch:
     inputs:
+      # ... (inputs sin cambios) ...
       deployment_target:
         description: 'Target to deploy (infra=VPS; apps=Prod; all=Both)'
         required: true
@@ -24,21 +24,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ... (Pasos 1 a 3 sin cambios) ...
+      # ... (Pasos 1 a 5 sin cambios respecto a Versión 9) ...
+
+      # Paso 1: Checkout del código
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Paso 2: Configurar Agente SSH
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      # Paso 3: Crear Directorio de Configuración Base en Servidor
       - name: Create Base Config Directory on Server
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "mkdir -p /home/deploy/jupiter_config/nginx-conf" # Asegura que nginx-conf exista
-
-      # --- PASO 4 AHORA ES 4a, 4b.1, 4b.2 ---
+            "mkdir -p /home/deploy/jupiter_config/nginx-conf"
 
       # Paso 4a: Copiar Archivos de Aplicación (Condicional)
       - name: Copy App Docker Compose File to Server
@@ -49,7 +51,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "apps/jupiter/docker-compose.prod.yml" # Asumiendo ruta estándar
+          source: "apps/jupiter/docker-compose.prod.yml"
           target: "/home/deploy/jupiter_config/"
 
       # Paso 4b.1: Copiar docker-compose.vps.yml (Condicional)
@@ -73,10 +75,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # Intentemos copiar el directorio entero o usar wildcard aquí
-          # source: "apps/jupiter/vps-infrastructure/hybrid/nginx-conf/" # Opción 1: Copiar directorio
-          source: "apps/jupiter/vps-infrastructure/hybrid/nginx-conf/*" # Opción 2: Usar wildcard
-          target: "/home/deploy/jupiter_config/nginx-conf/" # Directorio destino en servidor
+          source: "apps/jupiter/vps-infrastructure/hybrid/nginx-conf/*"
+          target: "/home/deploy/jupiter_config/nginx-conf/"
 
       # Paso 5: Copiar el deploy.sh al servidor
       - name: Copy Deploy Script to Server
@@ -86,32 +86,32 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "apps/jupiter/vps-infrastructure/hybrid/deploy.sh" # Ruta corregida
+          source: "apps/jupiter/vps-infrastructure/hybrid/deploy.sh"
           target: "/home/deploy/"
           overwrite: true
 
       # Paso 6: Asegurar que deploy.sh sea ejecutable
       - name: Make Deploy Script Executable
-        # ... (sin cambios) ...
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          # <--- CAMBIO AQUÍ: Quitamos 'sudo'
           script: |
-            sudo chmod +x /home/deploy/deploy.sh
-            sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
+            chmod +x /home/deploy/deploy.sh
+            chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
 
       # Paso 7: Ejecutar el script de despliegue en el servidor remoto
       - name: Execute Deployment Script on Server
-        # ... (sin cambios) ...
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          # 'sudo' aquí SÍ debería funcionar por la regla NOPASSWD específica para el script
           script: |
             DEPLOY_ARGS=""
             if [ "${{ github.event.inputs.deployment_target }}" == "infrastructure" ]; then
