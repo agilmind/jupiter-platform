@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Start Deployment
-        run: echo "Workflow de despliegue iniciado manualmente para [${{ github.event.inputs.deployment_target }}] con tag [${{ github.event.inputs.image_tag }}]..."
+        run: echo "Workflow de despliegue iniciado manually para [${{ github.event.inputs.deployment_target }}] con tag [${{ github.event.inputs.image_tag }}]..."
 
       # Paso 1: Checkout del código (para acceder a los archivos generados)
       - name: Checkout Code
@@ -38,22 +38,20 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       # Paso 3: Crear Directorio de Configuración Base en Servidor (si no existe)
-      # <--- Cambio: Simplificado a un solo directorio base
       - name: Create Base Config Directory on Server
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
 
       # Paso 4: Copiar Archivos de Configuración según el target
-      # <--- Cambio: Usamos scp-action para copiar condicionalmente
       - name: Copy Configuration Files to Server
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }} # Cambiado de SSH_USERNAME a SSH_USER para coincidir con tus secretos
+          username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT:-22 }} # Usar secrets.SSH_PORT si existe, sino default 22
-          source: | # <-- Copia selectiva basada en la entrada
+          port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
+          source: |
             ${{ (github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/docker-compose.prod.yml' || '' }}
             ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml' || '' }}
             ${{ (github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all') && 'apps/jupiter/vps-infrastructure/hybrid/nginx-conf/*' || '' }}
@@ -61,40 +59,37 @@ jobs:
           strip_components: 3 # Ajusta si la estructura generada es diferente
 
       # Paso 5: Copiar el NUEVO deploy.sh al servidor
-      # <--- Nuevo Paso: Copia el script de despliegue actualizado
       - name: Copy Deploy Script to Server
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT:-22 }}
+          port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
           # Asume que el script generado está en esta ruta relativa al checkout
           source: "tools/project/src/blueprints/infraestructure/vps-infraestructure/hybrid/deploy.sh"
           target: "/home/deploy/" # <-- Copiar directamente a /home/deploy/
 
       # Paso 6: Asegurar que deploy.sh sea ejecutable
-      # <--- Nuevo Paso: Establece permisos correctos para el script
       - name: Make Deploy Script Executable
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT:-22 }}
+          port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
           script: |
             sudo chmod +x /home/deploy/deploy.sh
             sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh # O el grupo apropiado
 
       # Paso 7: Ejecutar el script de despliegue en el servidor remoto
-      # <--- Cambio: Ejecuta el script desde /home/deploy/ y pasa argumentos
       - name: Execute Deployment Script on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT:-22 }}
+          port: ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }}
           script: |
             # Construir argumentos para deploy.sh
             DEPLOY_ARGS=""
