@@ -4,7 +4,6 @@ name: CD - Deploy to Jupiter Server
 on:
   workflow_dispatch:
     inputs:
-      # ... (inputs sin cambios) ...
       deployment_target:
         description: 'Target to deploy (infra=VPS; apps=Prod; all=Both)'
         required: true
@@ -25,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ... (Pasos 1 a 6 sin cambios) ...
+      # Pasos 1-4 sin cambios (usando scp separado para infra)
       - name: Checkout Code
         uses: actions/checkout@v4
       - name: Setup SSH Agent
@@ -46,7 +45,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           source: "apps/jupiter/docker-compose.prod.yml"
           target: "/home/deploy/jupiter_config/"
-          overwrite: true # Añadido por si acaso
+          overwrite: true
       - name: Copy VPS Docker Compose File to Server
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
@@ -60,9 +59,7 @@ jobs:
           overwrite: true
       - name: Copy Nginx Config Files to Server
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
-        # Si era ssh-action para crear el dir nginx-conf, está mal aquí.
-        # Volviendo a la versión 9/10 donde este paso era scp:
-        uses: appleboy/scp-action@master # <--- Corregido a scp-action
+        uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -71,17 +68,12 @@ jobs:
           source: "apps/jupiter/vps-infrastructure/hybrid/nginx-conf/*"
           target: "/home/deploy/jupiter_config/nginx-conf/"
           overwrite: true
-      - name: Copy Deploy Script to Server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          source: "apps/jupiter/vps-infrastructure/hybrid/deploy.sh"
-          target: "/home/deploy/"
-          overwrite: true
-      - name: Make Deploy Script Executable
+
+      # Pasos 5 y 6 NUEVOS para actualizar deploy.sh usando tee
+      - name: Read Deploy Script Content
+        id: deploy_script_content
+        run: echo "script_content=$(cat apps/jupiter/vps-infrastructure/hybrid/deploy.sh | base64 -w 0)" >> $GITHUB_OUTPUT
+      - name: Update Deploy Script on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -89,10 +81,15 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            chmod +x /home/deploy/deploy.sh
-            chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
+            echo "Forzando actualización de /home/deploy/deploy.sh..."
+            echo '${{ steps.deploy_script_content.outputs.script_content }}' | base64 -d | sudo tee /home/deploy/deploy.sh > /dev/null
+            echo "Estableciendo permisos y propietario para /home/deploy/deploy.sh..."
+            sudo chmod +x /home/deploy/deploy.sh
+            sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
+            echo "Verificando permisos de /home/deploy/deploy.sh:"
+            ls -l /home/deploy/deploy.sh
 
-      # Paso 7: Ejecutar el script de despliegue en el servidor remoto
+      # Paso 7: Ejecutar el script - CORREGIDO para usar EXPORT en lugar de ENV
       - name: Execute Deployment Script on Server
         uses: appleboy/ssh-action@master
         with:
@@ -100,8 +97,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          # <--- CAMBIO: Quitamos el bloque 'env:'
-          # <--- CAMBIO: Exportamos variables dentro del script
+          # <--- CORRECCIÓN: QUITAMOS 'env:'
+          # <--- CORRECCIÓN: Añadimos 'export' dentro de 'script:'
           script: |
             echo ">>> Entering Step 7: Execute Deployment Script"
 
