@@ -87,13 +87,12 @@ if [ "$DEPLOY_APPS" = true ]; then
 fi
 
 cd "${CONFIG_DIR}"
-echo "[Deploy] Ejecutando: docker compose ${COMPOSE_FILES} up -d --remove-orphans"
-# <--- CAMBIO: Ejecutar docker compose SIN sudo si el usuario deploy está en el grupo docker
-docker compose ${COMPOSE_FILES} up -d --remove-orphans
+echo "[Deploy] Ejecutando: docker compose ${COMPOSE_FILES} up --remove-orphans"
+docker compose ${COMPOSE_FILES} up --remove-orphans
 EXIT_CODE=$?
 if [ $EXIT_CODE -ne 0 ]; then
     echo "ERROR FATAL: Falló el comando 'docker compose up -d' con código $EXIT_CODE. Abortando."
-    exit 1 # <-- SALIR SIEMPRE SI HAY ERROR
+    exit 1
 fi
 echo "[Deploy] Comando 'compose up' ejecutado."
 
