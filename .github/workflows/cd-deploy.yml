@@ -4,19 +4,9 @@ name: CD - Deploy to Jupiter Server
 on:
   workflow_dispatch:
     inputs:
-      deployment_target:
-        description: 'Target to deploy (infra=VPS; apps=Prod; all=Both)'
-        required: true
-        type: choice
-        options:
-          - infrastructure
-          - applications
-          - all
-        default: 'all'
-      image_tag:
-        description: 'Image tag for applications (default: latest)'
-        required: false
-        default: 'latest'
+      # ... (inputs sin cambios) ...
+      deployment_target: # ...
+      image_tag: # ...
 
 jobs:
   deploy:
@@ -24,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Pasos 1-4 sin cambios
+      # Pasos 1-3 sin cambios
       - name: Checkout Code
         uses: actions/checkout@v4
       - name: Setup SSH Agent
@@ -35,11 +25,12 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
+
+      # Paso 4a: Copiar docker-compose.prod.yml (si aplica)
       - name: Copy App Docker Compose File to Server
-        # ... (Paso 4a sin cambios) ...
         if: github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
-        with:
+        with: # Aseguramos overwrite aquí también
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -47,20 +38,34 @@ jobs:
           source: "apps/jupiter/docker-compose.prod.yml"
           target: "/home/deploy/jupiter_config/"
           overwrite: true
-      - name: Copy VPS Docker Compose File to Server
-        # ... (Paso 4b.1 sin cambios) ...
+
+      # --- PASO 4b.1 REEMPLAZADO ---
+      # Paso 4b.1a: Leer Contenido de docker-compose.vps.yml (Runner)
+      - name: Read VPS Compose File Content
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
-        uses: appleboy/scp-action@master
+        id: vps_compose_content
+        run: echo "compose_content=$(cat apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml | base64 -w 0)" >> $GITHUB_OUTPUT
+
+      # Paso 4b.1b: Sobrescribir docker-compose.vps.yml en Servidor (usando tee)
+      - name: Update VPS Compose File on Server
+        if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml"
-          target: "/home/deploy/jupiter_config/"
-          overwrite: true
+          script: |
+            echo "Forzando actualización de /home/deploy/jupiter_config/docker-compose.vps.yml..."
+            echo '${{ steps.vps_compose_content.outputs.compose_content }}' | base64 -d | sudo tee /home/deploy/jupiter_config/docker-compose.vps.yml > /dev/null
+            echo "Verificando archivo (primeras/últimas líneas):"
+            head -n 5 /home/deploy/jupiter_config/docker-compose.vps.yml
+            echo "..."
+            tail -n 10 /home/deploy/jupiter_config/docker-compose.vps.yml
+      # --- FIN REEMPLAZO 4b.1 ---
+
+      # Paso 4b.2: Copiar Archivos de Configuración Nginx (Condicional - Mantenemos scp por ahora)
       - name: Copy Nginx Config Files to Server
-        # ... (Paso 4b.2 sin cambios) ...
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
         with:
@@ -72,17 +77,11 @@ jobs:
           target: "/home/deploy/jupiter_config/nginx-conf/"
           overwrite: true
 
-      - name: Copy Deploy Script using direct scp
-        run: |
-          echo "Intentando copiar deploy.sh usando scp directo..."
-          SCP_PORT_ARG=""
-          if [[ -n "${{ secrets.SSH_PORT }}" ]]; then
-            SCP_PORT_ARG="-P ${{ secrets.SSH_PORT }}"
-          fi
-          scp -o StrictHostKeyChecking=no $SCP_PORT_ARG apps/jupiter/vps-infrastructure/hybrid/deploy.sh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/deploy.sh
-          echo "Comando scp ejecutado."
-
-      - name: Make Deploy Script Executable
+      # Pasos 5 y 6 para actualizar deploy.sh (usando tee - sin cambios)
+      - name: Read Deploy Script Content
+        id: deploy_script_content
+        run: echo "script_content=$(cat apps/jupiter/vps-infrastructure/hybrid/deploy.sh | base64 -w 0)" >> $GITHUB_OUTPUT
+      - name: Update Deploy Script on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -90,8 +89,15 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            chmod +x /home/deploy/deploy.sh
+            echo "Forzando actualización de /home/deploy/deploy.sh..."
+            echo '${{ steps.deploy_script_content.outputs.script_content }}' | base64 -d | sudo tee /home/deploy/deploy.sh > /dev/null
+            echo "Estableciendo permisos y propietario para /home/deploy/deploy.sh..."
+            sudo chmod +x /home/deploy/deploy.sh
+            sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
+            echo "Verificando permisos de /home/deploy/deploy.sh:"
+            ls -l /home/deploy/deploy.sh
 
+      # Paso 7: Ejecutar el script (SIN SUDO - sin cambios respecto a v23)
       - name: Execute Deployment Script on Server
         uses: appleboy/ssh-action@master
         with:
@@ -101,16 +107,13 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             echo ">>> Entering Step 7: Execute Deployment Script as User ${{ secrets.SSH_USER }}"
-            # Exportar variables para el script
             export DEPLOY_TARGET="${{ github.event.inputs.deployment_target }}"
             export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
             export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
-            # export DOMAIN_NAME="tu.dominio.real" # <-- Exporta si es necesario
-
             echo " Deployment Target (exported): $DEPLOY_TARGET"
             echo " Image Tag (exported)        : $IMAGE_TAG"
             echo "Running: /home/deploy/deploy.sh"
             /home/deploy/deploy.sh # Ejecutar como el usuario SSH (deploy)
-            EXIT_CODE=$? # Capturar código de salida del script
+            EXIT_CODE=$?
             echo "<<< Exiting Step 7 (Script Exit Code: $EXIT_CODE)"
-            exit $EXIT_CODE # Salir del paso con el código del script
+            exit $EXIT_CODE
