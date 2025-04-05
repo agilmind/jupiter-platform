@@ -78,21 +78,18 @@ jobs:
             else
                 echo "Advertencia: Directorio nginx-conf no encontrado en el runner."
             fi
+
+            echo "Copiando nginx-ssl/dhparam.pem..."
+            if [ -f "apps/jupiter/vps-infrastructure/hybrid/nginx-ssl/dhparam.pem" ]; then
+                scp -o StrictHostKeyChecking=no $SCP_PORT_ARG \
+                    apps/jupiter/vps-infrastructure/hybrid/nginx-ssl/dhparam.pem \
+                    ${TARGET_HOST}:${TARGET_CONFIG_DIR}/nginx-ssl/dhparam.pem
+            else
+                echo "ERROR: No se encontró dhparam.pem en el runner. Generar localmente y añadir al repo."
+                # exit 1 # Podrías hacer que falle aquí si es crítico
+            fi
           fi
           echo "Copia de archivos completada."
-
-      - name: Copy Nginx SSL Directory
-        if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
-        run: |
-          echo "Copiando nginx-ssl..."
-          SCP_PORT_ARG=""
-          if [[ -n "${{ secrets.SSH_PORT }}" ]]; then
-            SCP_PORT_ARG="-P ${{ secrets.SSH_PORT }}"
-          fi
-          # Asume que nginx-ssl está al mismo nivel que nginx-conf en la estructura generada
-          scp -o StrictHostKeyChecking=no -r $SCP_PORT_ARG \
-              apps/jupiter/vps-infrastructure/hybrid/nginx-ssl \
-              ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/
 
       - name: Make Deploy Script Executable
         uses: appleboy/ssh-action@master
