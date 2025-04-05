@@ -25,6 +25,10 @@ export async function generateInfrastructure(tree: Tree, options: CreateGenerato
   } = options;
   const projectNameDashed = names(projectName).fileName;
 
+  //  AGREGAR a la generación de infraestructura
+  // para generar el archivo dhparam.pem la primera vez si no existe:
+  // openssl dhparam -out path/to/your/repo/apps/jupiter/vps-infrastructure/hybrid/nginx-ssl/dhparam.pem 2048
+
   // Directorio base donde se encuentran los templates
   const templatesDir = joinPathFragments(__dirname, '..', '..', 'blueprints', 'infrastructure');
 
