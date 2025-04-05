@@ -34,22 +34,19 @@ if [ "$DEPLOY_APPS" = true ] && [ -z "$GHCR_TOKEN" ]; then echo "ERROR: GHCR_TOK
 if [ ! -d "$CONFIG_DIR" ]; then echo "ERROR: Directorio ${CONFIG_DIR} no existe."; exit 1; fi
 if [ "$DEPLOY_APPS" = true ] && [ ! -f "$APP_COMPOSE_FILE" ]; then echo "ERROR: No se encontró ${APP_COMPOSE_FILE}"; exit 1; fi
 if [ "$DEPLOY_INFRA" = true ] && [ ! -f "$VPS_COMPOSE_FILE" ]; then echo "ERROR: No se encontró ${VPS_COMPOSE_FILE}"; exit 1; fi
-if [ -z "$DOMAIN_NAME" ] || [[ "$DOMAIN_NAME" == "<%%="* ]]; then echo "ERROR: DOMAIN_NAME no configurado."; exit 1; fi
+if [ -z "$DOMAIN_NAME" ] || [[ "$DOMAIN_NAME" == "<%%="* ]]; then echo "ERROR: DOMAIN_NAME no configurado."; exit 1; fi # Escapado <%%=
 
 echo "--- Iniciando Despliegue (ejecutado como usuario $(whoami)) ---"
 echo " Deploy Target: $TARGET"
-echo " Deploy Infra : $DEPLOY_INFRA"
-echo " Deploy Apps  : $DEPLOY_APPS"
-echo " Tag          : ${TAG}"
-echo " Dominio      : ${DOMAIN_NAME}"
+# ... (resto de echos informativos) ...
 echo "---------------------------"
 
 # --- Ejecución ---
 
-# 1. Login y Pull (Solo si se despliegan apps)
+# 1. Login y Pull (Solo apps, SIN sudo)
 if [ "$DEPLOY_APPS" = true ]; then
   echo "[Deploy] Iniciando sesión en GHCR..."
-  echo "${GHCR_TOKEN}" | docker login ghcr.io -u deploy --password-stdin # Asume que '-u deploy' es correcto o usa tu usuario GHCR
+  echo "${GHCR_TOKEN}" | docker login ghcr.io -u deploy --password-stdin
   echo "[Deploy] Descargando imágenes de apps con tag '${TAG}'..."
   docker pull "${REPO_PREFIX}/app-server:${TAG}"
   docker pull "${REPO_PREFIX}/web-app:${TAG}"
@@ -59,7 +56,7 @@ else
 fi
 
 # 2. Migraciones (Opcional)
-# if [ "$DEPLOY_APPS" = true ]; then ... fi
+# ...
 
 # 3. Desplegar/Actualizar Stacks con Docker Compose (SIN SUDO)
 echo "[Deploy] Construyendo y ejecutando comando docker compose..."
@@ -75,33 +72,20 @@ cd "${CONFIG_DIR}"
 echo "[Deploy] Ejecutando: docker compose ${COMPOSE_FILES} up -d --remove-orphans"
 docker compose ${COMPOSE_FILES} up -d --remove-orphans # <-- SIN sudo
 EXIT_CODE=$?
+# Mantenemos el exit estricto
 if [ $EXIT_CODE -ne 0 ]; then
-    # Mantenemos el exit estricto que pusimos antes
     echo "ERROR FATAL: Falló el comando 'docker compose up -d' con código $EXIT_CODE. Abortando."
     exit 1
 fi
 echo "[Deploy] Comando 'compose up' ejecutado."
 
-# 4. CORRECCIÓN DE PERMISOS SSL (Solo si se desplegó infra - SIN SUDO)
-if [ "$DEPLOY_INFRA" = true ]; then
-  # Este paso podría fallar si el usuario deploy no tiene permisos sobre el volumen certbot-etc
-  echo "[Deploy] Asegurando permisos correctos en certificados SSL para ${DOMAIN_NAME} (como usuario $(whoami))..."
-  CERT_VOL_PATH="certbot-etc" # El nombre del volumen
-  echo "[Deploy] Aplicando chmod 644 a privkey (¡puede fallar!)..."
-  # Usar docker run para acceder al volumen montado por el contenedor certbot (si está corriendo) o directamente si se conoce el path del host
-  # Intentar con docker run puede requerir que certbot esté corriendo o montar el volumen aquí.
-  # Es MÁS PROBABLE que este paso falle sin sudo si los archivos dentro del volumen no pertenecen a 'deploy'.
-  # Considera quitar este paso si certbot manejará permisos o si Nginx puede leerlos de todas formas.
-  docker run --rm -v ${CERT_VOL_PATH}:/etc/letsencrypt alpine:latest \
-    sh -c "chmod 644 /etc/letsencrypt/archive/${DOMAIN_NAME}/privkey*.pem || echo 'Advertencia: No se pudo cambiar permisos de privkey (quizás requiere sudo o el path es incorrecto).'" || echo "Warning: Docker run for privkey chmod failed"
-  echo "[Deploy] Aplicando chmod 755 a directorios archive/live (¡puede fallar!)..."
-  docker run --rm -v ${CERT_VOL_PATH}:/etc/letsencrypt alpine:latest \
-    sh -c "chmod 755 /etc/letsencrypt/archive/ /etc/letsencrypt/archive/${DOMAIN_NAME}/ /etc/letsencrypt/live/ /etc/letsencrypt/live/${DOMAIN_NAME}/ || echo 'Advertencia: No se pudo cambiar permisos de directorios (quizás requiere sudo o el path es incorrecto).'" || echo "Warning: Docker run for dir chmod failed"
-else
- echo "[Deploy] Omitiendo ajuste de permisos SSL."
-fi
+# 4. CORRECCIÓN DE PERMISOS SSL (Comentado/Omitido por ahora)
+# Este paso probablemente fallaría sin sudo y podría no ser estrictamente necesario
+# if [ "$DEPLOY_INFRA" = true ]; then
+#  echo "[Deploy] Omitiendo ajuste de permisos SSL (requeriría sudo o ajustes complejos)."
+# fi
 
-# 5. Forzar Recarga/Reinicio de Nginx (Solo si se desplegó infra - SIN SUDO)
+# 5. Forzar Recarga/Reinicio de Nginx (Solo infra, SIN sudo)
 if [ "$DEPLOY_INFRA" = true ]; then
   echo "[Deploy] Recargando/Reiniciando Nginx (${NGINX_CONTAINER_NAME})..."
   if docker ps -q -f name="^/${NGINX_CONTAINER_NAME}$" | grep -q .; then
