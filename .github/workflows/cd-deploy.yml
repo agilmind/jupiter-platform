@@ -36,9 +36,9 @@ jobs:
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
       - name: Copy App Docker Compose File to Server
+        # ... (Paso 4a sin cambios) ...
         if: github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
-        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -48,9 +48,9 @@ jobs:
           target: "/home/deploy/jupiter_config/"
           overwrite: true
       - name: Copy VPS Docker Compose File to Server
+        # ... (Paso 4b.1 sin cambios) ...
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
-        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -60,9 +60,9 @@ jobs:
           target: "/home/deploy/jupiter_config/"
           overwrite: true
       - name: Copy Nginx Config Files to Server
+        # ... (Paso 4b.2 sin cambios) ...
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
-        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -72,17 +72,25 @@ jobs:
           target: "/home/deploy/jupiter_config/nginx-conf/"
           overwrite: true
 
-      # --- PASO 5 CORREGIDO ---
+      # --- PASO 5 CORREGIDO (Lógica Shell para Puerto) ---
       - name: Copy Deploy Script using direct scp
         run: |
           echo "Intentando copiar deploy.sh usando scp directo..."
-          # Corrección: Usar operador ternario para el puerto default
+          # Usamos lógica shell para determinar el argumento del puerto
+          SCP_PORT_ARG="" # Por defecto, no añadir argumento -P (scp usará puerto 22)
+          if [[ -n "${{ secrets.SSH_PORT }}" ]]; then
+            # Si el secreto SSH_PORT existe y no está vacío, construir el argumento -P
+            SCP_PORT_ARG="-P ${{ secrets.SSH_PORT }}"
+            echo "Usando puerto específico: ${{ secrets.SSH_PORT }}"
+          else
+            echo "Usando puerto SSH por defecto (22)."
+          fi
+          # Ejecutar scp usando el argumento de puerto (vacío o con -P)
           scp -o StrictHostKeyChecking=no \
-              -P ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }} \
+              $SCP_PORT_ARG \
               apps/jupiter/vps-infrastructure/hybrid/deploy.sh \
               ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/deploy.sh
           echo "Comando scp ejecutado."
-
       # --- FIN PASO 5 CORREGIDO ---
 
       # Paso 6: Asegurar que deploy.sh sea ejecutable (sin cambios)
@@ -96,7 +104,6 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             chmod +x /home/deploy/deploy.sh
-            # chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh # Comentado
 
       # Paso 7: Ejecutar el script (sin cambios)
       - name: Execute Deployment Script on Server
