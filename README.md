@@ -1,3 +1,10 @@
+# Cambios pendientes
+
+Separar de los proyectos apps/jupiter, etc.. la infraestructura
+
+infra/hostinger-1/
+infra/d-ocean-1/
+
 # Monorepo for Full-Stack Projects with NX and Docker
 
 [![Architecture Diagram](./architecture.svg)](./architecture.svg)
