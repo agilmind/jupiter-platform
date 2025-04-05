@@ -17,8 +17,6 @@ services:
       - ./nginx-ssl:/etc/nginx/ssl:ro # Asumiendo que copias dhparam aquí
       # Monta volumen para logs de Nginx (opcional pero útil)
       - nginx-logs:/var/log/nginx
-    depends_on:
-      # - certbot # Opcional, depende de si certbot necesita correr primero
     networks: # Opcional: Definir una red si es necesario
       - default # O la red que uses
     security_opt:
