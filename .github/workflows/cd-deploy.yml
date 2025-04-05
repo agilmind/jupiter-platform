@@ -3,8 +3,19 @@ name: CD - Deploy to Jupiter Server
 on:
   workflow_dispatch:
     inputs:
-      deployment_target: # ...
-      image_tag: # ...
+      deployment_target:
+        description: 'Target to deploy (infra=VPS; apps=Prod; all=Both)'
+        required: true
+        type: choice
+        options:
+          - infrastructure
+          - applications
+          - all
+        default: 'all'
+      image_tag:
+        description: 'Image tag for applications (default: latest)'
+        required: false
+        default: 'latest'
 
 jobs:
   deploy:
