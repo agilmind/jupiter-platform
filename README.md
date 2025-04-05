@@ -5,7 +5,10 @@ Separar de los proyectos apps/jupiter, etc.. la infraestructura
 infra/hostinger-1/
 infra/d-ocean-1/
 
-separar project:create project:infra o create-infra
+separar project:create jupiter de infra:create hostinger-1
+
+y los scrpts CI/CD?
+ nx g devops:ci  ???
 
 # Monorepo for Full-Stack Projects with NX and Docker
 

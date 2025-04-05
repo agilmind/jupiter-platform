@@ -72,31 +72,18 @@ jobs:
           target: "/home/deploy/jupiter_config/nginx-conf/"
           overwrite: true
 
-      # --- PASO 5 CORREGIDO (Lógica Shell para Puerto) ---
       - name: Copy Deploy Script using direct scp
         run: |
           echo "Intentando copiar deploy.sh usando scp directo..."
-          # Usamos lógica shell para determinar el argumento del puerto
-          SCP_PORT_ARG="" # Por defecto, no añadir argumento -P (scp usará puerto 22)
+          SCP_PORT_ARG=""
           if [[ -n "${{ secrets.SSH_PORT }}" ]]; then
-            # Si el secreto SSH_PORT existe y no está vacío, construir el argumento -P
             SCP_PORT_ARG="-P ${{ secrets.SSH_PORT }}"
-            echo "Usando puerto específico: ${{ secrets.SSH_PORT }}"
-          else
-            echo "Usando puerto SSH por defecto (22)."
           fi
-          # Ejecutar scp usando el argumento de puerto (vacío o con -P)
-          scp -o StrictHostKeyChecking=no \
-              $SCP_PORT_ARG \
-              apps/jupiter/vps-infrastructure/hybrid/deploy.sh \
-              ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/deploy.sh
+          scp -o StrictHostKeyChecking=no $SCP_PORT_ARG apps/jupiter/vps-infrastructure/hybrid/deploy.sh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/deploy.sh
           echo "Comando scp ejecutado."
-      # --- FIN PASO 5 CORREGIDO ---
 
-      # Paso 6: Asegurar que deploy.sh sea ejecutable (sin cambios)
       - name: Make Deploy Script Executable
         uses: appleboy/ssh-action@master
-        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -105,23 +92,25 @@ jobs:
           script: |
             chmod +x /home/deploy/deploy.sh
 
-      # Paso 7: Ejecutar el script (sin cambios)
       - name: Execute Deployment Script on Server
         uses: appleboy/ssh-action@master
-        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            # ... (exportación de variables y llamada a sudo deploy.sh) ...
-            echo ">>> Entering Step 7: Execute Deployment Script"
+            echo ">>> Entering Step 7: Execute Deployment Script as User ${{ secrets.SSH_USER }}"
+            # Exportar variables para el script
             export DEPLOY_TARGET="${{ github.event.inputs.deployment_target }}"
             export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
             export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
+            # export DOMAIN_NAME="tu.dominio.real" # <-- Exporta si es necesario
+
             echo " Deployment Target (exported): $DEPLOY_TARGET"
             echo " Image Tag (exported)        : $IMAGE_TAG"
-            echo "Running: sudo /home/deploy/deploy.sh"
-            sudo /home/deploy/deploy.sh
-            echo "<<< Exiting Step 7"
+            echo "Running: /home/deploy/deploy.sh"
+            /home/deploy/deploy.sh # Ejecutar como el usuario SSH (deploy)
+            EXIT_CODE=$? # Capturar código de salida del script
+            echo "<<< Exiting Step 7 (Script Exit Code: $EXIT_CODE)"
+            exit $EXIT_CODE # Salir del paso con el código del script
