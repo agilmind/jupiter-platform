@@ -5,6 +5,8 @@ Separar de los proyectos apps/jupiter, etc.. la infraestructura
 infra/hostinger-1/
 infra/d-ocean-1/
 
+separar project:create project:infra o create-infra
+
 # Monorepo for Full-Stack Projects with NX and Docker
 
 [![Architecture Diagram](./architecture.svg)](./architecture.svg)

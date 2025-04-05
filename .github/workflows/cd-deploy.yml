@@ -4,7 +4,6 @@ name: CD - Deploy to Jupiter Server
 on:
   workflow_dispatch:
     inputs:
-      # ... (inputs sin cambios) ...
       deployment_target:
         description: 'Target to deploy (infra=VPS; apps=Prod; all=Both)'
         required: true
@@ -28,7 +27,7 @@ jobs:
       # Pasos 1-4 sin cambios
       - name: Checkout Code
         uses: actions/checkout@v4
-      - name: Setup SSH Agent # Configura el agente para que scp/ssh funcionen sin pasar la clave explícitamente
+      - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -39,10 +38,11 @@ jobs:
       - name: Copy App Docker Compose File to Server
         if: github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
+        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }} # Aunque el agente está activo, scp-action puede necesitarla
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           source: "apps/jupiter/docker-compose.prod.yml"
           target: "/home/deploy/jupiter_config/"
@@ -50,6 +50,7 @@ jobs:
       - name: Copy VPS Docker Compose File to Server
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
+        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -61,6 +62,7 @@ jobs:
       - name: Copy Nginx Config Files to Server
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
+        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -70,23 +72,23 @@ jobs:
           target: "/home/deploy/jupiter_config/nginx-conf/"
           overwrite: true
 
-      # --- PASO 5 REEMPLAZADO ---
+      # --- PASO 5 CORREGIDO ---
       - name: Copy Deploy Script using direct scp
-        # Usamos scp directamente aprovechando el ssh-agent configurado en Paso 2
-        # No usamos la acción appleboy/scp-action para este archivo específico
         run: |
           echo "Intentando copiar deploy.sh usando scp directo..."
+          # Corrección: Usar operador ternario para el puerto default
           scp -o StrictHostKeyChecking=no \
-              -P ${{ secrets.SSH_PORT:-22 }} \
+              -P ${{ secrets.SSH_PORT != '' ? secrets.SSH_PORT : '22' }} \
               apps/jupiter/vps-infrastructure/hybrid/deploy.sh \
               ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/deploy.sh
           echo "Comando scp ejecutado."
 
-      # --- FIN PASO 5 REEMPLAZADO ---
+      # --- FIN PASO 5 CORREGIDO ---
 
       # Paso 6: Asegurar que deploy.sh sea ejecutable (sin cambios)
       - name: Make Deploy Script Executable
         uses: appleboy/ssh-action@master
+        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -94,12 +96,12 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             chmod +x /home/deploy/deploy.sh
-            # chown ya no debería ser necesario si scp funciona como deploy
-            # chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh
+            # chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /home/deploy/deploy.sh # Comentado
 
       # Paso 7: Ejecutar el script (sin cambios)
       - name: Execute Deployment Script on Server
         uses: appleboy/ssh-action@master
+        # ... (with block sin cambios) ...
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
