@@ -24,19 +24,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Pasos 1-3 sin cambios
       - name: Checkout Code
         uses: actions/checkout@v4
+
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Create Base Config Directory on Server
         run: |
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
 
-      # Paso 4a: Copiar docker-compose.prod.yml (si aplica)
       - name: Copy App Docker Compose File to Server
         if: github.event.inputs.deployment_target == 'applications' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
@@ -49,14 +49,18 @@ jobs:
           target: "/home/deploy/jupiter_config/"
           overwrite: true
 
-      # --- PASO 4b.1 REEMPLAZADO ---
-      # Paso 4b.1a: Leer Contenido de docker-compose.vps.yml (Runner)
+      - name: DEBUG cat VPS Compose File on Runner
+        if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
+        run: |
+          echo "--- Content of source apps/.../docker-compose.vps.yml on runner BEFORE reading: ---"
+          cat apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml || echo "Source file not found!"
+          echo "--- End of source file content ---"
+
       - name: Read VPS Compose File Content
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         id: vps_compose_content
         run: echo "compose_content=$(cat apps/jupiter/vps-infrastructure/hybrid/docker-compose.vps.yml | base64 -w 0)" >> $GITHUB_OUTPUT
 
-      # Paso 4b.1b: Sobrescribir docker-compose.vps.yml en Servidor (usando tee)
       - name: Update VPS Compose File on Server
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/ssh-action@master
@@ -66,15 +70,21 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
+            set -eo pipefail # Hacer que el script falle si cualquier comando en un pipe falla
             echo "Forzando actualización de /home/deploy/jupiter_config/docker-compose.vps.yml..."
             echo '${{ steps.vps_compose_content.outputs.compose_content }}' | base64 -d | sudo tee /home/deploy/jupiter_config/docker-compose.vps.yml > /dev/null
-            echo "Verificando archivo (primeras/últimas líneas):"
+            TEE_EXIT_CODE=$? # Capturamos el código de salida del pipe anterior
+            if [ $TEE_EXIT_CODE -ne 0 ]; then
+              echo "ERROR: Falló el comando 'echo | base64 -d | sudo tee' con código $TEE_EXIT_CODE"
+              exit $TEE_EXIT_CODE
+            else
+              echo "'sudo tee' completado exitosamente (Código 0)."
+            fi
+            echo "Verificando archivo escrito (primeras/últimas líneas):"
             head -n 5 /home/deploy/jupiter_config/docker-compose.vps.yml
             echo "..."
             tail -n 10 /home/deploy/jupiter_config/docker-compose.vps.yml
-      # --- FIN REEMPLAZO 4b.1 ---
 
-      # Paso 4b.2: Copiar Archivos de Configuración Nginx (Condicional - Mantenemos scp por ahora)
       - name: Copy Nginx Config Files to Server
         if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
         uses: appleboy/scp-action@master
@@ -87,7 +97,6 @@ jobs:
           target: "/home/deploy/jupiter_config/nginx-conf/"
           overwrite: true
 
-      # Pasos 5 y 6 para actualizar deploy.sh (usando tee - sin cambios)
       - name: Read Deploy Script Content
         id: deploy_script_content
         run: echo "script_content=$(cat apps/jupiter/vps-infrastructure/hybrid/deploy.sh | base64 -w 0)" >> $GITHUB_OUTPUT
@@ -107,7 +116,6 @@ jobs:
             echo "Verificando permisos de /home/deploy/deploy.sh:"
             ls -l /home/deploy/deploy.sh
 
-      # Paso 7: Ejecutar el script (SIN SUDO - sin cambios respecto a v23)
       - name: Execute Deployment Script on Server
         uses: appleboy/ssh-action@master
         with:
