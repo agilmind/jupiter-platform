@@ -19,7 +19,6 @@ services:
       - nginx-logs:/var/log/nginx
     depends_on:
       # - certbot # Opcional, depende de si certbot necesita correr primero
-      pass
     networks: # Opcional: Definir una red si es necesario
       - default # O la red que uses
     security_opt:

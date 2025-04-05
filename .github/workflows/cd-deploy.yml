@@ -36,7 +36,6 @@ jobs:
           ssh -o StrictHostKeyChecking=no -T ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "mkdir -p /home/deploy/jupiter_config/nginx-conf"
 
-      # --- PASOS 4 y 5 REEMPLAZADOS por scp directo ---
       - name: Copy Files to Server via scp
         run: |
           echo "Determinando archivos a copiar para target: ${{ github.event.inputs.deployment_target }}"
@@ -81,9 +80,20 @@ jobs:
             fi
           fi
           echo "Copia de archivos completada."
-      # --- FIN REEMPLAZO PASOS 4/5 ---
 
-      # Paso 6: Asegurar que deploy.sh sea ejecutable (SIN SUDO)
+      - name: Copy Nginx SSL Directory
+        if: github.event.inputs.deployment_target == 'infrastructure' || github.event.inputs.deployment_target == 'all'
+        run: |
+          echo "Copiando nginx-ssl..."
+          SCP_PORT_ARG=""
+          if [[ -n "${{ secrets.SSH_PORT }}" ]]; then
+            SCP_PORT_ARG="-P ${{ secrets.SSH_PORT }}"
+          fi
+          # Asume que nginx-ssl está al mismo nivel que nginx-conf en la estructura generada
+          scp -o StrictHostKeyChecking=no -r $SCP_PORT_ARG \
+              apps/jupiter/vps-infrastructure/hybrid/nginx-ssl \
+              ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deploy/jupiter_config/
+
       - name: Make Deploy Script Executable
         uses: appleboy/ssh-action@master
         with:
@@ -112,10 +122,8 @@ jobs:
             export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
             export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
             # export DOMAIN_NAME="tu.dominio.real" # <-- Exporta si es necesario
-
             echo " Deployment Target (exported): $DEPLOY_TARGET"
             echo " Image Tag (exported)        : $IMAGE_TAG"
-            # --- CAMBIO: Ejecutar SIN sudo ---
             echo "Running: /home/deploy/deploy.sh"
             /home/deploy/deploy.sh # Ejecutar como el usuario SSH (deploy)
             EXIT_CODE=$? # Capturar código de salida del script
