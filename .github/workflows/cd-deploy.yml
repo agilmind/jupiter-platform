@@ -123,11 +123,19 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          command_timeout: 15m # 15 minuto
           script: |
-            # ... (exportación de variables y llamada a deploy.sh SIN sudo) ...
+            # ... (script interno con export y llamada a deploy.sh SIN sudo) ...
             echo ">>> Entering Step 7: Execute Deployment Script as User ${{ secrets.SSH_USER }}"
             export DEPLOY_TARGET="${{ github.event.inputs.deployment_target }}"
-            # ... etc ...
+            export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+            export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
+            export LETSENCRYPT_EMAIL="tu-email@ejemplo.com" # Asegúrate que la variable se exporta!
+            export DOMAIN_NAME="webapp.jupiter.ar" # Asegúrate que la variable se exporta!
+            echo " Deployment Target (exported): $DEPLOY_TARGET"
+            echo " Image Tag (exported)        : $IMAGE_TAG"
+            echo " Email (exported)          : $LETSENCRYPT_EMAIL"
+            echo " Dominio (exported)        : $DOMAIN_NAME"
             echo "Running: /home/deploy/deploy.sh"
             /home/deploy/deploy.sh # Sin sudo
             EXIT_CODE=$?

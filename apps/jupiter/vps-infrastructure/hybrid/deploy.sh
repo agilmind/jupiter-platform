@@ -83,8 +83,8 @@ if [ "$DEPLOY_INFRA" = true ]; then
       --dns-cloudflare \
       --dns-cloudflare-credentials "${CLOUDFLARE_CREDS_PATH}" \
       --dns-cloudflare-propagation-seconds 60 \
-      -d "${DOMAIN_NAME}" # <-- Dominio principal
-      # -d www.${DOMAIN_NAME} # <-- Añadir si necesitas www también
+      -d "${DOMAIN_NAME}" \
+      -vv
 
     CERTBOT_EXIT_CODE=$?
     if [ $CERTBOT_EXIT_CODE -ne 0 ]; then
