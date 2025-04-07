@@ -114,24 +114,29 @@ fi
 # 5. Forzar Recarga/Reinicio de Nginx (Solo infra, SIN sudo)
 # Ahora debería funcionar porque el certificado debería existir
 if [ "$DEPLOY_INFRA" = true ]; then
-  echo "[Deploy] Recargando/Reiniciando Nginx (${NGINX_CONTAINER_NAME}) post-cert..."
-  # Esperar un poco por si acaso certbot tarda en liberar archivos
-  sleep 5
-  if docker ps -q -f name="^/${NGINX_CONTAINER_NAME}$" | grep -q .; then
-      echo "[Deploy] Intentando reload Nginx..."
-      docker exec ${NGINX_CONTAINER_NAME} nginx -s reload
-      RELOAD_EXIT_CODE=$?
-      if [ $RELOAD_EXIT_CODE -ne 0 ]; then
-        echo "[Deploy] Reload falló (Código: $RELOAD_EXIT_CODE), intentando restart Nginx..."
-        docker restart ${NGINX_CONTAINER_NAME} || echo "[Error] Nginx no pudo reiniciar."
+  echo "[Deploy] Reiniciando Nginx (${NGINX_CONTAINER_NAME}) para cargar certificado/config..."
+  if docker ps -q -f name="^/${NGINX_CONTAINER_NAME}$" > /dev/null; then
+      # Contenedor existe (puede estar running o restarting), intentamos restart
+      echo "Intentando restart Nginx (${NGINX_CONTAINER_NAME})..."
+      docker restart ${NGINX_CONTAINER_NAME}
+      RESTART_EXIT_CODE=$?
+      if [ $RESTART_EXIT_CODE -ne 0 ]; then
+        echo "[Error] Nginx (${NGINX_CONTAINER_NAME}) no pudo reiniciar (Código: $RESTART_EXIT_CODE)."
+        # Considerar si salir con error aquí es apropiado
+        # exit $RESTART_EXIT_CODE
       else
-        echo "[Deploy] Nginx recargado exitosamente."
+        echo "[Deploy] Nginx (${NGINX_CONTAINER_NAME}) reiniciado."
+        # Esperar un poco a que arranque bien antes de que el script termine
+        sleep 5
+        echo "Verificando estado de Nginx post-restart:"
+        docker ps -f name="^/${NGINX_CONTAINER_NAME}$"
       fi
   else
-      echo "[Deploy] Contenedor Nginx no encontrado o no corriendo."
+      # Esto no debería pasar si compose up funcionó, pero por si acaso
+      echo "[Deploy] Contenedor Nginx (${NGINX_CONTAINER_NAME}) no encontrado. No se puede reiniciar."
   fi
 else
-  echo "[Deploy] Omitiendo recarga/reinicio de Nginx."
+  echo "[Deploy] Omitiendo reinicio de Nginx."
 fi
 
 # 6. Limpiar (Opcional)
