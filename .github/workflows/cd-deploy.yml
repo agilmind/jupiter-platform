@@ -111,7 +111,7 @@ jobs:
           if [[ -n "${{ secrets.SSH_PORT }}" ]]; then SCP_PORT_ARG="-P ${{ secrets.SSH_PORT }}"; fi
           TARGET_HOST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
           TARGET_MONITOR_DIR="/home/deploy/jupiter_config/monitor"
-          SOURCE_MONITOR_DIR="apps/jupiter/monitor-stack" # Ajusta si la ruta generada es diferente
+          SOURCE_MONITOR_DIR="apps/jupiter/vps-infrastructure/monitor-stack"
 
           # Crear directorio remoto y subdirectorio prometheus
           ssh -o StrictHostKeyChecking=no $SCP_PORT_ARG $TARGET_HOST "mkdir -p ${TARGET_MONITOR_DIR}/prometheus"
