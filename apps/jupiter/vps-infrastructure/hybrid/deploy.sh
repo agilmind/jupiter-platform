@@ -74,8 +74,13 @@ if [ "$DEPLOY_INFRA" = true ]; then
   if docker compose -f "${VPS_COMPOSE_FILE}" exec -T certbot test -f "${CERT_FILE}"; then
     echo "[Deploy] El certificado ya existe en ${CERT_FILE}. Omitiendo obtención inicial."
   else
-    echo "[Deploy] Certificado no encontrado. Intentando obtener uno nuevo con Certbot (DNS Cloudflare)..."
-    # Ejecutar Certbot usando 'docker compose run'. '--rm' elimina el contenedor después.
+    echo "[Deploy] Certificado no encontrado."
+    echo "[Deploy] Intentando eliminar posible lock file antiguo..."
+    # Usamos 'exec' en el contenedor principal 'certbot' para borrar el lock
+    # Añadimos '|| true' para que el script no falle si el archivo no existe
+    docker compose -f "${VPS_COMPOSE_FILE}" exec certbot rm -f /etc/letsencrypt/.certbot.lock || true
+    echo "[Deploy] Intentando obtener uno nuevo con Certbot (DNS Cloudflare)..."
+    # Ahora ejecutamos 'run' para obtener el certificado
     docker compose -f "${VPS_COMPOSE_FILE}" run --rm certbot certonly \
       --non-interactive \
       --agree-tos \
@@ -84,7 +89,7 @@ if [ "$DEPLOY_INFRA" = true ]; then
       --dns-cloudflare-credentials "${CLOUDFLARE_CREDS_PATH}" \
       --dns-cloudflare-propagation-seconds 60 \
       -d "${DOMAIN_NAME}" \
-      -vv
+      -vv # Mantenemos la verbosidad
 
     CERTBOT_EXIT_CODE=$?
     if [ $CERTBOT_EXIT_CODE -ne 0 ]; then
