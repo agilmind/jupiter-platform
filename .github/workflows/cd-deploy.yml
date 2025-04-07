@@ -130,8 +130,8 @@ jobs:
             export DEPLOY_TARGET="${{ github.event.inputs.deployment_target }}"
             export IMAGE_TAG="${{ github.event.inputs.image_tag }}"
             export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
-            export LETSENCRYPT_EMAIL="tu-email@ejemplo.com" # Asegúrate que la variable se exporta!
-            export DOMAIN_NAME="webapp.jupiter.ar" # Asegúrate que la variable se exporta!
+            export LETSENCRYPT_EMAIL="garciafido@gmail.com"
+            export DOMAIN_NAME="webapp.jupiter.ar"
             echo " Deployment Target (exported): $DEPLOY_TARGET"
             echo " Image Tag (exported)        : $IMAGE_TAG"
             echo " Email (exported)          : $LETSENCRYPT_EMAIL"
