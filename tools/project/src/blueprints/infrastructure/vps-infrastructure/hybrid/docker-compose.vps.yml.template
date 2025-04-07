@@ -8,7 +8,7 @@ services:
       - '80:80'
     volumes:
       - ./nginx-conf:/etc/nginx/conf.d:ro
-      - certbot-etc:/etc/letsencrypt:ro # Mantenemos .ro por seguridad
+      - certbot-etc:/etc/letsencrypt:ro
       - ./nginx-ssl:/etc/nginx/ssl:ro
       - nginx-logs:/var/log/nginx
     networks: # Opcional: Definir una red si es necesario

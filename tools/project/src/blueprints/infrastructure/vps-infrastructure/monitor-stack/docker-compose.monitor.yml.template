@@ -1,6 +1,3 @@
-# tools/project/src/blueprints/infrastructure/monitor-stack/docker-compose.monitor.yml.template
-version: '3.8'
-
 volumes:
   prometheus_data: {}
   grafana_data: {}
@@ -78,22 +75,21 @@ services:
       org.label-schema.group: "monitoring"
 
   grafana:
-    image: grafana/grafana-oss:9.5.3 # Usar versión específica
+    image: grafana/grafana-oss:9.5.3
     container_name: <%= projectName %>-grafana
     restart: always
     volumes:
       - grafana_data:/var/lib/grafana
       # - ./grafana/provisioning:/etc/grafana/provisioning # Opcional para provisioning
     environment:
-      # Cambiar usuario/password por defecto si se desea (o usar variables de entorno)
-      # GF_SECURITY_ADMIN_USER: admin
-      # GF_SECURITY_ADMIN_PASSWORD: password_seguro # ¡Usar secrets si se cambia!
-      GF_USERS_ALLOW_SIGN_UP: 'false' # Deshabilitar registro de usuarios
-      # GF_SERVER_ROOT_URL: https://grafana.jupiter.ar # Configurar cuando se exponga vía Nginx
+      GF_SERVER_ROOT_URL: https://webapp.<%= domainName %>/grafana
+      # GF_SECURITY_ADMIN_USER: admin # Puedes descomentar para cambiar usuario/pass
+      # GF_SECURITY_ADMIN_PASSWORD: tu_password_seguro # ¡Mejor usar secrets!
+      GF_USERS_ALLOW_SIGN_UP: 'false'
     expose:
-      - 3000 # Puerto interno de Grafana
+      - 3000
     networks:
-      - monitor-network # Para que Prometheus pueda descubrirlo (si se configura)
-      - vps-network     # Para que Nginx (en vps-network) pueda hacer proxy_pass
+      - monitor-network
+      - vps-network
     labels:
       org.label-schema.group: "monitoring"
