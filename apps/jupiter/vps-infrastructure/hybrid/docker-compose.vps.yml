@@ -4,48 +4,35 @@ services:
     container_name: jupiter-nginx-proxy
     restart: always
     ports:
-      # Solo 443 por ahora, ajustaremos para certbot luego
       - '443:443'
-      # Si quieres HTTP->HTTPS redirect y certbot webroot, necesitarás puerto 80 también
-      # - '80:80'
+      - '80:80'
     volumes:
-      # Monta directorio de configs Nginx (donde está webapp.conf, etc.)
       - ./nginx-conf:/etc/nginx/conf.d:ro
-      # Monta volumen de certs Let's Encrypt
-      - certbot-etc:/etc/letsencrypt:ro # <--- Puede ser :ro una vez que certbot funcione
-      # Monta directorio con dhparam.pem
-      - ./nginx-ssl:/etc/nginx/ssl:ro # Asumiendo que copias dhparam aquí
-      # Monta volumen para logs de Nginx (opcional pero útil)
+      - certbot-etc:/etc/letsencrypt:ro # Mantenemos .ro por seguridad
+      - ./nginx-ssl:/etc/nginx/ssl:ro
       - nginx-logs:/var/log/nginx
     networks: # Opcional: Definir una red si es necesario
-      - default # O la red que uses
+      - default
     security_opt:
       - 'apparmor=unconfined'
 
   certbot:
-    # Usaremos la imagen con el plugin de Cloudflare cuando integremos la automatización
-    # image: certbot/dns-cloudflare:latest
-    # Por ahora, la imagen base está bien para que el contenedor simplemente exista
-    image: certbot/certbot:latest
+    image: certbot/dns-cloudflare:latest
     container_name: jupiter-certbot
     volumes:
-      # Monta los volúmenes donde se guardarán los certificados y la cuenta LE
       - certbot-etc:/etc/letsencrypt
-      # Monta un volumen para el desafío webroot (aunque no lo usemos con DNS challenge)
-      - certbot-www:/var/www/certbot
-    # Comando para mantener el contenedor vivo sin hacer nada hasta que lo usemos
-    # Si usas cron en host, 'sleep infinity' está bien.
-    # Si quieres que el contenedor ejecute la renovación, el comando sería diferente.
-    command: sleep infinity
-    networks: # Opcional: Misma red que Nginx si es necesario
+      - certbot-www:/var/www/certbot # Aunque usemos DNS, lo mantenemos por si acaso
+      # Montar credenciales de Cloudflare (no en Git)
+      - /home/deploy/secrets/cloudflare.ini:/etc/letsencrypt/cloudflare.ini:ro
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do sleep 1; done'"
+    networks:
       - default
 
-# Define los volúmenes nombrados. Docker Compose los creará si no existen.
 volumes:
-  certbot-etc: {} # <--- SIN external: true
-  certbot-www: {} # <--- SIN external: true
-  nginx-logs: {} # <--- Volumen para logs (opcional)
+  certbot-etc: {}
+  certbot-www: {}
+  nginx-logs: {}
 
-networks: # Opcional: Define la red si no usas la default
+networks:
   default:
-    name: jupiter_vps_network # O el nombre que prefieras
+    name: jupiter_vps_network

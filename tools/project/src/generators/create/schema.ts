@@ -20,4 +20,5 @@ export interface CreateGeneratorSchema {
   appSourcePath?: string;
   appServerPort?: string;
   workerPort?: string;
+  letsencryptEmail?: string;
 }

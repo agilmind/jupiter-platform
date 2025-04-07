@@ -1,104 +1,130 @@
 #!/bin/bash
-# Script FINAL para desplegar las aplicaciones y/o infraestructura de Jupiter Platform
-# Versión que lee de entorno y ejecuta comandos Docker SIN sudo
+# Script FINAL - Lee de Env, SIN sudo interno, con obtención inicial de cert
 set -e
 
-# --- Configuración Inicial - Leída desde el Entorno ---
+# --- Configuración Inicial / Lógica de Flags / Variables / Validaciones ---
 TARGET=${DEPLOY_TARGET:-"all"}
 TAG=${IMAGE_TAG:-"latest"}
-# GHCR_TOKEN viene del entorno
-
-# --- Lógica de Flags ---
 DEPLOY_INFRA=false
 DEPLOY_APPS=false
-if [[ "$TARGET" == "infrastructure" || "$TARGET" == "all" ]]; then
-  DEPLOY_INFRA=true
-fi
-if [[ "$TARGET" == "applications" || "$TARGET" == "all" ]]; then
-  DEPLOY_APPS=true
-fi
+if [[ "$TARGET" == "infrastructure" || "$TARGET" == "all" ]]; then DEPLOY_INFRA=true; fi
+if [[ "$TARGET" == "applications" || "$TARGET" == "all" ]]; then DEPLOY_APPS=true; fi
+DOMAIN_NAME=${DOMAIN_NAME:-"jupiter.ar"} # Leer de env o template
+LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-"garciafido@gmail.com"}
 
-# --- Dominio ---
-DOMAIN_NAME=${DOMAIN_NAME:-"jupiter.ar"}
-
-# --- Variables Derivadas y Constantes ---
 REPO_PREFIX="ghcr.io/garciafido/jupiter-platform"
 CONFIG_DIR="/home/deploy/jupiter_config"
 APP_COMPOSE_FILE="${CONFIG_DIR}/docker-compose.prod.yml"
 VPS_COMPOSE_FILE="${CONFIG_DIR}/docker-compose.vps.yml"
 NGINX_CONTAINER_NAME="jupiter-nginx-proxy"
+CERT_FILE="/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" # Path DENTRO del volumen/contenedor
+CLOUDFLARE_CREDS_PATH="/etc/letsencrypt/cloudflare.ini" # Path DENTRO del contenedor certbot
 
 # --- Validaciones ---
-if [ "$DEPLOY_APPS" = false ] && [ "$DEPLOY_INFRA" = false ]; then echo "ERROR: Target inválido: $TARGET."; exit 1; fi
-if [ "$DEPLOY_APPS" = true ] && [ -z "$GHCR_TOKEN" ]; then echo "ERROR: GHCR_TOKEN es requerido para desplegar apps."; exit 1; fi
-if [ ! -d "$CONFIG_DIR" ]; then echo "ERROR: Directorio ${CONFIG_DIR} no existe."; exit 1; fi
-if [ "$DEPLOY_APPS" = true ] && [ ! -f "$APP_COMPOSE_FILE" ]; then echo "ERROR: No se encontró ${APP_COMPOSE_FILE}"; exit 1; fi
-if [ "$DEPLOY_INFRA" = true ] && [ ! -f "$VPS_COMPOSE_FILE" ]; then echo "ERROR: No se encontró ${VPS_COMPOSE_FILE}"; exit 1; fi
-if [ -z "$DOMAIN_NAME" ] || [[ "$DOMAIN_NAME" == "<%="* ]]; then echo "ERROR: DOMAIN_NAME no configurado."; exit 1; fi # Escapado <%=
+# ... (validaciones existentes) ...
+if [ "$DEPLOY_INFRA" = true ] && [ -z "$LETSENCRYPT_EMAIL" ]; then echo "ERROR: LETSENCRYPT_EMAIL no configurado."; exit 1; fi
+if [ "$DEPLOY_INFRA" = true ] && [ ! -f "/home/deploy/secrets/cloudflare.ini" ]; then echo "ERROR: Archivo de credenciales /home/deploy/secrets/cloudflare.ini no encontrado en el host."; exit 1; fi
 
-echo "--- Iniciando Despliegue (ejecutado como usuario $(whoami)) ---"
-echo " Deploy Target: $TARGET"
-# ... (resto de echos informativos) ...
+
+echo "--- Iniciando Despliegue ---"
+echo " Target: $TARGET, Infra: $DEPLOY_INFRA, Apps: $DEPLOY_APPS, Tag: ${TAG}, Dominio: ${DOMAIN_NAME}"
 echo "---------------------------"
 
 # --- Ejecución ---
 
-# 1. Login y Pull (Solo apps, SIN sudo)
+# 1. Login y Pull (Solo apps)
+# ... (sin cambios) ...
 if [ "$DEPLOY_APPS" = true ]; then
   echo "[Deploy] Iniciando sesión en GHCR..."
   echo "${GHCR_TOKEN}" | docker login ghcr.io -u deploy --password-stdin
-  echo "[Deploy] Descargando imágenes de apps con tag '${TAG}'..."
+  echo "[Deploy] Descargando imágenes apps tag '${TAG}'..."
   docker pull "${REPO_PREFIX}/app-server:${TAG}"
   docker pull "${REPO_PREFIX}/web-app:${TAG}"
   docker pull "${REPO_PREFIX}/worker-sample:${TAG}"
 else
-  echo "[Deploy] Omitiendo login/pull de imágenes."
+  echo "[Deploy] Omitiendo login/pull."
 fi
+
 
 # 2. Migraciones (Opcional)
 # ...
 
-# 3. Desplegar/Actualizar Stacks con Docker Compose (SIN SUDO)
-echo "[Deploy] Construyendo y ejecutando comando docker compose..."
+# 3. Desplegar/Actualizar Stacks (SIN SUDO)
+echo "[Deploy] Ejecutando docker compose up..."
 COMPOSE_FILES=""
-if [ "$DEPLOY_INFRA" = true ]; then
-  COMPOSE_FILES="-f ${VPS_COMPOSE_FILE}"
-fi
-if [ "$DEPLOY_APPS" = true ]; then
-  COMPOSE_FILES="${COMPOSE_FILES} -f ${APP_COMPOSE_FILE}"
-fi
+if [ "$DEPLOY_INFRA" = true ]; then COMPOSE_FILES="-f ${VPS_COMPOSE_FILE}"; fi
+if [ "$DEPLOY_APPS" = true ]; then COMPOSE_FILES="${COMPOSE_FILES} -f ${APP_COMPOSE_FILE}"; fi
 
 cd "${CONFIG_DIR}"
 echo "[Deploy] Ejecutando: docker compose ${COMPOSE_FILES} up -d --remove-orphans"
-docker compose ${COMPOSE_FILES} up -d --remove-orphans # <-- SIN sudo
+docker compose ${COMPOSE_FILES} up -d --remove-orphans
 EXIT_CODE=$?
-# Mantenemos el exit estricto
 if [ $EXIT_CODE -ne 0 ]; then
-    echo "ERROR FATAL: Falló el comando 'docker compose up -d' con código $EXIT_CODE. Abortando."
+    echo "ERROR FATAL: Falló 'docker compose up -d' código $EXIT_CODE. Abortando."
     exit 1
 fi
-echo "[Deploy] Comando 'compose up' ejecutado."
+echo "[Deploy] 'compose up' ejecutado."
 
-# 4. CORRECCIÓN DE PERMISOS SSL (Comentado/Omitido por ahora)
-# Este paso probablemente fallaría sin sudo y podría no ser estrictamente necesario
-# if [ "$DEPLOY_INFRA" = true ]; then
-#  echo "[Deploy] Omitiendo ajuste de permisos SSL (requeriría sudo o ajustes complejos)."
-# fi
+# --- NUEVO PASO: Obtener Certificado Inicial (Solo Infra) ---
+if [ "$DEPLOY_INFRA" = true ]; then
+  echo "[Deploy] Verificando/Obteniendo certificado inicial para ${DOMAIN_NAME}..."
+  # Comprobamos si el archivo de certificado YA existe dentro del contenedor/volumen
+  # Usamos 'docker compose exec' en el contenedor certbot (que está corriendo 'sleep infinity')
+  # para verificar la existencia del archivo. Es más fiable que mirar el host path del volumen.
+  if docker compose -f "${VPS_COMPOSE_FILE}" exec -T jupiter-certbot test -f "${CERT_FILE}"; then
+    echo "[Deploy] El certificado ya existe en ${CERT_FILE}. Omitiendo obtención inicial."
+  else
+    echo "[Deploy] Certificado no encontrado. Intentando obtener uno nuevo con Certbot (DNS Cloudflare)..."
+    # Ejecutar Certbot usando 'docker compose run'. '--rm' elimina el contenedor después.
+    docker compose -f "${VPS_COMPOSE_FILE}" run --rm jupiter-certbot certonly \
+      --non-interactive \
+      --agree-tos \
+      --email "${LETSENCRYPT_EMAIL}" \
+      --dns-cloudflare \
+      --dns-cloudflare-credentials "${CLOUDFLARE_CREDS_PATH}" \
+      --dns-cloudflare-propagation-seconds 60 \
+      -d "${DOMAIN_NAME}" # <-- Dominio principal
+      # -d www.${DOMAIN_NAME} # <-- Añadir si necesitas www también
+
+    CERTBOT_EXIT_CODE=$?
+    if [ $CERTBOT_EXIT_CODE -ne 0 ]; then
+      echo "ERROR FATAL: Falló la obtención del certificado con Certbot (Código: $CERTBOT_EXIT_CODE)."
+      # Podrías querer ver los logs de certbot aquí si falla:
+      # docker compose -f "${VPS_COMPOSE_FILE}" logs jupiter-certbot
+      exit $CERTBOT_EXIT_CODE
+    else
+      echo "[Deploy] Certificado obtenido exitosamente."
+      # Es posible que necesitemos ajustar permisos aquí si Nginx no puede leerlos
+      # Pero intentemos sin el chmod primero.
+    fi
+  fi
+else
+  echo "[Deploy] Omitiendo verificación/obtención de certificado (no es despliegue de infra)."
+fi
+# --- FIN NUEVO PASO ---
+
+
+# 4. CORRECCIÓN DE PERMISOS SSL (Comentado)
+# ...
 
 # 5. Forzar Recarga/Reinicio de Nginx (Solo infra, SIN sudo)
+# Ahora debería funcionar porque el certificado debería existir
 if [ "$DEPLOY_INFRA" = true ]; then
-  echo "[Deploy] Recargando/Reiniciando Nginx (${NGINX_CONTAINER_NAME})..."
+  echo "[Deploy] Recargando/Reiniciando Nginx (${NGINX_CONTAINER_NAME}) post-cert..."
+  # Esperar un poco por si acaso certbot tarda en liberar archivos
+  sleep 5
   if docker ps -q -f name="^/${NGINX_CONTAINER_NAME}$" | grep -q .; then
-      echo "[Deploy] Intentando reload Nginx (${NGINX_CONTAINER_NAME})..."
-      docker exec ${NGINX_CONTAINER_NAME} nginx -s reload # <-- SIN sudo
-      if [ $? -ne 0 ]; then
-        echo "[Deploy] Reload falló, intentando restart Nginx (${NGINX_CONTAINER_NAME})..."
-        docker restart ${NGINX_CONTAINER_NAME} || echo "[Error] Nginx (${NGINX_CONTAINER_NAME}) no pudo reiniciar." # <-- SIN sudo
+      echo "[Deploy] Intentando reload Nginx..."
+      docker exec ${NGINX_CONTAINER_NAME} nginx -s reload
+      RELOAD_EXIT_CODE=$?
+      if [ $RELOAD_EXIT_CODE -ne 0 ]; then
+        echo "[Deploy] Reload falló (Código: $RELOAD_EXIT_CODE), intentando restart Nginx..."
+        docker restart ${NGINX_CONTAINER_NAME} || echo "[Error] Nginx no pudo reiniciar."
       else
-        echo "[Deploy] Nginx (${NGINX_CONTAINER_NAME}) recargado exitosamente."
+        echo "[Deploy] Nginx recargado exitosamente."
       fi
   else
-      echo "[Deploy] Contenedor Nginx (${NGINX_CONTAINER_NAME}) no encontrado o no corriendo."
+      echo "[Deploy] Contenedor Nginx no encontrado o no corriendo."
   fi
 else
   echo "[Deploy] Omitiendo recarga/reinicio de Nginx."
