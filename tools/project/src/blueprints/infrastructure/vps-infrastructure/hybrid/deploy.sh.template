@@ -65,18 +65,18 @@ if [ $EXIT_CODE -ne 0 ]; then
 fi
 echo "[Deploy] 'compose up' ejecutado."
 
-# --- NUEVO PASO: Obtener Certificado Inicial (Solo Infra) ---
+# Obtener Certificado Inicial (Solo Infra)
 if [ "$DEPLOY_INFRA" = true ]; then
   echo "[Deploy] Verificando/Obteniendo certificado inicial para ${DOMAIN_NAME}..."
   # Comprobamos si el archivo de certificado YA existe dentro del contenedor/volumen
   # Usamos 'docker compose exec' en el contenedor certbot (que está corriendo 'sleep infinity')
   # para verificar la existencia del archivo. Es más fiable que mirar el host path del volumen.
-  if docker compose -f "${VPS_COMPOSE_FILE}" exec -T <%= projectName %>-certbot test -f "${CERT_FILE}"; then
+  if docker compose -f "${VPS_COMPOSE_FILE}" exec -T certbot test -f "${CERT_FILE}"; then
     echo "[Deploy] El certificado ya existe en ${CERT_FILE}. Omitiendo obtención inicial."
   else
     echo "[Deploy] Certificado no encontrado. Intentando obtener uno nuevo con Certbot (DNS Cloudflare)..."
     # Ejecutar Certbot usando 'docker compose run'. '--rm' elimina el contenedor después.
-    docker compose -f "${VPS_COMPOSE_FILE}" run --rm <%= projectName %>-certbot certonly \
+    docker compose -f "${VPS_COMPOSE_FILE}" run --rm certbot certonly \
       --non-interactive \
       --agree-tos \
       --email "${LETSENCRYPT_EMAIL}" \
@@ -90,7 +90,7 @@ if [ "$DEPLOY_INFRA" = true ]; then
     if [ $CERTBOT_EXIT_CODE -ne 0 ]; then
       echo "ERROR FATAL: Falló la obtención del certificado con Certbot (Código: $CERTBOT_EXIT_CODE)."
       # Podrías querer ver los logs de certbot aquí si falla:
-      # docker compose -f "${VPS_COMPOSE_FILE}" logs <%= projectName %>-certbot
+      # docker compose -f "${VPS_COMPOSE_FILE}" logs certbot
       exit $CERTBOT_EXIT_CODE
     else
       echo "[Deploy] Certificado obtenido exitosamente."
@@ -101,7 +101,6 @@ if [ "$DEPLOY_INFRA" = true ]; then
 else
   echo "[Deploy] Omitiendo verificación/obtención de certificado (no es despliegue de infra)."
 fi
-# --- FIN NUEVO PASO ---
 
 
 # 4. CORRECCIÓN DE PERMISOS SSL (Comentado)
