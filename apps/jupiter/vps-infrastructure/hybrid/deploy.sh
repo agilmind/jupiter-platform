@@ -7,8 +7,10 @@ TARGET=${DEPLOY_TARGET:-"all"}
 TAG=${IMAGE_TAG:-"latest"}
 DEPLOY_INFRA=false
 DEPLOY_APPS=false
+DEPLOY_MONITOR=false
 if [[ "$TARGET" == "infrastructure" || "$TARGET" == "all" ]]; then DEPLOY_INFRA=true; fi
 if [[ "$TARGET" == "applications" || "$TARGET" == "all" ]]; then DEPLOY_APPS=true; fi
+if [[ "$TARGET" == "monitoring" || "$TARGET" == "all" ]]; then DEPLOY_MONITOR=true; fi # <--- Nueva condición
 DOMAIN_NAME=${DOMAIN_NAME:-"jupiter.ar"} # Leer de env o template
 LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-"garciafido@gmail.com"}
 
@@ -24,10 +26,13 @@ CLOUDFLARE_CREDS_PATH="/etc/letsencrypt/cloudflare.ini" # Path DENTRO del conten
 # ... (validaciones existentes) ...
 if [ "$DEPLOY_INFRA" = true ] && [ -z "$LETSENCRYPT_EMAIL" ]; then echo "ERROR: LETSENCRYPT_EMAIL no configurado."; exit 1; fi
 if [ "$DEPLOY_INFRA" = true ] && [ ! -f "/home/deploy/secrets/cloudflare.ini" ]; then echo "ERROR: Archivo de credenciales /home/deploy/secrets/cloudflare.ini no encontrado en el host."; exit 1; fi
+MONITOR_COMPOSE_FILE="${CONFIG_DIR}/monitor/docker-compose.monitor.yml"
+if [ "$DEPLOY_MONITOR" = true ] && [ ! -f "$MONITOR_COMPOSE_FILE" ]; then echo "ERROR: No se encontró ${MONITOR_COMPOSE_FILE}"; exit 1; fi
 
 
 echo "--- Iniciando Despliegue ---"
-echo " Target: $TARGET, Infra: $DEPLOY_INFRA, Apps: $DEPLOY_APPS, Tag: ${TAG}, Dominio: ${DOMAIN_NAME}"
+echo " Target: $TARGET, Infra: $DEPLOY_INFRA, Apps: $DEPLOY_APPS, Mon: $DEPLOY_MONITOR, Tag: ${TAG}, Dominio: ${DOMAIN_NAME}"
+echo " Target: $TARGET, Infra: $DEPLOY_INFRA, Apps: $DEPLOY_APPS, Mon: $DEPLOY_MONITOR, Tag: ${TAG}, Dominio: ${DOMAIN_NAME}"
 echo "---------------------------"
 
 # --- Ejecución ---
@@ -49,20 +54,38 @@ fi
 # 2. Migraciones (Opcional)
 # ...
 
-# 3. Desplegar/Actualizar Stacks (SIN SUDO)
+# 3. Desplegar/Actualizar Stacks
 echo "[Deploy] Ejecutando docker compose up..."
 COMPOSE_FILES=""
 if [ "$DEPLOY_INFRA" = true ]; then COMPOSE_FILES="-f ${VPS_COMPOSE_FILE}"; fi
 if [ "$DEPLOY_APPS" = true ]; then COMPOSE_FILES="${COMPOSE_FILES} -f ${APP_COMPOSE_FILE}"; fi
 
-cd "${CONFIG_DIR}"
-echo "[Deploy] Ejecutando: docker compose ${COMPOSE_FILES} up -d --remove-orphans"
-docker compose ${COMPOSE_FILES} up -d --remove-orphans
-EXIT_CODE=$?
-if [ $EXIT_CODE -ne 0 ]; then
-    echo "ERROR FATAL: Falló 'docker compose up -d' código $EXIT_CODE. Abortando."
-    exit 1
+MONITOR_COMPOSE_COMMAND=""
+if [ "$DEPLOY_MONITOR" = true ]; then
+  # Asegurarse que el directorio existe por si acaso
+  cd "${CONFIG_DIR}/monitor" || exit 1
+  MONITOR_COMPOSE_COMMAND="docker compose -f ${MONITOR_COMPOSE_FILE} up -d --remove-orphans"
+  echo "[Deploy] Ejecutando: ${MONITOR_COMPOSE_COMMAND}"
+  ${MONITOR_COMPOSE_COMMAND}
+  MONITOR_EXIT_CODE=$?
+  if [ $MONITOR_EXIT_CODE -ne 0 ]; then
+      echo "ERROR FATAL: Falló 'docker compose up -d' para monitor (Código: $MONITOR_EXIT_CODE). Abortando."
+      exit 1 # Hacemos que falle si monitor falla
+  fi
+  cd "${CONFIG_DIR}"
 fi
+
+if [ -n "$COMPOSE_FILES" ]; then
+  cd "${CONFIG_DIR}" || exit 1
+  echo "[Deploy] Ejecutando: docker compose ${COMPOSE_FILES} up -d --remove-orphans"
+  docker compose ${COMPOSE_FILES} up -d --remove-orphans
+  EXIT_CODE=$?
+  if [ $EXIT_CODE -ne 0 ]; then
+      echo "ERROR FATAL: Falló 'docker compose up -d' para infra/apps (Código: $EXIT_CODE). Abortando."
+      exit 1
+  fi
+fi
+
 echo "[Deploy] 'compose up' ejecutado."
 
 # Obtener Certificado Inicial (Solo Infra)

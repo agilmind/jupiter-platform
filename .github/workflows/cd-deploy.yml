@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       deployment_target:
-        description: 'Target to deploy (infra=VPS; apps=Prod; all=Both)'
+        description: 'Target to deploy (infra=VPS; apps=Prod; monitor=Mon; all=Both)'
         required: true
         type: choice
         options:
           - infrastructure
           - applications
+          - monitoring
           - all
         default: 'all'
       image_tag:
@@ -100,6 +101,26 @@ jobs:
           fi
           echo "Copia de archivos completada."
       # --- FIN PASO 4/5 ---
+
+# --- Nuevo: Copiar archivos de Monitoreo (Condicional) ---
+      - name: Copy Monitoring Files via scp
+        if: github.event.inputs.deployment_target == 'monitoring' || github.event.inputs.deployment_target == 'all'
+        run: |
+          echo "Copiando archivos de monitoreo..."
+          SCP_PORT_ARG=""
+          if [[ -n "${{ secrets.SSH_PORT }}" ]]; then SCP_PORT_ARG="-P ${{ secrets.SSH_PORT }}"; fi
+          TARGET_HOST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+          TARGET_MONITOR_DIR="/home/deploy/jupiter_config/monitor"
+          SOURCE_MONITOR_DIR="apps/jupiter/monitor-stack" # Ajusta si la ruta generada es diferente
+
+          # Crear directorio remoto y subdirectorio prometheus
+          ssh -o StrictHostKeyChecking=no $SCP_PORT_ARG $TARGET_HOST "mkdir -p ${TARGET_MONITOR_DIR}/prometheus"
+
+          # Copiar docker-compose.monitor.yml
+          scp -v -o StrictHostKeyChecking=no $SCP_PORT_ARG ${SOURCE_MONITOR_DIR}/docker-compose.monitor.yml ${TARGET_HOST}:${TARGET_MONITOR_DIR}/docker-compose.monitor.yml
+          # Copiar prometheus.yml
+          scp -v -o StrictHostKeyChecking=no $SCP_PORT_ARG ${SOURCE_MONITOR_DIR}/prometheus.yml ${TARGET_HOST}:${TARGET_MONITOR_DIR}/prometheus/prometheus.yml
+          echo "Copia de archivos de monitoreo completada."
 
       # Paso 6: Make Deploy Script Executable (SIN SUDO)
       - name: Make Deploy Script Executable
