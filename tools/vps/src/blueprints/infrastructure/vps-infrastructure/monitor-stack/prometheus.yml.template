@@ -1,0 +1,30 @@
+# tools/project/src/blueprints/infrastructure/monitor-stack/prometheus.yml.template
+global:
+  scrape_interval: 15s # Intervalo de recolección por defecto
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    # Prometheus se scrapea a sí mismo
+    static_configs:
+      - targets: ['localhost:9090'] # Usa localhost DENTRO del contenedor Prometheus
+
+  - job_name: 'node-exporter'
+    # Recolecta métricas del host a través del contenedor node-exporter
+    static_configs:
+      # Usa el nombre del servicio y puerto expuesto dentro de la red 'monitor-network'
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'cadvisor'
+    # Recolecta métricas de contenedores Docker a través de cAdvisor
+    static_configs:
+      # Usa el nombre del servicio y puerto expuesto dentro de la red 'monitor-network'
+      - targets: ['cadvisor:8080']
+
+  # --- Ejemplo Futuro: Scrapear una aplicación ---
+  # - job_name: 'jupiter-app-server' # Asumiendo que expone métricas en /metrics
+  #   static_configs:
+  #     # Si app-server está en OTRA red, se necesita configuración más avanzada
+  #     # o poner Prometheus en ambas redes.
+  #     # Si estuviera en la misma red 'monitor-network':
+  #     # - targets: ['jupiter-app-server:9101'] # Puerto donde la app expone métricas

@@ -1,0 +1,20 @@
+{
+  "name": "vps",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/vps/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/tools/vps",
+        "tsConfig": "tools/vps/tsconfig.lib.json",
+        "packageJson": "tools/vps/package.json",
+        "main": "tools/vps/src/index.ts",
+        "assets": ["tools/vps/*.md"]
+      }
+    }
+  }
+}
