@@ -27,8 +27,8 @@
       "create-worker": ["tools/create-worker/src/index.ts"],
       "haijin": ["tools/haijin/src/index.ts"],
       "project": ["tools/project/src/index.ts"],
-      "vps": ["tools/vps/src/index.ts"],
-      "tools": ["tools/src/index.ts"]
+      "tools": ["tools/src/index.ts"],
+      "vps": ["tools/vps/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

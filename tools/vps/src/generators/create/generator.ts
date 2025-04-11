@@ -4,7 +4,7 @@ import {
   names
 } from "@nx/devkit";
 import { CreateGeneratorSchema } from "./schema";
-import { GeneratorOptions } from '../../blueprints/types';
+import { GeneratorOptions } from './types';
 
 import { registerNxProjects } from './nx-project-registration';
 import { generateInfrastructure } from './generate-infrastructure';

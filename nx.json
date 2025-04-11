@@ -92,6 +92,10 @@
     "jupiter": {
       "tags": [],
       "root": "apps/jupiter"
+    },
+    "hostinger": {
+      "tags": [],
+      "root": "apps/hostinger"
     }
   }
 }

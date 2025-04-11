@@ -3,12 +3,12 @@
     "create": {
       "factory": "./src/generators/create/generator",
       "schema": "./src/generators/create/schema.json",
-      "description": "Crear un nuevo proyecto en la estructura de monorepo"
+      "description": "Crear un nuevo proyecto en la estructura de monorepo para desplegar en un VPS"
     },
     "remove": {
       "factory": "./src/generators/remove/generator",
       "schema": "./src/generators/remove/schema.json",
-      "description": "Remueve un proyecto de la estructura de monorepo"
+      "description": "Remueve un proyecto de despliegue de VPS de la estructura de monorepo"
     }
   }
 }

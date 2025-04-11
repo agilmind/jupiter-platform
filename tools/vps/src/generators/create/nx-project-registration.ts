@@ -1,5 +1,5 @@
 import { Tree, updateJson } from '@nx/devkit';
-import { GeneratorOptions } from '../../blueprints/types';
+import { GeneratorOptions } from './types';
 
 export function registerNxProjects(tree: Tree, options: GeneratorOptions): void {
   const { projectName, projectRoot } = options;
