@@ -118,21 +118,24 @@ export async function updateCdWorkflow(
     SECRET_NAME_KEY: 'VPS_${{ matrix.vps_name_upper }}_KEY',
   };
 
-  // --- PASOS DE DESPLIEGUE REALES (DESCOMENTADOS/FINALES) ---
   deployJob.steps = [
-    { name: 'Checkout Repository', uses: 'actions/checkout@v4' },
+      {
+         name: 'Checkout Repository',
+         uses: 'actions/checkout@v4'
+      },
     {
       name: 'Log Deployment Target',
-      run: 'echo "Deploying project ${{ matrix.vps_name }} to host ${{ secrets[env.SECRET_NAME_HOST] }}..."',
+      run: 'echo "Deploying project ${{ matrix.vps_name }} to host <span class="math-inline">\{\{ secrets\[env\.SECRET\_NAME\_HOST\] \}\}\.\.\."'
     },
     {
-      name: 'Setup SSH Agent',
-      uses: 'webfactory/ssh-agent@v0.9.0',
-      with: { 'ssh-private-key': '\${{ secrets[env.SECRET_NAME_KEY] }}' },
-    },
-    {
-      name: 'Add VPS Host to Known Hosts',
-      run: `|
+       name: 'Setup SSH Agent',
+       uses: 'webfactory/ssh-agent@v0.9.0',
+       with: {
+         'ssh-private-key': "\${{ secrets[env.SECRET_NAME_KEY] }}",
+       },
+    },      {
+         name: 'Add VPS Host to Known Hosts',
+         run: `
           VPS_HOST="\${{ secrets[env.SECRET_NAME_HOST] }}"
           if [ -z "$VPS_HOST" ]; then echo "Error: VPS host secret missing." >&2; exit 1; fi
           mkdir -p ~/.ssh
@@ -141,56 +144,54 @@ export async function updateCdWorkflow(
           chmod 600 ~/.ssh/known_hosts
           echo "Added $VPS_HOST to known_hosts"
          `,
-    },
-    {
-      name: 'Sync Files via Rsync',
-      run: `|
+      },
+      {
+         name: 'Sync Files via Rsync',
+         // CORREGIDO: Sin el '|' inicial dentro del backtick
+         run: `
           VPS_HOST="\${{ secrets[env.SECRET_NAME_HOST] }}"
           SECRET_USER_VALUE="\${{ secrets[env.SECRET_NAME_USER] }}"
-          VPS_USER="\${SECRET_USER_VALUE:-deploy}" # Default a 'deploy'
+          VPS_USER="\${SECRET_USER_VALUE:-deploy}"
           PROJECT_NAME="\${{ matrix.vps_name }}"
           TARGET_DIR="/home/\${VPS_USER}/apps/\${PROJECT_NAME}"
-          SOURCE_DIR="./apps/\${PROJECT_NAME}/" # Directorio fuente
+          SOURCE_DIR="./apps/\${PROJECT_NAME}/"
 
           if [ ! -d "$SOURCE_DIR" ]; then echo "Error: Source directory \${SOURCE_DIR} not found." >&2; exit 1; fi
 
           echo "Syncing \${SOURCE_DIR} to \${VPS_USER}@\${VPS_HOST}:\${TARGET_DIR}/"
-          # Usar -L para copiar contenido de links simbólicos si los hubiera
-          # Excluir .git si estuviera accidentalmente dentro
           rsync -avzL --delete --exclude='.git' \
             "\${SOURCE_DIR}" \
             "\${VPS_USER}@\${VPS_HOST}:\${TARGET_DIR}/" \
             || { echo "Rsync failed!"; exit 1; }
           echo "Rsync finished."
          `,
-    },
-    {
-      name: 'Execute Remote Deployment Script',
-      run: `|
+      },
+      {
+         name: 'Execute Remote Deployment Script',
+         // CORREGIDO: Sin el '|' inicial dentro del backtick
+         run: `
           VPS_HOST="\${{ secrets[env.SECRET_NAME_HOST] }}"
           SECRET_USER_VALUE="\${{ secrets[env.SECRET_NAME_USER] }}"
           VPS_USER="\${SECRET_USER_VALUE:-deploy}"
           PROJECT_NAME="\${{ matrix.vps_name }}"
           REMOTE_APP_DIR="/home/\${VPS_USER}/apps/\${PROJECT_NAME}"
+          REMOTE_SCRIPT_PATH="\${REMOTE_APP_DIR}/deploy.sh"
 
-          echo "Executing deploy.sh on \${VPS_USER}@\${VPS_HOST} in \${REMOTE_APP_DIR}"
-          # Usar comillas dobles en Here Doc para expansión local de $PROJECT_NAME y $REMOTE_APP_DIR
+          echo "Executing \${REMOTE_SCRIPT_PATH} on \${VPS_USER}@\${VPS_HOST}..."
           ssh "\${VPS_USER}@\${VPS_HOST}" << EOF
-            echo "[Remote] Changing directory to \${REMOTE_APP_DIR}"
+            echo "[Remote] Executing deploy script for \${PROJECT_NAME}..."
             cd "\${REMOTE_APP_DIR}" || { echo "[Remote] Failed to cd to \${REMOTE_APP_DIR}"; exit 1; }
-            echo "[Remote] Executing bash deploy.sh..."
-            bash deploy.sh # Ejecutar el script de despliegue que subimos
-            SCRIPT_EXIT_CODE=$? # Capturar código de salida
+            bash deploy.sh
+            SCRIPT_EXIT_CODE=$?
             echo "[Remote] deploy.sh finished with exit code $SCRIPT_EXIT_CODE."
-            exit $SCRIPT_EXIT_CODE # Salir con el mismo código que deploy.sh
+            exit $SCRIPT_EXIT_CODE
           EOF
-          SSH_EXIT_CODE=$? # Capturar código de salida de SSH
+          SSH_EXIT_CODE=$?
           if [ $SSH_EXIT_CODE -ne 0 ]; then echo "Remote script execution failed with exit code $SSH_EXIT_CODE!"; exit $SSH_EXIT_CODE; fi
           echo "Remote script executed successfully."
          `,
-    },
+      },
   ];
-  // --- FIN PASOS REALES ---
 
   workflow.jobs['deploy'] = deployJob;
   logger.info(`Job 'deploy' configured with REAL deployment steps targeting environment 'vps-production'.`);
