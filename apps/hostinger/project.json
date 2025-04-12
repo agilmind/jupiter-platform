@@ -1,0 +1,27 @@
+{
+  "name": "hostinger",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/hostinger",
+  "projectType": "application",
+  "tags": ["type:vps", "scope:hostinger"],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "apps/hostinger/deploy.sh"
+          // Add other config files (e.g., *.conf, *.yml) later if needed
+        ]
+      },
+      "outputs": ["{options.outputFile}"]
+    },
+    "deploy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "echo 'INFO: Deployment for hostinger is handled by the CD workflow (.github/workflows/cd-deploy.yml). It executes apps/hostinger/deploy.sh on the target server. Use nx affected --target=deploy to see if this project would be deployed.'"
+      },
+      "dependsOn": ["lint"]
+    }
+    // No 'build' target applicable for this project type.
+  }
+}
