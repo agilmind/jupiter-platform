@@ -1,38 +1,41 @@
 #!/bin/bash
 # ==============================================================================
-# Script para GitHub Actions: Calcula Proyectos Afectados y Genera Matriz (v2 Debug)
+# Script para GitHub Actions: Calcula Proyectos Afectados y Genera Matriz (v3 - Usa print-affected)
 # ==============================================================================
-set -euo pipefail # Mantenemos pipefail, pero capturaremos errores
+set -euo pipefail
 
 echo "[calculate-affected.sh] Calculating affected projects with target 'deploy'..."
 echo "[calculate-affected.sh] Base SHA: $NX_BASE | Head SHA: $NX_HEAD"
 
-# --- Paso de Depuración: Capturar y mostrar salida cruda ---
-echo "[calculate-affected.sh] Running nx affected command..."
-# Ejecutar comando y capturar salida y código de error por separado
-# Usamos || true para que el script no falle aquí si nx affected devuelve error, queremos analizarlo
-RAW_AFFECTED_OUTPUT=$(npx nx affected --target=deploy --base=$NX_BASE --head=$NX_HEAD --json --exclude=tag:type:other-app || true)
-NX_EXIT_CODE=$? # Capturar código de salida real (puede ser 0 incluso si hubo output de error)
+# --- Usar nx print-affected para obtener solo la lista JSON ---
+echo "[calculate-affected.sh] Running nx print-affected command..."
+# Capturar salida y manejar errores de forma más robusta
+RAW_AFFECTED_OUTPUT=""
+NX_EXIT_CODE=0
+# Usamos --select=projects para obtener solo los nombres de los proyectos
+# La salida esperada es JSON: {"projects": ["proj1", "proj2"]}
+RAW_AFFECTED_OUTPUT=$(npx nx print-affected --target=deploy --select=projects --json --base=$NX_BASE --head=$NX_HEAD --exclude=tag:type:other-app) || NX_EXIT_CODE=$?
 
-echo "[calculate-affected.sh] nx affected command finished." # Código de salida no fiable aquí si usamos || true
-echo "[calculate-affected.sh] Raw output from nx affected command:"
+echo "[calculate-affected.sh] nx print-affected exit code: $NX_EXIT_CODE"
+echo "[calculate-affected.sh] Raw output from nx print-affected:"
 echo "--------------------- BEGIN RAW OUTPUT ---------------------"
 echo "$RAW_AFFECTED_OUTPUT"
 echo "---------------------- END RAW OUTPUT ----------------------"
-# --- Fin Paso de Depuración ---
 
-# Intentar parsear con jq, pero ser más robustos
-echo "[calculate-affected.sh] Attempting to parse JSON with jq..."
-# Usamos <<< para pasar el string a jq, y manejamos el error de jq explícitamente
-AFFECTED_JSON=$(jq -c '.projects' <<< "$RAW_AFFECTED_OUTPUT" 2>/dev/null || echo '[]') # Redirigir error de jq a /dev/null, fallback a []
-JQ_EXIT_CODE=$?
+# Verificar si el comando falló o la salida está vacía
+if [ $NX_EXIT_CODE -ne 0 ] || [ -z "$RAW_AFFECTED_OUTPUT" ]; then
+    echo "[calculate-affected.sh] WARNING: 'nx print-affected' failed or produced empty output. Assuming no projects affected."
+    AFFECTED_JSON="[]"
+else
+    # Intentar parsear con jq la propiedad 'projects'
+    echo "[calculate-affected.sh] Attempting to parse .projects from JSON output with jq..."
+    AFFECTED_JSON=$(echo "$RAW_AFFECTED_OUTPUT" | jq -c '.projects' 2>/dev/null || echo '[]')
+    JQ_EXIT_CODE=$?
 
-if [[ "$AFFECTED_JSON" == "null" || -z "$AFFECTED_JSON" || $JQ_EXIT_CODE -ne 0 ]]; then
-    echo "[calculate-affected.sh] WARNING: jq parsing failed or result was null/empty. Treating as no affected projects."
-    if [[ $JQ_EXIT_CODE -ne 0 ]]; then
-        echo "[calculate-affected.sh] jq exit code: $JQ_EXIT_CODE"
+    if [[ "$AFFECTED_JSON" == "null" || $JQ_EXIT_CODE -ne 0 ]]; then
+        echo "[calculate-affected.sh] WARNING: jq failed to parse '.projects' or result was null. Raw output logged above."
+        AFFECTED_JSON="[]" # Asegurar array vacío
     fi
-    AFFECTED_JSON="[]" # Asegurar que sea un array vacío válido
 fi
 
 echo "[calculate-affected.sh] Parsed/Fallback Affected Projects JSON: $AFFECTED_JSON"
@@ -42,7 +45,18 @@ export AFFECTED_JSON
 
 # Usar node para construir la matriz (igual que antes)
 MATRIX_OBJECT=$(node -e "
-  try { /* ... Mismo código Node ... */ console.log(JSON.stringify({ include: includeList })); } catch (e) { /* ... */ console.log(JSON.stringify({ include: [] })); }
+  try {
+    const projects = JSON.parse(process.env.AFFECTED_JSON || '[]');
+    const validProjects = projects.filter(p => typeof p === 'string' && p.length > 0);
+    const includeList = validProjects.map(p => ({
+      vps_name: p,
+      vps_name_upper: p.toUpperCase().replace(/-/g, '_')
+    }));
+    console.log(JSON.stringify({ include: includeList }));
+  } catch (e) {
+    console.error('[NodeScript] Error processing affected projects:', e);
+    console.log(JSON.stringify({ include: [] }));
+  }
 " || echo '{"include":[]}')
 
 HAS_AFFECTED=$(node -e "try { console.log(JSON.parse(process.env.AFFECTED_JSON || '[]').length > 0 ? 'true' : 'false'); } catch { console.log('false'); }" || echo 'false')
@@ -54,9 +68,3 @@ echo "matrix=$(echo $MATRIX_OBJECT | jq -c .)" >> $GITHUB_OUTPUT
 echo "has_affected=$HAS_AFFECTED" >> $GITHUB_OUTPUT
 
 echo "[calculate-affected.sh] Outputs set for GitHub Actions."
-
-# Opcional: si quieres que el paso falle si nx/jq fallaron gravemente antes
-# if [ $NX_EXIT_CODE -ne 0 ] || [ $JQ_EXIT_CODE -ne 0 ]; then
-#   echo "[calculate-affected.sh] Exiting with error due to previous failures."
-#   exit 1
-# fi
