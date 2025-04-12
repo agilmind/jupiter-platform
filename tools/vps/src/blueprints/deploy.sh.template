@@ -1,56 +1,59 @@
 #!/bin/bash
 # ==============================================================================
-# Deployment Simulation Script for VPS: <%= vpsName %> (Phase 1: Hello World)
+# Deployment Script for VPS: <%= vpsName %> (Phase 2: Docker Compose)
 # ==============================================================================
-# This script is intended to be executed on the target VPS associated with <%= vpsName %>
-# by the 'deploy' user, typically triggered by the CD workflow.
-# In this phase, it only simulates actions and logs information.
-#
-# IMPORTANT: Run this script from the directory where it resides.
-# The CD workflow should copy files here and then execute:
-# ssh deploy@<vps_ip> 'cd /home/deploy/apps/<%= vpsName %> && bash deploy.sh'
+# Ejecutado en el servidor VPS por el usuario 'deploy' via CD workflow.
+# Se asume que se ejecuta desde /home/deploy/apps/<%= vpsName %>/
 # ==============================================================================
-
-# --- Strict Mode ---
 set -euo pipefail
 
-# --- Variables ---
 readonly VPS_NAME="<%= vpsName %>"
-# Get the directory where the script itself is located
+readonly COMPOSE_FILE="docker-compose.vps.yml"
 readonly SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-# --- Helper: Log messages ---
-log_info() {
-    echo "[INFO] [${VPS_NAME}] $1"
+log_info() { echo "[INFO] [${VPS_NAME}] $1"; }
+log_step() { echo "--------------------"; log_info "$1"; echo "--------------------"; }
+log_error() { echo "[ERROR] [${VPS_NAME}] $1" >&2; }
+
+# --- Asegurar que la red exista ---
+ensure_network() {
+    local network_name="webproxy" # Nombre de la red definida en docker-compose
+    if ! docker network inspect "$network_name" > /dev/null 2>&1; then
+        log_info "Network '$network_name' not found. Creating..."
+        docker network create "$network_name" || { log_error "Failed to create network '$network_name'."; exit 1; }
+        log_info "Network '$network_name' created successfully."
+    else
+        log_info "Network '$network_name' already exists."
+    fi
 }
 
-log_step() {
-    echo "-----------------------------------------------------"
-    log_info "$1"
-    echo "-----------------------------------------------------"
-}
+# --- Ejecución Principal ---
+log_info "Starting deployment for ${VPS_NAME}..."
+cd "${SCRIPT_DIR}" # Asegurarse de estar en el directorio correcto
+log_info "Current directory: $(pwd)"
+log_info "User: $(whoami)"
 
-# --- Main Execution ---
-log_info "Deployment Simulation Started for ${VPS_NAME}"
-log_info "Executing User: $(whoami)"
-log_info "Script Location: ${SCRIPT_DIR}"
-log_info "Current Directory: $(pwd)"
-log_info "Timestamp: $(date)"
+log_step "Step 1: Ensuring Docker network exists..."
+ensure_network
 
-log_step "Step 1/2: Verifying required files..."
-# Check if index.html exists as a basic check
-if [[ -f "${SCRIPT_DIR}/index.html" ]]; then
-    log_info "Found index.html."
-    ls -la "${SCRIPT_DIR}" # List files for context
-else
-    log_info "WARNING: index.html not found in ${SCRIPT_DIR}!"
-fi
+log_step "Step 2: Pulling latest Docker images..."
+# Usar docker compose (v2 syntax)
+docker compose -f "${COMPOSE_FILE}" pull || { log_error "Failed to pull images."; exit 1; }
 
-log_step "Step 2/2: Simulating service configuration/restart..."
-log_info "(No actual services like Docker or Nginx are configured in Phase 1)"
-log_info "Hypothetically, commands like 'docker compose up -d' or 'nginx -s reload' would run here."
-sleep 1 # Simulate work
+log_step "Step 3: Starting/Updating services with Docker Compose..."
+# -d: detached mode
+# --remove-orphans: elimina contenedores de servicios que ya no existen en el compose file
+# --force-recreate: opcional, fuerza la recreación incluso si la config no cambió (útil si la imagen cambió)
+# --build: opcional, si necesitaras construir una imagen localmente
+docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans --force-recreate || { log_error "Docker compose up failed."; exit 1; }
 
-log_info "Deployment Simulation Finished Successfully for ${VPS_NAME}!"
+# Opcional: Mostrar logs recientes
+log_step "Step 4: Displaying recent logs (optional)..."
+docker compose -f "${COMPOSE_FILE}" logs --tail=30
 
+# Opcional: Limpiar imágenes viejas no usadas
+log_step "Step 5: Pruning old Docker images (optional)..."
+docker image prune -f
+
+log_info "Deployment for ${VPS_NAME} finished successfully!"
 exit 0

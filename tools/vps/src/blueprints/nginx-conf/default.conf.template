@@ -1,0 +1,63 @@
+# apps/<%= vpsName %>/nginx-conf/default.conf
+# Configuración básica HTTP para el sitio <%= vpsName %>
+# Servido por Nginx dentro de Docker
+
+server {
+    # Escuchar en el puerto 80 para IPv4 e IPv6
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    # Nombre del servidor. Usar '_' como catch-all o reemplazar con dominio real.
+    # Ejemplo: server_name <%= vpsName %>.tudominio.com www.<%= vpsName %>.tudominio.com;
+    server_name _;
+
+    # Raíz del contenido web (mapeado desde ./html via docker-compose)
+    root /usr/share/nginx/html;
+    # Archivo índice por defecto
+    index index.html index.htm;
+
+    # Servir archivos directamente
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Servir los desafíos ACME de Let's Encrypt (webroot)
+    # La raíz aquí DEBE coincidir con el montaje del volumen en docker-compose
+    location /.well-known/acme-challenge/ {
+        root /usr/share/nginx/html/acme-challenges;
+    }
+
+    # --- Cabeceras de seguridad básicas (Recomendado) ---
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    # Considera añadir una Content-Security-Policy más estricta según tu aplicación
+    # add_header Content-Security-Policy "default-src 'self'; ...";
+
+    # --- Logs (Opcional - Docker gestiona logs del contenedor) ---
+    # access_log /var/log/nginx/<%= vpsName %>.access.log;
+    # error_log /var/log/nginx/<%= vpsName %>.error.log;
+}
+
+# --- Bloque SSL (Para Fase 3+) ---
+# Descomentar y configurar cuando implementemos HTTPS
+# server {
+#     listen 443 ssl http2 default_server;
+#     listen [::]:443 ssl http2 default_server;
+#     server_name _; # Reemplazar con dominio real
+
+#     # Certificados (mapeados desde /etc/letsencrypt via docker-compose)
+#     # Asegúrate que la ruta coincida con el nombre del certificado generado por Certbot
+#     ssl_certificate /etc/letsencrypt/live/<%= vpsName %>/fullchain.pem; # Ajustar si el nombre del cert difiere
+#     ssl_certificate_key /etc/letsencrypt/live/<%= vpsName %>/privkey.pem; # Ajustar si el nombre del cert difiere
+
+#     # Incluir configuraciones de seguridad SSL (ej. generadas o estándar)
+#     # include /etc/nginx/conf.d/options-ssl-nginx.conf; # Necesitarías montar este archivo también
+#     # ssl_dhparam /etc/nginx/conf.d/ssl-dhparams.pem; # Necesitarías montar este archivo también
+
+#     # Resto de la configuración (root, index, locations) similar al bloque HTTP
+#     root /usr/share/nginx/html;
+#     index index.html index.htm;
+#     location / { try_files $uri $uri/ =404; }
+#     location /.well-known/acme-challenge/ { root /usr/share/nginx/html/acme-challenges; }
+# }

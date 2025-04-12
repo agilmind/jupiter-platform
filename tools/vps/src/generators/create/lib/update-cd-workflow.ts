@@ -1,12 +1,21 @@
-import { Tree, logger, readNxJson } from '@nx/devkit';
+import { Tree, logger } from '@nx/devkit';
 import * as yaml from 'js-yaml';
-import { readFileSync } from 'node:fs'; // Importar desde Node.js fs
-import { join } from 'node:path'; // Importar desde Node.js path
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { NormalizedOptions } from 'vps';
 
-// Asumimos que estas interfaces/funciones existen o se importan
-interface VpsCreateGeneratorSchema { name: string; directory?: string; tags?: string; }
-interface NormalizedOptions extends VpsCreateGeneratorSchema { projectName: string; projectRoot: string; projectDirectory: string; vpsName: string; parsedTags: string[]; }
-function getDefaultBranch(tree: Tree): string { /* ... implementación ... */ try { const nxJson = tree.read('nx.json', 'utf-8'); if (nxJson) { const parsedNxJson = JSON.parse(nxJson); return parsedNxJson?.defaultBase || 'main'; } } catch (e) { logger.warn("Could not read/parse nx.json. Defaulting to 'main'."); } return 'main'; }
+function getDefaultBranch(tree: Tree): string {
+  try {
+    const nxJson = tree.read('nx.json', 'utf-8');
+    if (nxJson) {
+      const parsedNxJson = JSON.parse(nxJson);
+      return parsedNxJson?.defaultBase || 'main';
+    }
+  } catch (e) {
+    logger.warn("Could not read/parse nx.json. Defaulting to 'main'.");
+  }
+  return 'main';
+}
 
 
 const WORKFLOW_PATH = '.github/workflows/cd-deploy.yml';
@@ -106,27 +115,89 @@ export async function updateCdWorkflow(
   deployJob.name = deployJob.name ?? 'Deploy Affected VPS Configurations';
   deployJob.needs = deployJob.needs ?? 'determine-affected';
   deployJob.if = deployJob.if ?? "\${{ needs.determine-affected.outputs.has_affected == 'true' }}";
-  deployJob.environment = {
-    name: 'vps-production', // Usa el nombre exacto del Environment que creaste
-    // Opcional: URL para mostrar en GitHub Actions
-    // url: 'https://${{ secrets[format("VPS_{0}_HOST", matrix.vps_name_upper)] }}' // Ejemplo
+  deployJob.environment = { // Mantenemos el environment para aprobación
+    name: 'vps-production',
+    url: 'http://${{ secrets[format("VPS_{0}_HOST", matrix.vps_name_upper)] }}'
   };
   deployJob['runs-on'] = deployJob['runs-on'] ?? 'ubuntu-latest';
   deployJob.strategy = deployJob.strategy ?? {
     'fail-fast': false,
     matrix: '${{ fromJson(needs.determine-affected.outputs.affected_matrix) }}',
   };
-  deployJob.steps = [ // Definir pasos para Fase 1
-      { name: 'Checkout Repository', uses: 'actions/checkout@v4' },
-      { name: 'Log Deployment Target', run: 'echo "Attempting deployment for VPS: ${{ matrix.vps_name }}..."' },
+
+  deployJob.steps = [
       {
-          name: 'Simulate Deployment Steps',
-          // Leer script desde archivo
-          run: readWorkflowScript('simulate-deploy.sh'),
+         name: 'Checkout Repository',
+         uses: 'actions/checkout@v4'
+      },
+      {
+         name: 'Log Deployment Target',
+         run: 'echo "Deploying project ${{ matrix.vps_name }} to host ${{ secrets[format("VPS_{0}_HOST", matrix.vps_name_upper)] }}..."'
+      },
+      {
+         name: 'Setup SSH Agent',
+         uses: 'webfactory/ssh-agent@v0.9.0',
+         with: {
+           // Usar formato dinámico para obtener la clave privada correcta del secret
+           'ssh-private-key': "\${{ secrets[format('VPS_{0}_KEY', matrix.vps_name_upper)] }}",
+         },
+      },
+      {
+         name: 'Add VPS Host to Known Hosts',
+         run: `
+          VPS_HOST="\${{ secrets[format('VPS_{0}_HOST', matrix.vps_name_upper)] }}"
+          if [ -z "$VPS_HOST" ]; then
+            echo "Error: VPS host secret is not set."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          echo "Added $VPS_HOST to known_hosts"
+         `,
+      },
+      {
+         name: 'Sync Files via Rsync',
+         run: `
+          VPS_HOST="\${{ secrets[format('VPS_{0}_HOST', matrix.vps_name_upper)] }}"
+          VPS_USER="\${{ secrets[format('VPS_{0}_USER', matrix.vps_name_upper)]:-deploy}}" # Default a 'deploy' si USER no está
+          PROJECT_NAME="\${{ matrix.vps_name }}"
+          TARGET_DIR="/home/\${VPS_USER}/apps/\${PROJECT_NAME}" # Asume estructura creada por script setup
+
+          echo "Syncing ./apps/\${PROJECT_NAME}/ to \${VPS_USER}@\${VPS_HOST}:\${TARGET_DIR}/"
+          # -a: archive mode (recursive, links, perms, times, group, owner, devices)
+          # -v: verbose
+          # -z: compress
+          # --delete: delete files on destination that don't exist on source
+          rsync -avz --delete \
+            ./apps/\${PROJECT_NAME}/ \
+            "\${VPS_USER}@\${VPS_HOST}:\${TARGET_DIR}/" \
+            || { echo "Rsync failed!"; exit 1; }
+         `,
+      },
+      {
+         name: 'Execute Remote Deployment Script',
+         run: `
+          VPS_HOST="\${{ secrets[format('VPS_{0}_HOST', matrix.vps_name_upper)] }}"
+          VPS_USER="\${{ secrets[format('VPS_{0}_USER', matrix.vps_name_upper)]:-deploy}}"
+          PROJECT_NAME="\${{ matrix.vps_name }}"
+          REMOTE_SCRIPT_PATH="/home/\${VPS_USER}/apps/\${PROJECT_NAME}/deploy.sh"
+
+          echo "Executing \${REMOTE_SCRIPT_PATH} on \${VPS_USER}@\${VPS_HOST}..."
+          # Usar Here Document para pasar comandos a ssh
+          ssh "\${VPS_USER}@\${VPS_HOST}" << EOF
+            echo "[Remote] Executing deploy script for \${PROJECT_NAME}..."
+            cd "$(dirname "\${REMOTE_SCRIPT_PATH}")" || exit 1 # Cambiar al directorio del script
+            bash "$(basename "\${REMOTE_SCRIPT_PATH}")" # Ejecutar el script
+            echo "[Remote] deploy.sh finished."
+          EOF
+          # Comprobar el código de salida de SSH (aunque el 'exit 1' dentro del heredoc debería funcionar)
+          if [ $? -ne 0 ]; then echo "Remote script execution failed!"; exit 1; fi
+         `,
       },
   ];
+
   workflow.jobs['deploy'] = deployJob;
-  logger.info(`Job 'deploy' configured to target environment 'vps-production' (requires approval if set).`);
+  logger.info(`Job 'deploy' configured to target environment 'vps-production'.`);
 
   // --- Escribir YAML ---
   try {

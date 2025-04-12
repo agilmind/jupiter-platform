@@ -1,2 +1,2 @@
-export * from "./generator";
+export { default } from './generator';
 export * from "./schema";

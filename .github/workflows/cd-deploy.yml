@@ -94,40 +94,57 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Log Deployment Target
-        run: 'echo "Attempting deployment for VPS: ${{ matrix.vps_name }}..."'
-      - name: Simulate Deployment Steps
-        run: |
-          #!/bin/bash
-          # ==============================================================================
-          # Script para GitHub Actions: Simula Pasos de Despliegue (Fase 1)
-          # ==============================================================================
-          set -euo pipefail
+        run: echo "Deploying project ${{ matrix.vps_name }} to host ${{ secrets[format("VPS_{0}_HOST", matrix.vps_name_upper)] }}..."
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets[format('VPS_{0}_KEY', matrix.vps_name_upper)] }}
+      - name: Add VPS Host to Known Hosts
+        run: |2-
 
-          # Acceder a las variables de la matriz definidas en el job 'strategy'
-          # GitHub Actions las expone como variables de entorno
-          VPS_NAME="${{ matrix.vps_name }}"
-          VPS_NAME_UPPER="${{ matrix.vps_name_upper }}"
+                    VPS_HOST="${{ secrets[format('VPS_{0}_HOST', matrix.vps_name_upper)] }}"
+                    if [ -z "$VPS_HOST" ]; then
+                      echo "Error: VPS host secret is not set."
+                      exit 1
+                    fi
+                    mkdir -p ~/.ssh
+                    ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+                    echo "Added $VPS_HOST to known_hosts"
 
-          # Acceder a secrets (estos solo tendrán valor dentro de GitHub Actions)
-          # Usamos format() para construir el nombre del secret dinámicamente
-          TARGET_HOST="\${{ secrets[format('VPS_{0}_HOST', matrix.vps_name_upper)] }}"
-          TARGET_USER="\${{ secrets[format('VPS_{0}_USER', matrix.vps_name_upper)] }}" # Asumimos 'deploy' pero podría ser un secret
+      - name: Sync Files via Rsync
+        run: |2-
 
-          echo "[simulate-deploy.sh] Phase 1: Simulation Only for ${VPS_NAME}"
-          echo "--------------------------------------------------"
-          echo "[simulate-deploy.sh] Target Host (from secrets): ${TARGET_HOST:-<secret VPS_${VPS_NAME_UPPER}_HOST not available>}"
-          echo "[simulate-deploy.sh] Target User (from secrets): ${TARGET_USER:-<secret VPS_${VPS_NAME_UPPER}_USER not available, using default 'deploy'>}"
-          USER_TO_CONNECT=${TARGET_USER:-deploy} # Usar default si el secret no está
+                    VPS_HOST="${{ secrets[format('VPS_{0}_HOST', matrix.vps_name_upper)] }}"
+                    VPS_USER="${{ secrets[format('VPS_{0}_USER', matrix.vps_name_upper)]:-deploy}}" # Default a 'deploy' si USER no está
+                    PROJECT_NAME="${{ matrix.vps_name }}"
+                    TARGET_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}" # Asume estructura creada por script setup
 
-          echo ""
-          echo "[simulate-deploy.sh] Would normally perform these steps:"
-          echo "1. Setup SSH using secret VPS_${VPS_NAME_UPPER}_KEY"
-          echo "2. Add remote host ${TARGET_HOST} to known_hosts"
-          echo "3. Sync files from ./apps/${VPS_NAME}/ to ${USER_TO_CONNECT}@${TARGET_HOST}:/home/deploy/apps/${VPS_NAME}/ via rsync"
-          echo "4. Execute remote 'bash deploy.sh' in /home/deploy/apps/${VPS_NAME} via ssh ${USER_TO_CONNECT}@${TARGET_HOST}"
-          echo "--------------------------------------------------"
+                    echo "Syncing ./apps/${PROJECT_NAME}/ to ${VPS_USER}@${VPS_HOST}:${TARGET_DIR}/"
+                    # -a: archive mode (recursive, links, perms, times, group, owner, devices)
+                    # -v: verbose
+                    # -z: compress
+                    # --delete: delete files on destination that don't exist on source
+                    rsync -avz --delete             ./apps/${PROJECT_NAME}/             "${VPS_USER}@${VPS_HOST}:${TARGET_DIR}/"             || { echo "Rsync failed!"; exit 1; }
 
-          echo "[simulate-deploy.sh] Simulating work..."
-          sleep 2
+      - name: Execute Remote Deployment Script
+        run: |2-
 
-          echo "[simulate-deploy.sh] Simulation finished successfully."
+                    VPS_HOST="${{ secrets[format('VPS_{0}_HOST', matrix.vps_name_upper)] }}"
+                    VPS_USER="${{ secrets[format('VPS_{0}_USER', matrix.vps_name_upper)]:-deploy}}"
+                    PROJECT_NAME="${{ matrix.vps_name }}"
+                    REMOTE_SCRIPT_PATH="/home/${VPS_USER}/apps/${PROJECT_NAME}/deploy.sh"
+
+                    echo "Executing ${REMOTE_SCRIPT_PATH} on ${VPS_USER}@${VPS_HOST}..."
+                    # Usar Here Document para pasar comandos a ssh
+                    ssh "${VPS_USER}@${VPS_HOST}" << EOF
+                      echo "[Remote] Executing deploy script for ${PROJECT_NAME}..."
+                      cd "$(dirname "${REMOTE_SCRIPT_PATH}")" || exit 1 # Cambiar al directorio del script
+                      bash "$(basename "${REMOTE_SCRIPT_PATH}")" # Ejecutar el script
+                      echo "[Remote] deploy.sh finished."
+                    EOF
+                    # Comprobar el código de salida de SSH (aunque el 'exit 1' dentro del heredoc debería funcionar)
+                    if [ $? -ne 0 ]; then echo "Remote script execution failed!"; exit 1; fi
+
+    environment:
+      name: vps-production
+      url: http://${{ secrets[format("VPS_{0}_HOST", matrix.vps_name_upper)] }}

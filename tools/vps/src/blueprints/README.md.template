@@ -4,7 +4,7 @@ This directory contains the generated configuration files intended for the Virtu
 
 Files managed by the `@mi-org/vps` Nx generator (scope: `<%= scope %>`).
 
-**Current Stage:** Hello World (Phase 1) - Basic structure and simulated deployment script.
+**Current Stage:** Phase 2 - Basic Docker Compose/Nginx Deployment.
 
 ---
 
@@ -20,27 +20,19 @@ Before the automated CD workflow can deploy this configuration, ensure the targe
    * **Refer to `tools/vps/README.md` for detailed execution instructions.**
 
 **2. GitHub Actions Secrets:**
-       * El CD workflow (`.github/workflows/cd-deploy.yml`) requiere los siguientes secrets para **este despliegue (`<%= vpsName %>`)** configurados en GitHub (`Settings` > `Secrets and variables` > `Actions` > `Repository secrets`):
-         * **`VPS_<%= vpsName.toUpperCase().replace(/-/g, '_') %>_HOST`**: IP Address o FQDN del servidor.
-         * **`VPS_<%= vpsName.toUpperCase().replace(/-/g, '_') %>_USER`**: Usuario SSH (normalmente `deploy`).
-         * **`VPS_<%= vpsName.toUpperCase().replace(/-/g, '_') %>_KEY`**: La **CLAVE PRIVADA** SSH completa.
-           * **Generación:** Esta clave pertenece a un par (pública/privada) que debes generar **específicamente** para despliegues (¡NO uses tu clave personal!). En tu máquina local, puedes crearla con:
-             ```bash
-             # Elige un nombre de archivo descriptivo, ej: github_actions_deploy_key
-             ssh-keygen -t ed25519 -f ~/.ssh/github_actions_deploy_key -C "VPS Deploy Key"
-             # (Presiona Enter para no poner passphrase si la usarás directamente en secrets)
-             ```
-           * **Uso:**
-             * El contenido de la **clave pública** (`~/.ssh/github_actions_deploy_key.pub`) es el que debes proporcionar al script `vps-initial-setup.sh` (o añadir manualmente a `/home/deploy/.ssh/authorized_keys` en el servidor).
-             * El contenido **completo** de la **clave privada** (el archivo `~/.ssh/github_actions_deploy_key`, incluyendo `-----BEGIN...` y `-----END...`) es el que debes pegar como valor del secret `VPS_<%= vpsName.toUpperCase().replace(/-/g, '_') %>_KEY` en GitHub.
+   * The CD workflow (`.github/workflows/cd-deploy.yml`) requires the following secrets for **this deployment (`<%= vpsName %>`)** configured in GitHub (`Settings` > `Secrets and variables` > `Actions` > `Repository secrets`):
+     * **`VPS_<%= vpsName.toUpperCase().replace(/-/g, '_') %>_HOST`**: IP Address or FQDN of the target server.
+     * **`VPS_<%= vpsName.toUpperCase().replace(/-/g, '_') %>_USER`**: SSH username for deployment (usually `deploy`).
+     * **`VPS_<%= vpsName.toUpperCase().replace(/-/g, '_') %>_KEY`**: The **PRIVATE** SSH key.
+       * **Generación:** Crea un par de claves (pública/privada) **específico** para despliegues (ej: `ssh-keygen -t ed25519 -f ~/.ssh/github_actions_deploy_key`). ¡NO USES tu clave personal!
+       * **Uso:** La clave **pública** (`.pub`) se añade al `/home/deploy/.ssh/authorized_keys` del servidor (el script `vps-initial-setup.sh` te ayuda). La clave **privada** completa (incluyendo `-----BEGIN...` y `-----END...`) se pega como valor de este secret en GitHub.
 
 **3. Deployment Process:**
    * Committing and pushing changes within this directory (`apps/<%= vpsName %>/`) to the `main` branch will trigger the GitHub Actions workflow.
    * The workflow will:
      * Determine if this project (`<%= vpsName %>`) was affected.
-     * (Phase 2+) Connect to the server using the configured secrets (e.g., `VPS_<%= vpsName.toUpperCase().replace(/-/g, '_') %>_HOST`, etc.).
-     * (Phase 2+) Copy the files from this directory to `/home/deploy/apps/<%= vpsName %>/` on the server.
-     * (Phase 2+) Execute `./deploy.sh` within that directory on the server as the `deploy` user.
-     * (Phase 1 - Current) The workflow currently only simulates these deployment steps.
+     * Connect to the server using the configured secrets.
+     * Copy the files from this directory (`docker-compose.vps.yml`, `html/`, `nginx-conf/`, `deploy.sh`) to `/home/deploy/apps/<%= vpsName %>/` on the server.
+     * Execute `./deploy.sh` within that directory on the server as the `deploy` user (which uses `docker compose` to start Nginx).
 
 **Refer to `tools/vps/README.md` for the full project strategy and advanced configuration details.**
