@@ -52,15 +52,13 @@ export async function updateCdWorkflow(
   workflow.jobs['determine-affected'] = determineAffectedJob;
 
 
-  // --- Job: deploy (ACTUALIZADO CON ENV Y RUN CORREGIDOS) ---
+  // --- Job: deploy ---
   const deployJob = workflow.jobs['deploy'] ?? {};
   deployJob.name = deployJob.name ?? 'Deploy Affected VPS Configurations';
   deployJob.needs = deployJob.needs ?? 'determine-affected';
   deployJob.if = deployJob.if ?? "\${{ needs.determine-affected.outputs.has_affected == 'true' }}";
   deployJob.environment = {
-    name: 'vps-production', // Nombre del Environment en GitHub
-    // Usar la variable de entorno para construir la URL, NO format() dentro de secrets[]
-    url: 'http://${{ secrets[env.SECRET_NAME_HOST] }}' // Acceder usando el env var definido abajo
+    name: 'vps-production'
   };
   deployJob['runs-on'] = deployJob['runs-on'] ?? 'ubuntu-latest';
   deployJob.strategy = deployJob.strategy ?? {

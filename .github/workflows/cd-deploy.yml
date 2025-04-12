@@ -88,7 +88,6 @@ jobs:
     if: ${{ needs.determine-affected.outputs.has_affected == 'true' }}
     environment:
       name: vps-production
-      url: http://${{ secrets[env.SECRET_NAME_HOST] }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
