@@ -75,6 +75,7 @@ export async function updateCdWorkflow(
   };
   determineAffectedJob.steps = [
     { name: 'Checkout Repository (Fetch Full History)', uses: 'actions/checkout@v4', with: { 'fetch-depth': 0 } },
+    { name: 'Clear Nx Cache', run: 'rm -rf node_modules/.cache/nx' },
     {
       name: 'Derive Appropriate SHAs for Nx Affected',
       uses: 'nrwl/nx-set-shas@v4', // O '@nx/nx-set-shas@vX' donde X es la última versión
