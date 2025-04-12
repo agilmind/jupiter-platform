@@ -4,24 +4,56 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Interfaces y helpers (getDefaultBranch, readWorkflowScript) como estaban antes...
-interface VpsCreateGeneratorSchema { name: string; directory?: string; tags?: string; forceOverwrite?: boolean; }
-interface NormalizedOptions extends VpsCreateGeneratorSchema { projectName: string; projectRoot: string; projectDirectory: string; vpsName: string; parsedTags: string[]; vpsNameUpper: string; }
-function getDefaultBranch(tree: Tree): string { /* ... */ try { const p = JSON.parse(tree.read('nx.json', 'utf-8') || '{}'); return p?.defaultBase || 'main'; } catch { return 'main';}}
+interface VpsCreateGeneratorSchema {
+  name: string;
+  directory?: string;
+  tags?: string;
+  forceOverwrite?: boolean;
+}
+
+interface NormalizedOptions extends VpsCreateGeneratorSchema {
+  projectName: string;
+  projectRoot: string;
+  projectDirectory: string;
+  vpsName: string;
+  parsedTags: string[];
+  vpsNameUpper: string;
+}
+
+function getDefaultBranch(tree: Tree): string { /* ... */
+  try {
+    const p = JSON.parse(tree.read('nx.json', 'utf-8') || '{}');
+    return p?.defaultBase || 'main';
+  } catch {
+    return 'main';
+  }
+}
+
 const SCRIPTS_DIR = join(__dirname, 'scripts');
-function readWorkflowScript(scriptName: string): string { /* ... */ try { return readFileSync(join(SCRIPTS_DIR, scriptName), 'utf-8'); } catch (e:any) { logger.error(`Read ${scriptName} failed: ${e.message}`); throw e; }}
+
+function readWorkflowScript(scriptName: string): string { /* ... */
+  try {
+    return readFileSync(join(SCRIPTS_DIR, scriptName), 'utf-8');
+  } catch (e: any) {
+    logger.error(`Read ${scriptName} failed: ${e.message}`);
+    throw e;
+  }
+}
 
 
 const WORKFLOW_PATH = '.github/workflows/cd-deploy.yml';
 
 export async function updateCdWorkflow(
   tree: Tree,
-  normalizedOptions: NormalizedOptions
+  normalizedOptions: NormalizedOptions,
 ) {
   logger.info(`Checking/Updating GitHub workflow at: ${WORKFLOW_PATH}`);
   let workflow: Record<string, any> = {};
 
   // Leer y parsear YAML existente... (igual que antes)
-  if (tree.exists(WORKFLOW_PATH)) { /* ... parse logic ... */ } else { /* ... */ }
+  if (tree.exists(WORKFLOW_PATH)) { /* ... parse logic ... */
+  } else { /* ... */
+  }
 
   const defaultBranch = getDefaultBranch(tree);
 
@@ -37,16 +69,27 @@ export async function updateCdWorkflow(
   // ... (Configuración del job 'determine-affected' como en la versión anterior, incluyendo el step para instalar jq y el step 'Calculate Affected VPS Projects' que lee calculate-affected.sh) ...
   determineAffectedJob.name = 'Determine Affected VPS Projects';
   determineAffectedJob['runs-on'] = 'ubuntu-latest';
-  determineAffectedJob.outputs = { affected_matrix: '${{ steps.set-matrix.outputs.matrix }}', has_affected: '${{ steps.set-matrix.outputs.has_affected }}' };
+  determineAffectedJob.outputs = {
+    affected_matrix: '${{ steps.set-matrix.outputs.matrix }}',
+    has_affected: '${{ steps.set-matrix.outputs.has_affected }}',
+  };
   determineAffectedJob.steps = [
     { name: 'Checkout Repository (Fetch Full History)', uses: 'actions/checkout@v4', with: { 'fetch-depth': 0 } },
+    {
+      name: 'Derive Appropriate SHAs for Nx Affected',
+      uses: 'nrwl/nx-set-shas@v4', // O '@nx/nx-set-shas@vX' donde X es la última versión
+      with: {
+        // Opcional: especifica tu rama principal si no es 'main' o la detecta mal
+        // 'main-branch-name': 'tu-rama-main'
+      },
+    },
     { name: 'Setup Node.js', uses: 'actions/setup-node@v4', with: { 'node-version': '20', cache: 'npm' } },
     { name: 'Install Dependencies', run: 'npm ci' },
     { name: 'Install jq (for JSON processing)', run: 'sudo apt-get update && sudo apt-get install -y jq' },
     {
       name: 'Calculate Affected VPS Projects', id: 'set-matrix',
       run: readWorkflowScript('calculate-affected.sh'), // Lee del archivo .sh
-      env: { NX_BASE: '${{ env.NX_BASE }}', NX_HEAD: '${{ env.NX_HEAD }}', AFFECTED_JSON: '' }
+      env: { NX_BASE: '${{ env.NX_BASE }}', NX_HEAD: '${{ env.NX_HEAD }}', AFFECTED_JSON: '' },
     },
   ];
   workflow.jobs['determine-affected'] = determineAffectedJob;
@@ -56,28 +99,34 @@ export async function updateCdWorkflow(
   const deployJob = workflow.jobs['deploy'] ?? {};
   deployJob.name = deployJob.name ?? 'Deploy Affected VPS Configurations';
   deployJob.needs = deployJob.needs ?? 'determine-affected';
-  deployJob.if = deployJob.if ?? "\${{ needs.determine-affected.outputs.has_affected == 'true' }}";
+  deployJob.if = deployJob.if ?? '\${{ needs.determine-affected.outputs.has_affected == \'true\' }}';
   deployJob.environment = { name: 'vps-production' }; // Apuntar al environment
   deployJob['runs-on'] = deployJob['runs-on'] ?? 'ubuntu-latest';
-  deployJob.strategy = deployJob.strategy ?? { 'fail-fast': false, matrix: '${{ fromJson(needs.determine-affected.outputs.affected_matrix) }}' };
+  deployJob.strategy = deployJob.strategy ?? {
+    'fail-fast': false,
+    matrix: '${{ fromJson(needs.determine-affected.outputs.affected_matrix) }}',
+  };
   deployJob.env = {
-      SECRET_NAME_HOST: 'VPS_${{ matrix.vps_name_upper }}_HOST',
-      SECRET_NAME_USER: 'VPS_${{ matrix.vps_name_upper }}_USER',
-      SECRET_NAME_KEY:  'VPS_${{ matrix.vps_name_upper }}_KEY',
+    SECRET_NAME_HOST: 'VPS_${{ matrix.vps_name_upper }}_HOST',
+    SECRET_NAME_USER: 'VPS_${{ matrix.vps_name_upper }}_USER',
+    SECRET_NAME_KEY: 'VPS_${{ matrix.vps_name_upper }}_KEY',
   };
 
   // --- PASOS DE DESPLIEGUE REALES (DESCOMENTADOS/FINALES) ---
   deployJob.steps = [
-      { name: 'Checkout Repository', uses: 'actions/checkout@v4' },
-      { name: 'Log Deployment Target', run: 'echo "Deploying project ${{ matrix.vps_name }} to host ${{ secrets[env.SECRET_NAME_HOST] }}..."' },
-      {
-         name: 'Setup SSH Agent',
-         uses: 'webfactory/ssh-agent@v0.9.0',
-         with: { 'ssh-private-key': "\${{ secrets[env.SECRET_NAME_KEY] }}" },
-      },
-      {
-         name: 'Add VPS Host to Known Hosts',
-         run: `|
+    { name: 'Checkout Repository', uses: 'actions/checkout@v4' },
+    {
+      name: 'Log Deployment Target',
+      run: 'echo "Deploying project ${{ matrix.vps_name }} to host ${{ secrets[env.SECRET_NAME_HOST] }}..."',
+    },
+    {
+      name: 'Setup SSH Agent',
+      uses: 'webfactory/ssh-agent@v0.9.0',
+      with: { 'ssh-private-key': '\${{ secrets[env.SECRET_NAME_KEY] }}' },
+    },
+    {
+      name: 'Add VPS Host to Known Hosts',
+      run: `|
           VPS_HOST="\${{ secrets[env.SECRET_NAME_HOST] }}"
           if [ -z "$VPS_HOST" ]; then echo "Error: VPS host secret missing." >&2; exit 1; fi
           mkdir -p ~/.ssh
@@ -86,10 +135,10 @@ export async function updateCdWorkflow(
           chmod 600 ~/.ssh/known_hosts
           echo "Added $VPS_HOST to known_hosts"
          `,
-      },
-      {
-         name: 'Sync Files via Rsync',
-         run: `|
+    },
+    {
+      name: 'Sync Files via Rsync',
+      run: `|
           VPS_HOST="\${{ secrets[env.SECRET_NAME_HOST] }}"
           SECRET_USER_VALUE="\${{ secrets[env.SECRET_NAME_USER] }}"
           VPS_USER="\${SECRET_USER_VALUE:-deploy}" # Default a 'deploy'
@@ -108,10 +157,10 @@ export async function updateCdWorkflow(
             || { echo "Rsync failed!"; exit 1; }
           echo "Rsync finished."
          `,
-      },
-      {
-         name: 'Execute Remote Deployment Script',
-         run: `|
+    },
+    {
+      name: 'Execute Remote Deployment Script',
+      run: `|
           VPS_HOST="\${{ secrets[env.SECRET_NAME_HOST] }}"
           SECRET_USER_VALUE="\${{ secrets[env.SECRET_NAME_USER] }}"
           VPS_USER="\${SECRET_USER_VALUE:-deploy}"
@@ -133,7 +182,7 @@ export async function updateCdWorkflow(
           if [ $SSH_EXIT_CODE -ne 0 ]; then echo "Remote script execution failed with exit code $SSH_EXIT_CODE!"; exit $SSH_EXIT_CODE; fi
           echo "Remote script executed successfully."
          `,
-      },
+    },
   ];
   // --- FIN PASOS REALES ---
 
@@ -145,7 +194,10 @@ export async function updateCdWorkflow(
     const yamlContent = yaml.dump(workflow, { lineWidth: -1, noRefs: true, quotingType: '"', forceQuotes: false });
     tree.write(WORKFLOW_PATH, yamlContent);
     logger.info(`Successfully wrote updated workflow to ${WORKFLOW_PATH}`);
-  } catch (e: any) { logger.error(`❌ Failed to dump/write YAML: ${e.message}`); throw e; }
+  } catch (e: any) {
+    logger.error(`❌ Failed to dump/write YAML: ${e.message}`);
+    throw e;
+  }
 }
 
 // Interfaz normalizada (debe definirse o importarse)
