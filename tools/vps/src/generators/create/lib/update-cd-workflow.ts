@@ -57,9 +57,10 @@ export async function updateCdWorkflow(
   deployJob.name = deployJob.name ?? 'Deploy Affected VPS Configurations';
   deployJob.needs = deployJob.needs ?? 'determine-affected';
   deployJob.if = deployJob.if ?? "\${{ needs.determine-affected.outputs.has_affected == 'true' }}";
-  deployJob.environment = { // Mantenemos environment para aprobación
-    name: 'vps-production',
-    url: 'http://${{ secrets[format("VPS_{0}_HOST", matrix.vps_name_upper)] }}'
+  deployJob.environment = {
+    name: 'vps-production', // Nombre del Environment en GitHub
+    // Usar la variable de entorno para construir la URL, NO format() dentro de secrets[]
+    url: 'http://${{ secrets[env.SECRET_NAME_HOST] }}' // Acceder usando el env var definido abajo
   };
   deployJob['runs-on'] = deployJob['runs-on'] ?? 'ubuntu-latest';
   deployJob.strategy = deployJob.strategy ?? {
@@ -67,14 +68,11 @@ export async function updateCdWorkflow(
     matrix: '${{ fromJson(needs.determine-affected.outputs.affected_matrix) }}',
   };
 
-  // --- NUEVO: Bloque Env para nombres de secrets ---
   deployJob.env = {
       SECRET_NAME_HOST: 'VPS_${{ matrix.vps_name_upper }}_HOST',
       SECRET_NAME_USER: 'VPS_${{ matrix.vps_name_upper }}_USER',
       SECRET_NAME_KEY:  'VPS_${{ matrix.vps_name_upper }}_KEY',
   };
-  // --- FIN Bloque Env ---
-
 
   // --- PASOS DE DESPLIEGUE REALES CON CORRECCIONES ---
   deployJob.steps = [
