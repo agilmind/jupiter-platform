@@ -1,19 +1,36 @@
 {
   "$schema": "http://json-schema.org/schema",
   "cli": "nx",
-  "id": "create",
-  "title": "Create VPS Project",
+  "id": "VpsCreate",
+  "title": "Create VPS Configuration",
+  "description": "Creates or updates a VPS configuration application structure.", // Descripción actualizada
   "type": "object",
   "properties": {
-    "projectName": {
+    "name": {
       "type": "string",
-      "description": "Nombre del proyecto VPS",
-      "pattern": "^[a-zA-Z][a-zA-Z0-9-]*$",
+      "description": "The name of the VPS configuration (e.g., hostinger, my-app-server). Used for directory name and project name.",
       "$default": {
         "$source": "argv",
         "index": 0
-      }
+      },
+      "x-prompt": "What name would you like to use for this VPS configuration?"
     },
+    "directory": {
+      "type": "string",
+      "description": "The directory relative to apps/ where the configuration will be created (e.g., 'servers' -> apps/servers/your-name).",
+      "alias": "dir"
+    },
+    "tags": {
+      "type": "string",
+      "description": "Add tags to the project (used for linting, testing, affected commands). Comma-separated.",
+      "alias": "t"
+    },
+    "forceOverwrite": {
+      "type": "boolean",
+      "description": "Overwrite existing files if the project configuration already exists. Use with caution.",
+      "default": false,
+      "alias": "force"
+    }
   },
-  "required": ["projectName"]
+  "required": ["name"]
 }

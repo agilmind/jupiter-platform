@@ -58,70 +58,53 @@ Antes de poder desplegar la configuración generada por `vps:create` de forma au
         * Si usas `webroot`, añade `webroot_path = /var/www/letsencrypt/live` (o tu ruta elegida).
         * **Añade un `deploy_hook`** para reiniciar Nginx después de la renovación (ver sección Certificados).
 
-## Estrategia de Gestión de Certificados (Let's Encrypt)
+## Flujo de Trabajo Recomendado para un Nuevo VPS
 
-* **Objetivo:** Gestionar certificados SSL/TLS de forma automatizada, segura y compatible con Nginx en contenedor.
-* **Renovación:** Centralizada a través del **Certbot del host**, disparado automáticamente por el **timer de systemd**.
-* **Obtención/Autenticación (Nuevos Certificados):**
-    * **Dominios Específicos (ej. `www.domain.com`, `api.domain.com`):**
-        * **Método Recomendado:** `webroot`.
-        * **Cómo:** Certbot (ejecutado como root por el timer) escribe un archivo de desafío en `webroot_path` (p. ej., `/var/www/letsencrypt/live`).
-        * **Nginx (Contenedor):** Debe montar ese `webroot_path` (p. ej., a `/usr/share/nginx/html/challenges`) y tener una `location /.well-known/acme-challenge/ { root /usr/share/nginx/html/challenges; }`.
-    * **Certificados Wildcard (ej. `*.domain.com`):**
-        * **Método Requerido:** `DNS-01`. Necesita interactuar con tu proveedor de DNS.
-        * **Cómo:** Certbot crea registros TXT temporales en tu zona DNS usando la API del proveedor.
-        * **Plugins Necesarios:** Instalar el plugin DNS correspondiente (ver sección Instalación).
+Para configurar un nuevo servidor VPS desde cero y prepararlo para los despliegues gestionados por este generador, sigue estos pasos en orden:
 
-* **Configuración DNS-01 (Ejemplos):**
-    * **1. Crear Archivo de Credenciales (¡Seguridad!):**
-        * Guarda las credenciales de API en un archivo propiedad de `root` con permisos estrictos.
-        * Ejemplo: `/home/deploy/.secrets/cloudflare.ini` o `/home/deploy/.secrets/digitalocean.ini`
-        * `sudo touch /home/deploy/.secrets/provider.ini`
-        * `sudo chown root:root /home/deploy/.secrets/provider.ini`
-        * `sudo chmod 600 /home/deploy/.secrets/provider.ini`
-    * **2. Contenido del Archivo:**
-        * **Cloudflare:** Usa un **API Token** (NO la clave global) con permisos `Zone:Read`, `DNS:Edit` para la zona deseada.
-          ```ini
-          # /home/deploy/.secrets/cloudflare.ini
-          dns_cloudflare_api_token = TU_CLOUDFLARE_API_TOKEN
-          ```
-        * **DigitalOcean:** Usa un **Personal Access Token (PAT)** con permisos de `Write`.
-          ```ini
-          # /home/deploy/.secrets/digitalocean.ini
-          dns_digitalocean_token = TU_DIGITALOCEAN_PAT
-          ```
-    * **3. Comando de Obtención Inicial (Ejemplo Wildcard):**
+1.  **Crea el VPS:** En tu proveedor (DigitalOcean, Google Cloud, etc.), crea una nueva instancia/droplet. Se recomienda usar **Debian 12** o la última **Ubuntu LTS**.
+2.  **Acceso Inicial:** Conéctate inicialmente al servidor como `root` o el usuario inicial proporcionado por el proveedor vía SSH.
+3.  **Script de Hardening Base (`debian-harden.sh`):**
+    * **Propósito:** Establecer la seguridad base del SO, crear tu usuario administrador personal con `sudo`, configurar acceso SSH por clave para ese usuario, deshabilitar login de root y contraseñas SSH, y configurar el firewall UFW.
+    * **Ejecución:**
+        * Copia el script al servidor: `scp tools/vps/scripts/debian-harden.sh root@TU_VPS_IP:/root/`
+        * Conéctate como root: `ssh root@TU_VPS_IP`
+        * Dale permisos de ejecución: `chmod +x /root/debian-harden.sh`
+        * Ejecútalo: `bash /root/debian-harden.sh` (No necesita `sudo` si ya eres root).
+        * Sigue las instrucciones del script (te pedirá nombre de usuario sudo, clave pública SSH, confirmaciones).
+        * **¡MUY IMPORTANTE!** Antes de cerrar la sesión de root, abre OTRA terminal y verifica que puedes acceder con tu nuevo usuario sudo y su clave SSH (`ssh tu_usuario_sudo@TU_VPS_IP`). Verifica que puedes usar `sudo` con él.
+        * Cierra la sesión de root.
+4.  **Script de Preparación del Entorno (`vps-initial-setup.sh`):**
+    * **Propósito:** Instalar Docker, Docker Compose, Certbot y sus plugins DNS. Crear el usuario `deploy` (sin sudo, pero en el grupo `docker`). Configurar directorios necesarios y guiar en la configuración de secretos para Certbot. Opcionalmente configurar clave SSH para `deploy`.
+    * **Ejecución:**
+        * Copia el script al servidor (puedes usar tu usuario sudo): `scp tools/vps/scripts/vps-initial-setup.sh tu_usuario_sudo@TU_VPS_IP:/home/tu_usuario_sudo/`
+        * Conéctate como tu usuario sudo: `ssh tu_usuario_sudo@TU_VPS_IP`
+        * Dale permisos de ejecución: `chmod +x /home/tu_usuario_sudo/vps-initial-setup.sh`
+        * Ejecútalo con `sudo`: `sudo bash /home/tu_usuario_sudo/vps-initial-setup.sh`
+        * Sigue las instrucciones (te pedirá la clave pública SSH para `deploy` - opcional pero recomendado, te guiará sobre los secretos DNS).
+        * **¡IMPORTANTE!** Si el script añadió `deploy` al grupo `docker`, el usuario `deploy` necesita cerrar sesión y volver a entrar para que el grupo tenga efecto (esto es relevante si te conectaras manualmente como `deploy`, el CD no necesita re-login).
+5.  **Generador Nx (`vps:create`):**
+    * **Propósito:** Crear la configuración específica para un sitio/aplicación en este VPS (archivos Docker Compose, Nginx, deploy script) y actualizar el workflow de CD.
+    * **Ejecución (En tu máquina local, dentro del monorepo):**
         ```bash
-        # Para Cloudflare:
-        sudo certbot certonly \
-            --dns-cloudflare \
-            --dns-cloudflare-credentials /home/deploy/.secrets/cloudflare.ini \
-            -d tudominio.com -d '*.tudominio.com' \
-            --non-interactive --agree-tos --email tu@email.com --key-type ecdsa
-
-        # Para DigitalOcean:
-        sudo certbot certonly \
-            --dns-digitalocean \
-            --dns-digitalocean-credentials /home/deploy/.secrets/digitalocean.ini \
-            -d tudominio.com -d '*.tudominio.com' \
-            --non-interactive --agree-tos --email tu@email.com --key-type ecdsa
+        nx g @mi-org/vps:create --name=nombre-del-vps-o-app # Ajusta el scope @mi-org
         ```
-        * La renovación automática (vía systemd timer) usará estas credenciales.
+6.  **Despliegue (CD):**
+    * Haz commit y push de los cambios generados a tu repositorio Git.
+    * El workflow `.github/workflows/cd-deploy.yml` (que el generador creó/actualizó) se ejecutará automáticamente (en push a `main`, según nuestra configuración), copiará los archivos de `apps/nombre-del-vps-o-app/` al servidor y ejecutará `deploy.sh` allí usando el usuario `deploy`.
 
-* **Instalación del Certificado:**
-    * **`installer = None`:** Certbot **no** debe intentar instalar el certificado automáticamente. La línea `installer` debe estar ausente o ser `None` en los archivos `/etc/letsencrypt/renewal/*.conf`.
-    * **Montaje en Contenedor:** El directorio `/etc/letsencrypt/live/tudominio.com/` (que contiene `fullchain.pem` y `privkey.pem`) se monta como volumen de solo lectura dentro del contenedor Nginx.
-    * **Configuración Nginx:** El archivo de configuración de Nginx *dentro* del contenedor apunta a las rutas de los certificados montados (p. ej., `ssl_certificate /etc/letsencrypt/live/tudominio.com/fullchain.pem;`).
+## Configuración de GitHub Actions
 
-* **Hook de Despliegue (`deploy_hook`):**
-    * **Necesario:** Para que Nginx (en contenedor) use el certificado recién renovado.
-    * **Acción:** Reinicia el contenedor Nginx correspondiente.
-    * **Configuración:** Añade la línea `deploy_hook = COMANDO_REINICIO` en la sección `[renewalparams]` de cada archivo `/etc/letsencrypt/renewal/*.conf`.
-    * **Comando Ejemplo:**
-      ```ini
-      # Dentro de [renewalparams] en el archivo .conf
-      deploy_hook = docker compose -f /home/deploy/vps/docker-compose.vps.yml restart nginx # Ajusta 'nginx' al nombre de tu servicio
-      ```
+El generador `vps:create` crea o actualiza el workflow `.github/workflows/cd-deploy.yml` para automatizar los despliegues. Para que funcione correctamente, necesitas configurar los siguientes "Secrets" en tu repositorio de GitHub (`Settings` > `Secrets and variables` > `Actions` > `Repository secrets`):
+
+Para CADA configuración de VPS generada (ej. llamada `my-vps-name`):
+
+* **`VPS_MY_VPS_NAME_HOST`**: La IP o FQDN del servidor VPS.
+* **`VPS_MY_VPS_NAME_USER`**: El usuario SSH para el despliegue (normalmente `deploy`).
+* **`VPS_MY_VPS_NAME_KEY`**: La **clave privada** SSH completa (incluyendo `-----BEGIN...` y `-----END...`) correspondiente a la clave pública configurada para el usuario `deploy` en el VPS.
+
+**Nota:** El nombre del secret se deriva del nombre del proyecto VPS, convirtiéndolo a mayúsculas y reemplazando guiones (`-`) por guiones bajos (`_`). El workflow usa estos secrets dinámicamente para conectarse al servidor correcto.
+
 
 ## Fases de Desarrollo
 

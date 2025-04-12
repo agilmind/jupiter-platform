@@ -297,6 +297,10 @@ main() {
     success " Initial Server Hardening Script Completed! "
     success "=============================================="
     echo # Blank line
+    warn " asegurarse de que: "
+    warn "   /etc/ssh/sshd_config.d/50-cloud-init.conf "
+    warn "   tenga PasswordAuthentication no "
+    echo # Blank line
     warn ">>> CRITICAL ACTION REQUIRED: <<<"
     warn "1. Open a NEW terminal window."
     warn "2. Test SSH login using the key for the new sudo user you created."

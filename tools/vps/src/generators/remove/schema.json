@@ -1,19 +1,26 @@
 {
-  "$schema": "http://json-schema.org/schema",
-  "cli": "nx",
-  "id": "create",
-  "title": "Remove VPS Project",
-  "type": "object",
-  "properties": {
-    "projectName": {
-      "type": "string",
-      "description": "Nombre del proyecto VPS",
-      "pattern": "^[a-zA-Z][a-zA-Z0-9-]*$",
-      "$default": {
-        "$source": "argv",
-        "index": 0
-      }
-    }
-  },
-  "required": ["projectName"]
+    "$schema": "http://json-schema.org/schema",
+    "cli": "nx",
+    "id": "VpsRemove",
+    "title": "Remove VPS Configuration",
+    "description": "Removes an existing VPS configuration application.",
+    "type": "object",
+    "properties": {
+        "projectName": {
+            "type": "string",
+            "description": "The name of the VPS configuration project to remove.",
+            "$default": {
+                "$source": "argv",
+                "index": 0
+            },
+            "alias": "name",
+            "x-prompt": "Which VPS configuration project do you want to remove?"
+        },
+        "forceRemove": {
+            "type": "boolean",
+            "description": "Skip confirmation prompts when removing the project.",
+            "default": false
+        }
+    },
+    "required": ["projectName"]
 }
