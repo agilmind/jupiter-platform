@@ -108,18 +108,39 @@ Para CADA configuración de VPS generada (ej. llamada `my-vps-name`):
 
 ## Fases de Desarrollo
 
-### Fase 1: "Hello World" (En Proceso)
+## Estado Actual (2025-04-12)
 
-* **Objetivo:** Validar la estructura básica de los generadores `vps:create` y `vps:remove`, y la creación/actualización inicial del workflow `cd-deploy.yml`.
-* **Entregables:**
-    * Generador `vps:create` crea:
-        * `apps/<vps-name>/README.md`
-        * `apps/<vps-name>/index.html` (simple)
-        * `apps/<vps-name>/deploy.sh` (simulado, sin `sudo`)
-        * `apps/<vps-name>/project.json` (con target `deploy` placeholder)
-    * Generador `vps:create` crea/actualiza `.github/workflows/cd-deploy.yml` con estructura básica (trigger, jobs `determine-affected`, `deploy` con matriz dinámica y pasos simulados).
-    * Generador `vps:remove` elimina el proyecto usando `@nx/workspace:remove`.
-* **Próximos Pasos (Fase 2):** Introducir `docker-compose.yml` (en `/home/deploy/vps/` o generado en `apps/<vps-name>/`) con un contenedor Nginx básico sirviendo el `index.html`. Actualizar `deploy.sh` y el workflow de CD para manejar `docker-compose`.
+* **Fase 1 Completada:**
+    * Generadores `vps:create` y `vps:remove` implementados.
+    * `vps:create` genera estructura "Hello World" con `index.html`, `deploy.sh` (simulado inicialmente), `project.json`.
+    * `vps:create` gestiona `cd-deploy.yml` (crea/actualiza estructura básica).
+    * `vps:create` soporta `--forceOverwrite` para regenerar archivos.
+    * Scripts auxiliares `debian-harden.sh` y `vps-initial-setup.sh` creados para preparar el VPS.
+    * Workflow `cd-deploy.yml` validado sintácticamente: trigger en `main`, job `determine-affected` calcula matriz, job `deploy` usa matriz y apunta a environment `vps-production`.
+* **Fase 2 En Proceso:**
+    * Templates para `docker-compose.vps.yml` y `nginx-conf/default.conf` definidos.
+    * Template `deploy.sh` actualizado para usar `docker compose up`.
+    * Lógica `updateCdWorkflow` actualizada para incluir pasos reales de despliegue (SSH, rsync, ejecución remota) en el job `deploy`.
+* **Pendiente:**
+    * Probar el flujo completo de Fase 2 (push -> aprobación -> despliegue real -> verificar sitio).
+    * Implementar Fase 3 (Configuración SSL con Certbot).
+    * Refinar Nginx/Docker Compose según sea necesario.
+    * Añadir manejo de errores/logs más robusto si se requiere.
 
----
-*Este es un documento vivo y se actualizará a medida que el proyecto evolucione.*
+## Continuidad del Chat con Gemini
+
+Para retomar este trabajo en una nueva sesión de chat con Gemini, sigue estos pasos:
+
+1.  **Indica el Objetivo:** Comienza diciendo algo como: "Hola Gemini, estamos continuando el desarrollo de un generador Nx llamado 'vps' para configurar y desplegar sitios en VPS con Docker y Nginx. El estado actual está documentado en el README que te proporcionaré."
+2.  **Proporciona el Contexto Principal (Este Archivo):** Copia y pega el **contenido completo** de este archivo (`tools/vps/README.md`) en el chat. Es la fuente principal de verdad sobre la estrategia y el estado.
+3.  **Prepárate para Proporcionar Código Clave:** Menciona que puedes proporcionar el contenido de archivos específicos si es necesario para la siguiente tarea. Los archivos más relevantes probablemente serán:
+    * `tools/vps/src/generators/create/schema.json`
+    * `tools/vps/src/generators/create/generator.ts`
+    * `tools/vps/src/generators/create/lib/update-cd-workflow.ts`
+    * `tools/vps/src/generators/remove/generator.ts`
+    * Los templates actuales de `tools/vps/src/blueprints/` (especialmente `docker-compose.vps.yml.template`, `nginx-conf/default.conf.template`, `deploy.sh.template`).
+    * El archivo `.github/workflows/cd-deploy.yml` generado más recientemente.
+    * Los scripts `tools/vps/scripts/debian-harden.sh` y `tools/vps/scripts/vps-initial-setup.sh`.
+4.  **Indica el Siguiente Paso:** Di claramente qué quieres hacer a continuación (ej. "Necesitamos probar el despliegue de Fase 2" o "Implementemos ahora la configuración SSL").
+
+Esto debería darle a Gemini suficiente contexto para continuar donde lo dejamos.
