@@ -87,9 +87,14 @@ export async function updateCdWorkflow(
     { name: 'Install Dependencies', run: 'npm ci' },
     { name: 'Install jq (for JSON processing)', run: 'sudo apt-get update && sudo apt-get install -y jq' },
     {
-      name: 'Calculate Affected VPS Projects', id: 'set-matrix',
-      run: readWorkflowScript('calculate-affected.sh'), // Lee del archivo .sh
-      env: { NX_BASE: '${{ env.NX_BASE }}', NX_HEAD: '${{ env.NX_HEAD }}', AFFECTED_JSON: '' },
+      name: 'Calculate Affected VPS Projects',
+      id: 'set-matrix',
+      run: readWorkflowScript('calculate-affected.sh'), // Asegúrate que lee el ARCHIVO NUEVO
+      env: {
+        NX_BASE: '${{ env.NX_BASE }}',
+        NX_HEAD: '${{ env.NX_HEAD }}',
+        AFFECTED_JSON: '', // Definido aquí pero poblado por el script
+      },
     },
   ];
   workflow.jobs['determine-affected'] = determineAffectedJob;
