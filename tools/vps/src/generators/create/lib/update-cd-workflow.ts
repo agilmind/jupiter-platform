@@ -106,6 +106,11 @@ export async function updateCdWorkflow(
   deployJob.name = deployJob.name ?? 'Deploy Affected VPS Configurations';
   deployJob.needs = deployJob.needs ?? 'determine-affected';
   deployJob.if = deployJob.if ?? "\${{ needs.determine-affected.outputs.has_affected == 'true' }}";
+  deployJob.environment = {
+    name: 'vps-production', // Usa el nombre exacto del Environment que creaste
+    // Opcional: URL para mostrar en GitHub Actions
+    // url: 'https://${{ secrets[format("VPS_{0}_HOST", matrix.vps_name_upper)] }}' // Ejemplo
+  };
   deployJob['runs-on'] = deployJob['runs-on'] ?? 'ubuntu-latest';
   deployJob.strategy = deployJob.strategy ?? {
     'fail-fast': false,
@@ -121,7 +126,7 @@ export async function updateCdWorkflow(
       },
   ];
   workflow.jobs['deploy'] = deployJob;
-  logger.info(`Job 'deploy' configured.`);
+  logger.info(`Job 'deploy' configured to target environment 'vps-production' (requires approval if set).`);
 
   // --- Escribir YAML ---
   try {
