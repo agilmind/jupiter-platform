@@ -1,49 +1,60 @@
 #!/bin/bash
 # ==============================================================================
-# Script para GitHub Actions: Calcula Proyectos Afectados y Genera Matriz (v3 - Usa print-affected)
+# Script para GitHub Actions: Calcula Proyectos Afectados y Genera Matriz (v4 - Usa affected --plain)
 # ==============================================================================
 set -euo pipefail
 
 echo "[calculate-affected.sh] Calculating affected projects with target 'deploy'..."
 echo "[calculate-affected.sh] Base SHA: $NX_BASE | Head SHA: $NX_HEAD"
 
-# --- Usar nx print-affected para obtener solo la lista JSON ---
-echo "[calculate-affected.sh] Running nx print-affected command..."
-# Capturar salida y manejar errores de forma más robusta
-RAW_AFFECTED_OUTPUT=""
+# --- Usar nx affected --plain para obtener solo nombres ---
+echo "[calculate-affected.sh] Running nx affected --plain command..."
+# Capturar salida. Permitir que falle si no hay afectados (|| true)
+AFFECTED_OUTPUT=""
 NX_EXIT_CODE=0
-# Usamos --select=projects para obtener solo los nombres de los proyectos
-# La salida esperada es JSON: {"projects": ["proj1", "proj2"]}
-RAW_AFFECTED_OUTPUT=$(npx nx print-affected --target=deploy --select=projects --json --base=$NX_BASE --head=$NX_HEAD --exclude=tag:type:other-app) || NX_EXIT_CODE=$?
+AFFECTED_OUTPUT=$(npx nx affected --target=deploy --base=$NX_BASE --head=$NX_HEAD --plain --exclude=tag:type:other-app || true)
+NX_EXIT_CODE=$? # Capturar código de salida real
 
-echo "[calculate-affected.sh] nx print-affected exit code: $NX_EXIT_CODE"
-echo "[calculate-affected.sh] Raw output from nx print-affected:"
-echo "--------------------- BEGIN RAW OUTPUT ---------------------"
-echo "$RAW_AFFECTED_OUTPUT"
-echo "---------------------- END RAW OUTPUT ----------------------"
+echo "[calculate-affected.sh] nx affected command finished. Exit Code: $NX_EXIT_CODE"
+echo "[calculate-affected.sh] Plain output from nx affected:"
+echo "--------------------- BEGIN PLAIN OUTPUT ---------------------"
+# Usar comillas para preservar saltos de línea y manejar salida vacía
+echo "$AFFECTED_OUTPUT"
+echo "---------------------- END PLAIN OUTPUT ----------------------"
 
-# Verificar si el comando falló o la salida está vacía
-if [ $NX_EXIT_CODE -ne 0 ] || [ -z "$RAW_AFFECTED_OUTPUT" ]; then
-    echo "[calculate-affected.sh] WARNING: 'nx print-affected' failed or produced empty output. Assuming no projects affected."
-    AFFECTED_JSON="[]"
+# --- Procesar salida de texto a JSON Array ---
+AFFECTED_JSON="[]" # Default
+
+# Verificar si la salida NO está vacía y NO contiene mensajes conocidos de "nada afectado"
+# (Estos mensajes pueden variar entre versiones de Nx)
+if [ -n "$AFFECTED_OUTPUT" ] && \
+   ! echo "$AFFECTED_OUTPUT" | grep -q "NX   No projects" && \
+   ! echo "$AFFECTED_OUTPUT" | grep -q "NX   No tasks"; then
+
+    echo "[calculate-affected.sh] Processing affected project list from plain output..."
+    # Convertir la lista (asumiendo un proyecto por línea) a un array JSON usando jq
+    # 1. `jq -R .`: Lee cada línea como un string JSON crudo.
+    # 2. `jq -sc .`: Lee toda la secuencia de strings JSON y los agrupa en un array JSON.
+    AFFECTED_JSON=$(echo "$AFFECTED_OUTPUT" | sed 's/ *$//' | # Eliminar espacios al final de líneas si los hay
+                      jq -R . | jq -sc .)
+
+    # Verificar si jq produjo un array válido
+     if ! echo "$AFFECTED_JSON" | jq -e 'type=="array"' > /dev/null 2>&1; then
+        echo "[calculate-affected.sh] WARNING: Failed to create valid JSON array from plain output using jq. Output was:"
+        echo "$AFFECTED_OUTPUT"
+        AFFECTED_JSON="[]" # Fallback a array vacío
+    else
+         echo "[calculate-affected.sh] Generated JSON Array: $AFFECTED_JSON"
+     fi
 else
-    # Intentar parsear con jq la propiedad 'projects'
-    echo "[calculate-affected.sh] Attempting to parse .projects from JSON output with jq..."
-    AFFECTED_JSON=$(echo "$RAW_AFFECTED_OUTPUT" | jq -c '.projects' 2>/dev/null || echo '[]')
-    JQ_EXIT_CODE=$?
-
-    if [[ "$AFFECTED_JSON" == "null" || $JQ_EXIT_CODE -ne 0 ]]; then
-        echo "[calculate-affected.sh] WARNING: jq failed to parse '.projects' or result was null. Raw output logged above."
-        AFFECTED_JSON="[]" # Asegurar array vacío
-    fi
+    echo "[calculate-affected.sh] No projects found in output or output indicates none affected. Setting empty list."
+    AFFECTED_JSON="[]"
 fi
-
-echo "[calculate-affected.sh] Parsed/Fallback Affected Projects JSON: $AFFECTED_JSON"
 
 # Exportar para Node.js
 export AFFECTED_JSON
 
-# Usar node para construir la matriz (igual que antes)
+# Usar node para construir la matriz (Node script sin cambios)
 MATRIX_OBJECT=$(node -e "
   try {
     const projects = JSON.parse(process.env.AFFECTED_JSON || '[]');
