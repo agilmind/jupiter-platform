@@ -106,8 +106,10 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=grafana # ¡Considera cambiar/usar secrets!
-      # Informa a Grafana de su URL pública completa, incluyendo la subruta
       - GF_SERVER_ROOT_URL=https://jupiter.ar/grafana
+      - GF_SERVER_DOMAIN=jupiter.ar # Informa a Grafana del dominio principal
+      - GF_SERVER_ENFORCE_DOMAIN=false # No fuerces redirección por dominio
+      - GF_COOKIE_SAMESITE=lax # Política SameSite (default, pero explícita)
     networks:
       - webproxy
     logging: *logging-options
