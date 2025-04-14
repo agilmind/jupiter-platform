@@ -107,11 +107,8 @@ services:
       - grafana-data:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=grafana # ¡Considera cambiar/usar secrets!
-      - GF_SERVER_ROOT_URL=https://<%= primaryDomain %>/grafana
-      - GF_SERVER_DOMAIN=<%= primaryDomain %> # Informa a Grafana del dominio principal
-      - GF_SERVER_ENFORCE_DOMAIN=false    # No fuerces redirección por dominio
-      - GF_COOKIE_SAMESITE=lax            # Política SameSite (default, pero explícita)
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+      - GF_SERVER_ROOT_URL=https://grafana.<%= primaryDomain %>
     networks:
       - webproxy
     logging: *logging-options

@@ -117,13 +117,15 @@ export default async function vpsCreateGenerator(
   }
 
   // 2. Generar/Sobrescribir Archivos desde Templates
-  logger.info('Generating files from Phase 3 blueprints (incl. SSL)...');
   const templateOptions = {
-    ...normalizedOptions,
-    monitoringEnabled: monitoring,
-    domains: domainsList.join(' '),
-    primaryDomain: primaryDomain,
-    template: '',
+      name: normalizedOptions.name,
+      vpsName: normalizedOptions.vpsName,
+      scope: normalizedOptions.vpsName,
+      domains: normalizedOptions.domainsList.join(' '), // Para el server_name HTTP y el primer HTTPS
+      domainsList: normalizedOptions.domainsList, // Pasar el array para lógica EJS
+      primaryDomain: normalizedOptions.primaryDomain,
+      monitoringEnabled: normalizedOptions.monitoring, // Pasar el flag de monitoreo
+      template: '',
   };
 
   generateFiles(
