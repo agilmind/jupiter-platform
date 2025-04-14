@@ -146,6 +146,10 @@ export async function updateCdWorkflow(
          `,
       },
       {
+        name: 'Install rsync (on runner)',
+        run: 'sudo apt-get update && sudo apt-get install -y rsync',
+      },
+      {
          name: 'Sync Files via Rsync',
          // CORREGIDO: Sin el '|' inicial dentro del backtick
          run: `

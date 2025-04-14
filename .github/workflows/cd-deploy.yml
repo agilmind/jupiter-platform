@@ -135,6 +135,8 @@ jobs:
                     chmod 600 ~/.ssh/known_hosts
                     echo "Added $VPS_HOST to known_hosts"
 
+      - name: Install rsync (on runner)
+        run: sudo apt-get update && sudo apt-get install -y rsync
       - name: Sync Files via Rsync
         run: |2-
 
