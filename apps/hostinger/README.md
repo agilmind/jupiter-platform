@@ -38,11 +38,11 @@ Before the automated CD workflow can deploy this configuration, ensure the targe
 
     ```bash
     # Ejemplo para Cloudflare (ajusta dominios y credenciales)
-    sudo certbot certonly \\
-        --dns-cloudflare \\
-        --dns-cloudflare-credentials /home/deploy/.secrets/cloudflare.ini \\
-        # Añade todos los dominios/subdominios para este certificado:
-     \\
+    sudo certbot certonly \
+        --dns-cloudflare \
+        --dns-cloudflare-credentials /home/deploy/.secrets/cloudflare.ini \
+        --dns-cloudflare-propagation-seconds 60 \
+     \
         --non-interactive --agree-tos --email tu@email.com --key-type ecdsa
 
     # Ejemplo para DigitalOcean:

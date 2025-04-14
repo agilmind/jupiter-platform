@@ -33,11 +33,11 @@ Before the automated CD workflow can deploy this configuration, ensure the targe
        * **Ejecuta Certbot:** Usa el plugin DNS para tu proveedor (Cloudflare/DigitalOcean - asegúrate que los secrets `.ini` en `/home/deploy/.secrets/` estén configurados como indicó `vps-initial-setup.sh`). Reemplaza los dominios y email:
          ```bash
          # Ejemplo para Cloudflare (ajusta dominios y credenciales)
-         sudo certbot certonly \\
-             --dns-cloudflare \\
-             --dns-cloudflare-credentials /home/deploy/.secrets/cloudflare.ini \\
-             # Añade todos los dominios/subdominios para este certificado:
-         <% domains.split(',').map(d => `-d ${d.trim()}`).join(' \\\n\t\t ') %> \\
+         sudo certbot certonly \
+             --dns-cloudflare \
+             --dns-cloudflare-credentials /home/deploy/.secrets/cloudflare.ini \
+             --dns-cloudflare-propagation-seconds 60 \
+         <% domains.split(',').map(d => `-d ${d.trim()}`).join(' \\\n\t\t ') %> \
              --non-interactive --agree-tos --email tu@email.com --key-type ecdsa
 
          # Ejemplo para DigitalOcean:

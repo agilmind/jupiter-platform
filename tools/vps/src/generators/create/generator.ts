@@ -115,13 +115,12 @@ export default async function vpsCreateGenerator(
   // 2. Generar/Sobrescribir Archivos desde Templates
   logger.info('Generating files from Phase 3 blueprints (incl. SSL)...');
   const templateOptions = {
-    ...normalizedOptions, // Pasa todas las opciones normalizadas
-    vpsName: vpsName,
-    scope: vpsName,
-    // Pasar variables específicas para templates
-    domains: domainsList.join(' '), // String para server_name en Nginx
-    primaryDomain: primaryDomain, // String para rutas de certs
-    template: '', // Requerido por generateFiles
+    name: normalizedOptions.name, // Usado por algunas convenciones internas de generateFiles
+    vpsName: normalizedOptions.vpsName,
+    scope: normalizedOptions.vpsName, // Asumiendo scope=vpsName
+    domains: normalizedOptions.domainsList.join(' '), // String para server_name
+    primaryDomain: normalizedOptions.primaryDomain,   // String para rutas de certs
+    template: '',
   };
 
   // generateFiles copia todo el contenido de la carpeta fuente (blueprints)

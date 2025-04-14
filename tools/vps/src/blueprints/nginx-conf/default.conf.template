@@ -1,9 +1,5 @@
 # Configuración Nginx para <%= vpsName %> - HTTP y HTTPS
-
-<%# Extraer el primer dominio para usar en rutas de certificado %>
-<% const primaryDomain = domains.split(',')[0].trim(); %>
-<%# Crear string de server_name con todos los dominios %>
-<% const serverNameString = domains.split(',').map(d => d.trim()).join(' '); %>
+# NOTA: Variables como primaryDomain y domains vienen del generador
 
 # Bloque HTTP: Redirección a HTTPS y manejo de ACME Challenge
 server {
@@ -11,17 +7,14 @@ server {
     listen [::]:80 default_server;
 
     # Escuchar para todos los dominios configurados
-    server_name <%= serverNameString %>;
+    server_name <%= domains %>;
 
-    # Servir los desafíos ACME de Let's Encrypt (webroot)
     location /.well-known/acme-challenge/ {
         alias /var/www/letsencrypt/challenges-in-container/;
-        # allow all; # Puede ser necesario si hay restricciones por defecto
     }
 
     # Redireccionar todo el resto del tráfico HTTP a HTTPS
     location / {
-        # Usar $host para preservar el dominio solicitado por el cliente
         return 301 https://$host$request_uri;
     }
 }
@@ -31,19 +24,14 @@ server {
     listen 443 ssl http2 default_server;
     listen [::]:443 ssl http2 default_server;
 
-    # Servir para todos los dominios configurados
-    server_name <%= serverNameString %>;
+    server_name <%= domains %>;
 
     # --- Configuración SSL ---
     # Certificados (montados desde /etc/letsencrypt en el host)
-    # Usa el primer dominio de la lista para determinar la ruta del certificado
     ssl_certificate /etc/letsencrypt/live/<%= primaryDomain %>/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/<%= primaryDomain %>/privkey.pem;
 
-    # Incluir parámetros de seguridad SSL desde archivo separado
     include /etc/nginx/conf.d/options-ssl-nginx.conf;
-
-    # Incluir parámetros Diffie-Hellman desde archivo separado
     ssl_dhparam /etc/nginx/conf.d/ssl-dhparams.pem;
     # --- Fin Configuración SSL ---
 
