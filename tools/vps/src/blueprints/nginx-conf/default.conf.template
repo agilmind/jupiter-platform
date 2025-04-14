@@ -23,20 +23,16 @@ server {
 server {
     listen 443 ssl http2 default_server;
     listen [::]:443 ssl http2 default_server;
-
     server_name <%= domains %>;
 
     # --- Configuración SSL ---
     # Certificados (montados desde /etc/letsencrypt en el host)
     ssl_certificate /etc/letsencrypt/live/<%= primaryDomain %>/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/<%= primaryDomain %>/privkey.pem;
-
     include /etc/nginx/conf.d/options-ssl-nginx.conf;
     ssl_dhparam /etc/nginx/conf.d/ssl-dhparams.pem;
     # --- Fin Configuración SSL ---
 
-
-    # Raíz del contenido web (montado desde ./html)
     root /usr/share/nginx/html;
     index index.html index.htm;
 
@@ -44,6 +40,34 @@ server {
     location / {
         try_files $uri $uri/ =404;
     }
+
+    # Servir desafíos ACME
+    location /.well-known/acme-challenge/ {
+        alias /var/www/letsencrypt/challenges-in-container/;
+    }
+
+<%# Inicio Bloque Condicional Monitoreo %>
+<% if (monitoringEnabled) { %>
+    # --- Proxy Inverso para Grafana ---
+    location /grafana/ { # Acceso vía tudominio.com/grafana/
+        # Reescribir la URL eliminando /grafana/ antes de pasarla al backend
+        rewrite ^/grafana/(.*)$ /$1 break;
+        # Pasar la petición al servicio Grafana en Docker Compose (puerto 3000 por defecto)
+        proxy_pass http://grafana:3000;
+        # Cabeceras necesarias para Grafana detrás de proxy
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Necesario para WebSockets de Grafana Live
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Grafana-Org-Id 1; # Asumir Org ID 1 por defecto
+        proxy_cookie_path / /grafana/; # Asegurar que las cookies funcionen con el subpath
+    }
+<% } %>
+<%# Fin Bloque Condicional Monitoreo %>
 
     # (Opcional) Añadir location blocks para hacer proxy_pass a otros servicios/contenedores
     # location /api/ {

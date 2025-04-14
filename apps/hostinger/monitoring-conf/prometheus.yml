@@ -1,0 +1,28 @@
+# Configuración básica de Prometheus
+
+global:
+  scrape_interval: 15s # Intervalo de scrapeo por defecto
+  evaluation_interval: 15s
+
+# Reglas de alerta (opcional, se pueden montar desde otro archivo)
+# rule_files:
+#   - /etc/prometheus/alert.rules.yml
+
+# Configuración de scrapeo
+scrape_configs:
+  # Scrapearse a sí mismo
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090'] # Puerto por defecto de Prometheus
+
+  # Scrape Node Exporter (expone métricas del HOST)
+  - job_name: 'node-exporter'
+    static_configs:
+      # Asume que el servicio se llama 'node-exporter' en docker-compose
+      # y escucha en el puerto 9100
+      - targets: ['node-exporter:9100']
+
+  # Scrape cAdvisor (opcional, si lo añades a docker-compose para métricas de CONTENEDORES)
+  # - job_name: 'cadvisor'
+  #   static_configs:
+  #     - targets: ['cadvisor:8080']

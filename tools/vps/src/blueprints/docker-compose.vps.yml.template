@@ -1,7 +1,17 @@
 # apps/<%= vpsName %>/docker-compose.vps.yml
 # Define los servicios para la configuración <%= vpsName %>
+# Incluye stack de monitoreo opcional si monitoringEnabled=true
 # Gestionado por el generador @mi-org/vps
+
+# Definir configuración de logging reutilizable
+x-logging-options: &logging-options
+  driver: 'json-file'
+  options:
+    max-size: '10m' # Tamaño máximo por archivo
+    max-file: '3'   # Número de archivos a retener
+
 services:
+  # --- Servicio Nginx (Existente) ---
   nginx:
     image: nginx:stable-alpine
     container_name: <%= vpsName %>-nginx
@@ -12,11 +22,131 @@ services:
     volumes:
       - ./nginx-conf:/etc/nginx/conf.d:ro
       - ./html:/usr/share/nginx/html:ro
+      # Montar directorio de desafíos a una ruta específica
       - /var/www/letsencrypt/challenges:/var/www/letsencrypt/challenges-in-container:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
-      - webproxy
+      - webproxy # Conectar a la red compartida
+    logging: *logging-options # Aplicar rotación de logs
 
+<%# Inicio Bloque Condicional Monitoreo %>
+<% if (monitoringEnabled) { %>
+  # --- Stack de Monitoreo (Opcional) ---
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: <%= vpsName %>-node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)'
+    # No necesita exponer puertos al host, Prometheus lo scrapea por la red interna
+    # ports:
+    #  - "9100:9100" # Solo si quieres acceder directamente desde el host
+    pid: host # Necesario para que lea métricas del host correctamente
+    networks:
+      - webproxy
+    logging: *logging-options
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: <%= vpsName %>-prometheus
+    restart: unless-stopped
+    volumes:
+      # Montar archivo de configuración generado
+      - ./monitoring-conf/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Montar volumen para datos persistentes de métricas
+      # Usamos un path relativo al directorio del proyecto en el host
+      - ./prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      # Configurar retención de datos (ej: 15 días)
+      - '--storage.tsdb.retention.time=15d'
+      # Otras flags si son necesarias
+    # No necesita exponer puertos al host normalmente
+    # ports:
+    #  - "9090:9090" # Solo para acceso directo desde el host
+    networks:
+      - webproxy
+    logging: *logging-options
+
+  loki:
+    image: grafana/loki:latest # Usar versión específica si se prefiere
+    container_name: <%= vpsName %>-loki
+    restart: unless-stopped
+    volumes:
+      # Montar archivo de configuración generado
+      - ./monitoring-conf/loki-config.yml:/etc/loki/config.yml
+      # Montar volumen para datos persistentes de logs
+      - ./loki-data:/loki
+    command: -config.file=/etc/loki/config.yml
+    # No necesita exponer puertos al host normalmente
+    # ports:
+    #   - "3100:3100" # Solo para acceso directo
+    networks:
+      - webproxy
+    logging: *logging-options
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: <%= vpsName %>-promtail
+    restart: unless-stopped
+    volumes:
+      # Montar archivo de configuración generado
+      - ./monitoring-conf/promtail-config.yml:/etc/promtail/config.yml
+      # Montar socket de Docker para que Promtail descubra logs de contenedores
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Montar directorio donde Docker guarda los logs json (si Promtail los lee de ahí)
+      # Opcional si usas el driver 'docker' en la config de promtail
+      # - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Montar volumen para guardar posiciones de lectura de logs
+      - ./promtail-positions:/var/log # O la ruta definida en promtail config
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - webproxy
+    logging: *logging-options
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana-oss:latest # O :latest
+    container_name: <%= vpsName %>-grafana
+    restart: unless-stopped
+    volumes:
+      # Montar volumen para datos persistentes de Grafana (dashboards, users, datasources)
+      - ./grafana-data:/var/lib/grafana
+      # Opcional: Montar dashboards predefinidos
+      # - ./grafana-dashboards:/etc/grafana/provisioning/dashboards
+    # No necesita exponer puertos directamente, se accede vía Nginx
+    # ports:
+    #   - "3000:3000"
+    environment:
+      # Configurar usuario/pass admin inicial (cambiar en primer login)
+      # O usar variables de entorno desde un archivo .env
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana # ¡Cambiar esto o usar secrets!
+      # Variables para configurar datasources automáticamente (opcional)
+      # - GF_DATASOURCE_NAME=Prometheus
+      # - GF_DATASOURCE_TYPE=prometheus
+      # - GF_DATASOURCE_URL=http://prometheus:9090
+      # - GF_DATASOURCE_ACCESS=proxy
+      # - GF_DATASOURCE_IS_DEFAULT=true
+    networks:
+      - webproxy
+    logging: *logging-options
+    depends_on:
+      - prometheus
+      - loki
+<% } %>
+<%# Fin Bloque Condicional Monitoreo %>
+
+# --- Redes ---
 networks:
   webproxy:
     driver: bridge

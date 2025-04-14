@@ -10,5 +10,6 @@ export interface NormalizedOptions extends VpsCreateGeneratorSchema {
   domainsList: string[];    // Array de dominios/subdominios
   primaryDomain: string;    // Primer dominio de la lista
   vpsNameUpper: string;     // Nombre en mayúsculas con guiones bajos (para secrets)
+  monitoring?: boolean;
   // forceOverwrite?: boolean; // Ya está en VpsCreateGeneratorSchema
 }

@@ -26,11 +26,8 @@ function normalizeOptions(tree: Tree, options: VpsCreateGeneratorSchema): Normal
   const domainsList = options.domains.split(',').map(d => d.trim()).filter(Boolean);
   if (domainsList.length === 0) { /*...*/ }
   const primaryDomain = domainsList[0];
-
   const parsedTags = options.tags ? options.tags.split(',').map(s => s.trim()).filter(Boolean) : [];
   const defaultTags = ['type:vps', `scope:${name}`];
-
-  // --- CALCULAR vpsNameUpper AQUÍ ---
   const vpsNameUpper = name.toUpperCase().replace(/-/g, '_');
 
   return {
@@ -58,7 +55,8 @@ export default async function vpsCreateGenerator(
     vpsName,
     forceOverwrite,
     domainsList,
-    primaryDomain
+    primaryDomain,
+    monitoring
    } = normalizedOptions;
 
   const defaultBranch = getDefaultBranch(tree);
@@ -119,39 +117,49 @@ export default async function vpsCreateGenerator(
   // 2. Generar/Sobrescribir Archivos desde Templates
   logger.info('Generating files from Phase 3 blueprints (incl. SSL)...');
   const templateOptions = {
-    name: normalizedOptions.name, // Usado por algunas convenciones internas de generateFiles
-    vpsName: normalizedOptions.vpsName,
-    scope: normalizedOptions.vpsName, // Asumiendo scope=vpsName
-    domains: normalizedOptions.domainsList.join(' '), // String para server_name
-    primaryDomain: normalizedOptions.primaryDomain,   // String para rutas de certs
+    ...normalizedOptions,
+    monitoringEnabled: monitoring,
+    domains: domainsList.join(' '),
+    primaryDomain: primaryDomain,
     template: '',
   };
 
-  // generateFiles copia todo el contenido de la carpeta fuente (blueprints)
-  // procesando archivos .template y copiando los demás tal cual (como ssl-dhparams.pem)
   generateFiles(
     tree,
     path.join(__dirname, '../../blueprints'), // Ruta a los templates
-    projectRoot, // Ruta de destino
+    projectRoot, // Destino
     templateOptions
   );
   logger.info(`NOTE: Ensure 'deploy.sh.template' has execute permissions in Git.`);
   logger.info(`NOTE: Ensure 'ssl-dhparams.pem' exists in blueprints/nginx-conf/ (generate once with openssl).`);
 
 
-  // 3. Actualizar Workflow de CD
+  // 3. Generar Archivos de Monitoreo (Condicional)
+  if (monitoring) {
+    logger.info('Monitoring enabled. Generating monitoring configuration files...');
+    // Definir ruta donde guardar configs de monitoreo (ej: dentro del proyecto)
+    const monitoringConfigPath = joinPathFragments(projectRoot, 'monitoring-conf');
+    generateFiles(
+      tree,
+      path.join(__dirname, '../../monitoring-blueprints'),
+      monitoringConfigPath, // <- Destino para configs de monitoring
+      templateOptions // Reusamos las mismas opciones
+    );
+  }
+
+  // 4. Actualizar Workflow de CD
   logger.info('Updating CD workflow file...');
-  // No necesitamos pasar vpsNameUpper aquí, el workflow lo calcula en la matriz
   await updateCdWorkflow(tree, normalizedOptions);
   logger.info('CD workflow update complete.');
 
-  // 4. Formatear Archivos
+  // 5. Formatear Archivos
   await formatFiles(tree);
 
-  // 5. Mostrar Mensajes Finales
+  // 6. Mostrar Mensajes Finales
   logger.info('-----------------------------------------------------');
   if (projectExists && forceOverwrite) { logger.info(`VPS configuration '${vpsName}' updated successfully.`); }
   else if (!projectExists) { logger.info(`VPS configuration '${vpsName}' created successfully.`); }
+  if (normalizedOptions.monitoring) { logger.info(`   Monitoring stack (Prometheus, Grafana, Loki) included.`); }
   logger.info(`   Project Root: ${projectRoot}`);
   logger.info(' ');
   logger.warn('>>> ACCIONES MANUALES REQUERIDAS EN EL SERVIDOR VPS <<<');

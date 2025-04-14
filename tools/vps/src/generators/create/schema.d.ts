@@ -4,4 +4,5 @@ export interface VpsCreateGeneratorSchema {
   directory?: string;
   tags?: string;
   forceOverwrite?: boolean;
+  monitoring?: boolean;
 }

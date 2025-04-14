@@ -36,6 +36,12 @@
       "description": "Overwrite existing files if the project configuration already exists.",
       "default": false,
       "alias": "force"
+    },
+    "monitoring": {
+      "type": "boolean",
+      "description": "Include monitoring stack (Prometheus, Grafana, Loki) in the configuration.",
+      "default": false,
+      "alias": "m"
     }
   },
   "required": ["name", "domains"]

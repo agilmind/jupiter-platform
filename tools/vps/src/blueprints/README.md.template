@@ -1,13 +1,5 @@
 # Configuration for VPS: <%= vpsName %>
 
-This directory contains the generated configuration files intended for the Virtual Private Server instance related to **<%= vpsName %>**.
-
-Files managed by the `@mi-org/vps` Nx generator (scope: `<%= scope %>`).
-
-**Current Stage:** Phase 2 - Basic Docker Compose/Nginx Deployment.
-
----
-
 ## Deployment Prerequisites & Instructions
 
 Before the automated CD workflow can deploy this configuration, ensure the target server and GitHub repository are correctly set up.
