@@ -29,6 +29,10 @@ schema_config:
         prefix: index_
         period: 24h
 
+limits_config:
+  # Deshabilitar metadata estructurada para compatibilidad con schema v11/boltdb-shipper
+  allow_structured_metadata: false
+
 # Configurar retención de datos (IMPORTANTE)
 # Usar table_manager para retención basada en tiempo
 table_manager:
