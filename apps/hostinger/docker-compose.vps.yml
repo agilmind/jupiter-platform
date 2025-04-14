@@ -2,39 +2,22 @@
 # Define los servicios para la configuración hostinger
 # Gestionado por el generador @mi-org/vps
 services:
-  # --- Servicio Nginx ---
   nginx:
-    # Usar imagen oficial de Nginx ligera basada en Alpine
     image: nginx:stable-alpine
-    # Nombre descriptivo para el contenedor
     container_name: hostinger-nginx
-    # Política de reinicio: reiniciar siempre excepto si se detiene manualmente
     restart: unless-stopped
     ports:
-      # Mapear puerto 80 del host al 80 del contenedor (HTTP)
       - '80:80'
-      # Mapear puerto 443 del host al 443 del contenedor (HTTPS - aunque no activo aún)
       - '443:443'
     volumes:
-      # Montar la configuración específica del sitio (read-only)
-      # El archivo default.conf irá a /etc/nginx/conf.d/ dentro del contenedor
       - ./nginx-conf:/etc/nginx/conf.d:ro
-      # Montar el contenido web estático (read-only)
-      # El contenido de ./html/ (index.html) estará disponible en /usr/share/nginx/html
       - ./html:/usr/share/nginx/html:ro
-      # Montar directorio para desafíos Let's Encrypt (webroot) (read-only)
-      # Asegúrate que /var/www/letsencrypt/live exista en el HOST (creado por vps-initial-setup.sh)
-      - /var/www/letsencrypt/live:/usr/share/nginx/html/acme-challenges:ro
-      # Montar certificados Let's Encrypt (read-only)
-      # Esto permite a Nginx leer los certificados directamente desde el host
+      - /var/www/letsencrypt/challenges:/var/www/letsencrypt/challenges-in-container:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
-      # Conectar a una red común (opcional, pero útil si añades apps después)
-      - webproxy # Asegúrate que esta red exista en Docker (docker network create webproxy) o créala aquí.
+      - webproxy
 
-# --- Redes ---
 networks:
   webproxy:
     driver: bridge
     name: webproxy
-# --- Fin del archivo ---

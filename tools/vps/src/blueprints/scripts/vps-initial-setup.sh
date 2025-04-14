@@ -19,7 +19,6 @@ readonly APPS_DIR="${DEPLOY_HOME}/apps"
 readonly VPS_DIR="${DEPLOY_HOME}/vps"
 readonly CERTS_DIR="${DEPLOY_HOME}/certs"
 readonly SECRETS_DIR="${DEPLOY_HOME}/.secrets"
-readonly WEBROOT_CHALLENGE_DIR="/var/www/letsencrypt/live"
 
 # --- Colors For Output ---
 readonly COLOR_GREEN='\033[0;32m'
@@ -147,8 +146,25 @@ setup_docker_group() {
 # --- Create and Configure Directories ---
 setup_directories() {
     info "Setting up required directories and permissions..."
-    local dir_specs=( "${APPS_DIR}:deploy:deploy:755" "${VPS_DIR}:deploy:deploy:755" "${CERTS_DIR}:deploy:deploy:755" "${SECRETS_DIR}:root:root:700" "${WEBROOT_CHallenge_DIR}:root:root:755" )
-    if [[ -d "${DEPLOY_HOME}" ]]; then chown "${DEPLOY_USER}:${DEPLOY_USER}" "${DEPLOY_HOME}" || warn "Could not chown ${DEPLOY_HOME}."; else warn "Deploy user home directory ${DEPLOY_HOME} not found."; fi
+    local dir_specs=(
+        "${APPS_DIR}:deploy:deploy:755"
+        "${VPS_DIR}:deploy:deploy:755"
+        "${CERTS_DIR}:deploy:deploy:755"
+        "${SECRETS_DIR}:root:root:700"
+        "/var/www/letsencrypt/challenges:root:root:755"
+    )
+    # Crear /var/www/letsencrypt si no existe
+    if [[ ! -d "/var/www/letsencrypt" ]]; then
+         info "Creating base directory: /var/www/letsencrypt"
+         mkdir -p "/var/www/letsencrypt" || error_exit "Failed create /var/www/letsencrypt"
+         chown root:root "/var/www/letsencrypt"
+         chmod 755 "/var/www/letsencrypt"
+    fi
+    if [[ -d "${DEPLOY_HOME}" ]]; then
+      chown "${DEPLOY_USER}:${DEPLOY_USER}" "${DEPLOY_HOME}" || warn "Could not chown ${DEPLOY_HOME}.";
+    else
+      warn "Deploy user home directory ${DEPLOY_HOME} not found.";
+    fi
     for spec in "${dir_specs[@]}"; do IFS=':' read -r dir owner group perms <<< "$spec"; if [[ -z "$dir" || -z "$owner" || -z "$group" || -z "$perms" ]]; then warn "Skipping invalid spec: ${spec}"; continue; fi; local uid; local gid; uid=$(id -u "$owner" 2>/dev/null) || error_exit "Owner user '$owner' not found."; gid=$(getent group "$group" | cut -d: -f3 2>/dev/null) || error_exit "Owner group '$group' not found."; if [[ ! -d "${dir}" ]]; then info "Creating dir: ${dir}"; mkdir -p "${dir}" || error_exit "Failed create ${dir}."; info "Dir ${dir} created."; else info "Dir ${dir} already exists."; fi; info "Setting owner ${owner}:${group} perms ${perms} for ${dir}..."; chown -R "${uid}:${gid}" "${dir}" || error_exit "Failed chown for ${dir}."; chmod "${perms}" "${dir}" || error_exit "Failed chmod for ${dir}." ; done
     success "Required directories created/verified."
 }
