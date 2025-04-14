@@ -49,11 +49,7 @@ server {
 <% if (monitoringEnabled) { %>
     # --- Proxy Inverso para Grafana ---
     location /grafana/ { # Acceso vía tudominio.com/grafana/
-        # Reescribir la URL eliminando /grafana/ antes de pasarla al backend
-        rewrite ^/grafana/(.*)$ /$1 break;
-        # Pasar la petición al servicio Grafana en Docker Compose (puerto 3000 por defecto)
-        proxy_pass http://grafana:3000;
-        proxy_redirect / /grafana/;
+        proxy_pass http://grafana:3000/;
         # Cabeceras necesarias para Grafana detrás de proxy
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -64,7 +60,7 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
         proxy_set_header X-Grafana-Org-Id 1; # Asumir Org ID 1 por defecto
-        proxy_cookie_path / /grafana/; # Asegurar que las cookies funcionen con el subpath
+        proxy_cookie_path / /grafana/;
     }
 <% } %>
 <%# Fin Bloque Condicional Monitoreo %>
