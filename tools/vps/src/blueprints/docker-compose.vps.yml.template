@@ -59,36 +59,25 @@ services:
     container_name: <%= vpsName %>-prometheus
     restart: unless-stopped
     volumes:
-      # Montar archivo de configuración generado
+      # Montar config (sin cambios)
       - ./monitoring-conf/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      # Montar volumen para datos persistentes de métricas
-      # Usamos un path relativo al directorio del proyecto en el host
-      - ./prometheus-data:/prometheus
-    command:
+      - prometheus-data:/prometheus
+    command: # (sin cambios)
       - '--config.file=/etc/prometheus/prometheus.yml'
-      # Configurar retención de datos (ej: 15 días)
       - '--storage.tsdb.retention.time=15d'
-      # Otras flags si son necesarias
-    # No necesita exponer puertos al host normalmente
-    # ports:
-    #  - "9090:9090" # Solo para acceso directo desde el host
     networks:
       - webproxy
     logging: *logging-options
 
   loki:
-    image: grafana/loki:latest # Usar versión específica si se prefiere
+    image: grafana/loki:latest
     container_name: <%= vpsName %>-loki
     restart: unless-stopped
     volumes:
-      # Montar archivo de configuración generado
+      # Montar config (sin cambios)
       - ./monitoring-conf/loki-config.yml:/etc/loki/config.yml
-      # Montar volumen para datos persistentes de logs
-      - ./loki-data:/loki
+      - loki-data:/loki
     command: -config.file=/etc/loki/config.yml
-    # No necesita exponer puertos al host normalmente
-    # ports:
-    #   - "3100:3100" # Solo para acceso directo
     networks:
       - webproxy
     logging: *logging-options
@@ -115,28 +104,18 @@ services:
       - loki
 
   grafana:
-    image: grafana/grafana-oss:latest # O :latest
+    image: grafana/grafana-oss:latest
     container_name: <%= vpsName %>-grafana
     restart: unless-stopped
+    # NO es necesario especificar 'user' si usamos volumen nombrado gestionado por Docker
+    # user: "1000:1000" # <-- QUITAR O COMENTAR ESTA LÍNEA SI LA HABÍAS PUESTO
     volumes:
-      # Montar volumen para datos persistentes de Grafana (dashboards, users, datasources)
-      - ./grafana-data:/var/lib/grafana
-      # Opcional: Montar dashboards predefinidos
-      # - ./grafana-dashboards:/etc/grafana/provisioning/dashboards
-    # No necesita exponer puertos directamente, se accede vía Nginx
-    # ports:
-    #   - "3000:3000"
-    environment:
-      # Configurar usuario/pass admin inicial (cambiar en primer login)
-      # O usar variables de entorno desde un archivo .env
+      # --- USAR VOLUMEN NOMBRADO PARA DATOS ---
+      - grafana-data:/var/lib/grafana
+      # --- FIN CAMBIO ---
+    environment: # (sin cambios)
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=grafana # ¡Cambiar esto o usar secrets!
-      # Variables para configurar datasources automáticamente (opcional)
-      # - GF_DATASOURCE_NAME=Prometheus
-      # - GF_DATASOURCE_TYPE=prometheus
-      # - GF_DATASOURCE_URL=http://prometheus:9090
-      # - GF_DATASOURCE_ACCESS=proxy
-      # - GF_DATASOURCE_IS_DEFAULT=true
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
     networks:
       - webproxy
     logging: *logging-options
@@ -151,3 +130,9 @@ networks:
   webproxy:
     driver: bridge
     name: webproxy
+<% if (monitoringEnabled) { %>
+volumes:
+  prometheus-data: {}
+  loki-data: {}
+  grafana-data: {}
+<% } %>
