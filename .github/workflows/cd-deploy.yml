@@ -162,13 +162,13 @@ jobs:
                     TARGET_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
                     SOURCE_DIR="./apps/${PROJECT_NAME}/"
 
-                    if [ ! -d "$SOURCE_DIR" ]; then echo "Error: Source directory ${SOURCE_DIR} not found." >&2; exit 1; fi
+                    if [ ! -d "$SOURCE_DIR" ]; then echo "Error: Source directory $SOURCE_DIR not found." >&2; exit 1; fi
 
-                    echo "Syncing ${SOURCE_DIR} to ${VPS_USER}@${VPS_HOST}:${TARGET_DIR}/"
+                    echo "Syncing $SOURCE_DIR to $VPS_USER@$VPS_HOST:$TARGET_DIR/"
 
                     # --- Ejecutar rsync usando ruta absoluta y EN UNA SOLA LÍNEA ---
-                    echo "Executing: /usr/bin/rsync -avzL --delete --exclude='.git' $SOURCE_DIR ${VPS_USER}@${VPS_HOST}:${TARGET_DIR}/"
-                    /usr/bin/rsync -avzL --delete --exclude='.git' "${SOURCE_DIR}" "${VPS_USER}@${VPS_HOST}:${TARGET_DIR}/" || { echo "Rsync failed! Exit code: $?"; exit 1; }
+                    echo "Executing: /usr/bin/rsync -avzL --delete --exclude='.git' $SOURCE_DIR $VPS_USER@$VPS_HOST:$TARGET_DIR/"
+                    /usr/bin/rsync -avzL --delete --exclude='.git' "$SOURCE_DIR" "$VPS_USER@$VPS_HOST:$TARGET_DIR/" || { echo "Rsync failed! Exit code: $?"; exit 1; }
                     echo "Rsync finished."
 
       - name: Execute Remote Deployment Script
@@ -181,10 +181,10 @@ jobs:
                     REMOTE_APP_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
                     REMOTE_SCRIPT_PATH="${REMOTE_APP_DIR}/deploy.sh"
 
-                    echo "Executing ${REMOTE_SCRIPT_PATH} on ${VPS_USER}@${VPS_HOST}..."
-                    ssh "${VPS_USER}@${VPS_HOST}" << EOF
-                      echo "[Remote] Executing deploy script for ${PROJECT_NAME}..."
-                      cd "${REMOTE_APP_DIR}" || { echo "[Remote] Failed to cd to ${REMOTE_APP_DIR}"; exit 1; }
+                    echo "Executing $REMOTE_SCRIPT_PATH on $VPS_USER@$VPS_HOST..."
+                    ssh "$VPS_USER@$VPS_HOST" << EOF
+                      echo "[Remote] Executing deploy script for $PROJECT_NAME..."
+                      cd "$REMOTE_APP_DIR" || { echo "[Remote] Failed to cd to $REMOTE_APP_DIR"; exit 1; }
                       bash deploy.sh
                       SCRIPT_EXIT_CODE=$?
                       echo "[Remote] deploy.sh finished with exit code $SCRIPT_EXIT_CODE."

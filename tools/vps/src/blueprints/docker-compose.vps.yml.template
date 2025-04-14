@@ -34,13 +34,8 @@ services:
 
 # --- Redes ---
 networks:
-  # Definir la red si no es externa
   webproxy:
-    # Si la red ya existe en el host (creada manualmente o por otro compose),
-    # descomenta la siguiente línea:
-    # external: true
-    # Si quieres que este compose la cree si no existe:
     driver: bridge
-    name: webproxy # Nombre explícito para la red
+    name: webproxy
 
 # --- Fin del archivo ---
