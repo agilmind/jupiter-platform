@@ -11,7 +11,6 @@ x-logging-options: &logging-options
     max-file: '3' # Número de archivos a retener
 
 services:
-  # --- Servicio Nginx (Existente) ---
   nginx:
     image: nginx:stable-alpine
     container_name: hostinger-nginx
@@ -85,16 +84,10 @@ services:
     container_name: hostinger-promtail
     restart: unless-stopped
     volumes:
-      # Montar archivo de configuración generado
-      - ./monitoring-conf/promtail-config.yml:/etc/promtail/config.yml
-      # Montar socket de Docker para que Promtail descubra logs de contenedores
+      - ./monitoring-conf/promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Montar directorio donde Docker guarda los logs json (si Promtail los lee de ahí)
-      # Opcional si usas el driver 'docker' en la config de promtail
-      # - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      # Montar volumen para guardar posiciones de lectura de logs
-      - ./promtail-positions:/var/log # O la ruta definida en promtail config
-    command: -config.file=/etc/promtail/config.yml
+      - promtail-positions:/etc/promtail/positions
+    command: -config.file=/etc/promtail/config.yml -config.expand-env=true
     networks:
       - webproxy
     logging: *logging-options
@@ -105,13 +98,9 @@ services:
     image: grafana/grafana-oss:latest
     container_name: hostinger-grafana
     restart: unless-stopped
-    # NO es necesario especificar 'user' si usamos volumen nombrado gestionado por Docker
-    # user: "1000:1000" # <-- QUITAR O COMENTAR ESTA LÍNEA SI LA HABÍAS PUESTO
     volumes:
-      # --- USAR VOLUMEN NOMBRADO PARA DATOS ---
       - grafana-data:/var/lib/grafana
-      # --- FIN CAMBIO ---
-    environment: # (sin cambios)
+    environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=grafana
     networks:
@@ -131,3 +120,4 @@ volumes:
   prometheus-data: {}
   loki-data: {}
   grafana-data: {}
+  promtail-positions: {}
