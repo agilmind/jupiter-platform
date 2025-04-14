@@ -93,7 +93,9 @@ export default async function vpsCreateGenerator(
             lintFilePatterns: [
               joinPathFragments(projectRoot, 'deploy.sh'),
               joinPathFragments(projectRoot, 'docker-compose.vps.yml'),
-              joinPathFragments(projectRoot, 'nginx-conf/**/*.conf'), // Lint configs Nginx
+              joinPathFragments(projectRoot, 'nginx/nginx.conf'),
+              joinPathFragments(projectRoot, 'nginx/conf.d/**/*.conf'),
+              joinPathFragments(projectRoot, 'nginx/includes/**/*.conf'),
             ]
           }
         },
