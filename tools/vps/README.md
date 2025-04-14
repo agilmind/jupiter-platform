@@ -58,16 +58,19 @@ Se proporcionan dos scripts en `tools/vps/scripts/` para preparar un nuevo VPS D
 
 ## Estado Actual (2025-04-14)
 
-* **Fase 1 Completada:** Generadores funcionales para estructura "Hello World", gestión básica de workflow CD, scripts de setup VPS.
-* **Fase 2 Completada:** `vps:create` genera `docker-compose.yml` con Nginx básico, `nginx.conf` funcional para HTTP y desafíos webroot, `deploy.sh` ejecuta `docker compose up`. Workflow CD despliega archivos con `rsync` y ejecuta `deploy.sh` remoto, respetando environments/aprobaciones/timers.
-* **Pendiente (Próximos Pasos):**
-    * **Fase 3: Implementación SSL/HTTPS:**
-        * Añadir configuración SSL al template `nginx-conf/default.conf.template` (bloque `server` para puerto 443).
-        * Potencialmente añadir templates para `options-ssl-nginx.conf` y `ssl-dhparams.pem` si se usan configuraciones avanzadas.
-        * Asegurar que Certbot pueda obtener el certificado inicial (manual o guiar al usuario).
-        * Verificar/configurar el `deploy_hook` en los archivos `/etc/letsencrypt/renewal/*.conf` para reiniciar Nginx tras la renovación.
-    * **Mejoras:** Considerar variables de entorno para Nginx/apps, manejo de bases de datos, etc.
-
+* **Fase 1 Completada.**
+* **Fase 2 Completada.**
+* **Fase 3 Completada (Funcionalidad Base):**
+    * Generador `vps:create` acepta opción `--domains`.
+    * Templates Nginx generan configuración HTTP y HTTPS (usando `primaryDomain` para rutas de certs, `include` para opciones SSL, `ssl_dhparam`).
+    * Template `README.md` generado incluye instrucciones detalladas para obtención inicial de certificado (manual vía DNS-01) y configuración del `deploy_hook` de Certbot.
+    * Script `debian-harden.sh` ahora abre puertos 80/443 en UFW.
+    * Log final del generador recuerda los pasos manuales de Certbot.
+* **Pendiente:**
+    * Refinamientos opcionales (manejo de errores, logs más detallados).
+    * Considerar arquitectura de Proxy Inverso si se necesita alojar múltiples dominios independientes en el mismo VPS.
+    * Pruebas exhaustivas en diferentes escenarios.
+    * 
 ## Continuidad del Chat con Gemini
 
 Para retomar este trabajo en una nueva sesión de chat con Gemini, sigue estos pasos:
@@ -83,6 +86,47 @@ Para retomar este trabajo en una nueva sesión de chat con Gemini, sigue estos p
     * Templates de `tools/vps/src/blueprints/` (`docker-compose.vps.yml.template`, `nginx-conf/default.conf.template`, `deploy.sh.template`)
     * El `.github/workflows/cd-deploy.yml` generado.
 4.  **Indica el Siguiente Paso:** Di claramente qué quieres hacer a continuación (ej. "Implementemos la configuración SSL/HTTPS (Fase 3)").
+
+## Troubleshooting / Diagnóstico Básico
+
+Si el despliegue falla o el sitio no está accesible después de un despliegue exitoso, aquí hay algunos comandos útiles para ejecutar en el servidor VPS:
+
+**1. Verificar Contenedores Docker:**
+   * Conéctate como usuario `deploy`.
+   * Ve al directorio de la app: `cd /home/deploy/apps/<vps-name>/`
+   * Comprueba estado: `docker compose -f docker-compose.vps.yml ps` (¿Está 'running'?)
+   * Mira logs (especialmente si está en 'Restarting'): `docker compose -f docker-compose.vps.yml logs nginx`
+
+**2. Verificar Firewall (UFW):**
+   * Conéctate como usuario admin (con sudo).
+   * `sudo ufw status verbose` (Asegúrate que 80/tcp y 443/tcp estén 'ALLOW IN').
+   * Si faltan: `sudo ufw allow http && sudo ufw allow https`
+
+**3. Verificar Puertos en Escucha:**
+   * Conéctate como usuario admin (con sudo).
+   * `sudo ss -tlpn | grep -E ':80|:443'` (Deberías ver `docker-proxy` escuchando).
+
+**4. Probar Nginx Localmente:**
+   * Conéctate como admin o deploy.
+   * `curl -v http://localhost`
+   * `curl -v --insecure https://localhost` (Debería devolver el HTML o un error de Nginx).
+
+**5. Error "Permission denied (publickey)" en el Workflow:**
+   * Verifica que el contenido del secret `VPS_<NAME>_KEY` en GitHub coincida EXACTAMENTE con tu clave privada de despliegue.
+   * Verifica que la clave pública correspondiente esté EXACTAMENTE igual en `/home/deploy/.ssh/authorized_keys` en el servidor.
+   * Verifica permisos: `sudo stat -c "%a %U:%G" /home/deploy/.ssh /home/deploy/.ssh/authorized_keys` (Deberían ser `700 deploy:deploy` y `600 deploy:deploy` respectivamente).
+
+**6. Error "PasswordAuthentication yes" / Login con Contraseña Aún Activo:**
+   * Verifica `/etc/ssh/sshd_config` y asegúrate que `PasswordAuthentication no` esté descomentado.
+   * Revisa archivos en `/etc/ssh/sshd_config.d/` (especialmente los de `cloud-init`) por si están sobrescribiendo la configuración. Edita esos archivos si es necesario.
+   * Reinicia SSH: `sudo systemctl restart sshd`.
+
+**7. Problemas con Renovación o Certificados SSL:**
+   * Verifica certificados existentes: `sudo certbot certificates`
+   * Prueba renovación manual: `sudo certbot renew --dry-run`
+   * Revisa configuración de renovación y hook: `sudo cat /etc/letsencrypt/renewal/tudominio.com.conf`
+   * Revisa configuración Nginx para SSL (`apps/<vps-name>/nginx-conf/default.conf`).
+
 
 ---
 *Este es un documento vivo y se actualizará a medida que el proyecto evolucione.*

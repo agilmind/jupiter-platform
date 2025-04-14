@@ -3,22 +3,13 @@ import * as yaml from 'js-yaml';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NormalizedOptions } from './types';
+import { getDefaultBranch } from '../utils';
 
-// Interfaces y helpers (getDefaultBranch, readWorkflowScript) como estaban antes...
 interface VpsCreateGeneratorSchema {
   name: string;
   directory?: string;
   tags?: string;
   forceOverwrite?: boolean;
-}
-
-function getDefaultBranch(tree: Tree): string { /* ... */
-  try {
-    const p = JSON.parse(tree.read('nx.json', 'utf-8') || '{}');
-    return p?.defaultBase || 'main';
-  } catch {
-    return 'main';
-  }
 }
 
 const SCRIPTS_DIR = join(__dirname, 'scripts');

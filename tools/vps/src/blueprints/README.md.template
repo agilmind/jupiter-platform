@@ -37,7 +37,7 @@ Before the automated CD workflow can deploy this configuration, ensure the targe
              --dns-cloudflare \
              --dns-cloudflare-credentials /home/deploy/.secrets/cloudflare.ini \
              --dns-cloudflare-propagation-seconds 60 \
-         <% domains.split(',').map(d => `-d ${d.trim()}`).join(' \\\n\t\t ') %> \
+             <%= domains.split(',').map(d => `-d ${d.trim()}`).join(' \\\n\t\t ') %> \
              --non-interactive --agree-tos --email tu@email.com --key-type ecdsa
 
          # Ejemplo para DigitalOcean:
@@ -66,4 +66,42 @@ Before the automated CD workflow can deploy this configuration, ensure the targe
        * Una vez completados los pasos 3 y 4, el CD vía GitHub Actions (desencadenado por `git push`) puede desplegar esta configuración.
        * El workflow copiará los archivos (incluyendo la config Nginx HTTPS) y ejecutará `deploy.sh`, que levantará el contenedor Nginx usando los certificados ya existentes. Las renovaciones futuras serán automáticas.
 
-**Refer to `tools/vps/README.md` for the full project strategy and advanced configuration details.**
+## Troubleshooting / Diagnóstico Básico
+
+Si el despliegue falla o el sitio no está accesible después de un despliegue exitoso, aquí hay algunos comandos útiles para ejecutar en el servidor VPS:
+
+**1. Verificar Contenedores Docker:**
+   * Conéctate como usuario `deploy`.
+   * Ve al directorio de la app: `cd /home/deploy/apps/<vps-name>/`
+   * Comprueba estado: `docker compose -f docker-compose.vps.yml ps` (¿Está 'running'?)
+   * Mira logs (especialmente si está en 'Restarting'): `docker compose -f docker-compose.vps.yml logs nginx`
+
+**2. Verificar Firewall (UFW):**
+   * Conéctate como usuario admin (con sudo).
+   * `sudo ufw status verbose` (Asegúrate que 80/tcp y 443/tcp estén 'ALLOW IN').
+   * Si faltan: `sudo ufw allow http && sudo ufw allow https`
+
+**3. Verificar Puertos en Escucha:**
+   * Conéctate como usuario admin (con sudo).
+   * `sudo ss -tlpn | grep -E ':80|:443'` (Deberías ver `docker-proxy` escuchando).
+
+**4. Probar Nginx Localmente:**
+   * Conéctate como admin o deploy.
+   * `curl -v http://localhost`
+   * `curl -v --insecure https://localhost` (Debería devolver el HTML o un error de Nginx).
+
+**5. Error "Permission denied (publickey)" en el Workflow:**
+   * Verifica que el contenido del secret `VPS_<NAME>_KEY` en GitHub coincida EXACTAMENTE con tu clave privada de despliegue.
+   * Verifica que la clave pública correspondiente esté EXACTAMENTE igual en `/home/deploy/.ssh/authorized_keys` en el servidor.
+   * Verifica permisos: `sudo stat -c "%a %U:%G" /home/deploy/.ssh /home/deploy/.ssh/authorized_keys` (Deberían ser `700 deploy:deploy` y `600 deploy:deploy` respectivamente).
+
+**6. Error "PasswordAuthentication yes" / Login con Contraseña Aún Activo:**
+   * Verifica `/etc/ssh/sshd_config` y asegúrate que `PasswordAuthentication no` esté descomentado.
+   * Revisa archivos en `/etc/ssh/sshd_config.d/` (especialmente los de `cloud-init`) por si están sobrescribiendo la configuración. Edita esos archivos si es necesario.
+   * Reinicia SSH: `sudo systemctl restart sshd`.
+
+**7. Problemas con Renovación o Certificados SSL:**
+   * Verifica certificados existentes: `sudo certbot certificates`
+   * Prueba renovación manual: `sudo certbot renew --dry-run`
+   * Revisa configuración de renovación y hook: `sudo cat /etc/letsencrypt/renewal/tudominio.com.conf`
+   * Revisa configuración Nginx para SSL (`apps/<vps-name>/nginx-conf/default.conf`).

@@ -13,6 +13,7 @@ import * as path from 'path';
 import { VpsCreateGeneratorSchema } from './schema';
 import { NormalizedOptions } from './lib/types'
 import { updateCdWorkflow } from './lib/update-cd-workflow';
+import { getDefaultBranch } from './utils';
 
 function normalizeOptions(tree: Tree, options: VpsCreateGeneratorSchema): NormalizedOptions { // <-- Usar tipo importado
   const name = names(options.name).fileName;
@@ -59,6 +60,9 @@ export default async function vpsCreateGenerator(
     domainsList,
     primaryDomain
    } = normalizedOptions;
+
+  const defaultBranch = getDefaultBranch(tree);
+  logger.info(`Default branch detected/set to: ${defaultBranch}`);
 
   let projectExists = false;
   try {
@@ -148,16 +152,25 @@ export default async function vpsCreateGenerator(
   logger.info('-----------------------------------------------------');
   if (projectExists && forceOverwrite) { logger.info(`VPS configuration '${vpsName}' updated successfully.`); }
   else if (!projectExists) { logger.info(`VPS configuration '${vpsName}' created successfully.`); }
-  logger.info(`Review files in '${projectRoot}'.`);
+  logger.info(`   Project Root: ${projectRoot}`);
   logger.info(' ');
-  logger.warn('>>> MANUAL ACTIONS REQUIRED ON VPS (if first time or domains changed): <<<');
-  logger.info(`  1. Obtain Initial SSL Certificate: Connect to the VPS via SSH (as admin user)`);
-  logger.info(`     and run 'sudo certbot certonly --dns-[provider] ...' for domain(s): ${domainsList.join(', ')}`);
-  logger.info(`     (See detailed command in ${projectRoot}/README.md)`);
-  logger.info(`  2. Configure Certbot Hook: Edit '/etc/letsencrypt/renewal/${primaryDomain}.conf' (as root)`);
-  logger.info(`     and add/verify the 'deploy_hook' line to restart the nginx container.`);
-  logger.info(`     (See detailed command in ${projectRoot}/README.md)`);
-  logger.info(`  3. Configure GitHub Secrets: Ensure secrets for HOST, USER, and KEY are set.`);
-  logger.info(`     (See ${projectRoot}/README.md)`);
+  logger.warn('>>> ACCIONES MANUALES REQUERIDAS EN EL SERVIDOR VPS <<<');
+  logger.info('   (Ver detalles completos en el README generado)');
+  logger.warn('  1. Obtener Certificado SSL Inicial:');
+  logger.info(`     - Conéctate al VPS como admin y ejecuta 'sudo certbot certonly --dns-[provider]'`);
+  logger.info(`     - Incluye TODOS los dominios: ${domainsList.join(', ')}`);
+  logger.info(`     - ¡Haz esto ANTES del primer despliegue del workflow!`);
+  logger.warn('  2. Configurar Certbot Deploy Hook:');
+  logger.info(`     - Después de obtener el certificado, edita (con sudo) el archivo:`);
+  logger.info(`       /etc/letsencrypt/renewal/${primaryDomain}.conf`);
+  logger.info(`     - Añade/Verifica la línea 'deploy_hook' para reiniciar Nginx:`);
+  logger.info(`       deploy_hook = docker compose -f /home/deploy/apps/${vpsName}/docker-compose.vps.yml restart nginx`);
+  logger.warn('  3. Configurar GitHub Secrets:');
+  logger.info(`     - Asegúrate de que los secrets para HOST, USER y KEY de '${vpsName.toUpperCase().replace(/-/g, '_')}' estén creados en GitHub.`);
+  logger.info(' ');
+  logger.info('>>> PRÓXIMOS PASOS: <<<');
+  logger.info(`  1. Realiza las acciones manuales en el VPS si es la primera vez.`);
+  logger.info(`  2. Revisa y haz commit de los archivos generados/actualizados.`);
+  logger.info(`  3. Haz push a la rama '${defaultBranch}' para iniciar el despliegue vía GitHub Actions.`);
   logger.info('-----------------------------------------------------');
 }
