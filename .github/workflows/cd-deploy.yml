@@ -138,8 +138,20 @@ jobs:
       - name: Install rsync (on runner)
         run: sudo apt-get update && sudo apt-get install -y rsync
       - name: Sync Files via Rsync
-        run: |2-
+        run: |-
+          |
+                    echo "--- Debugging Rsync ---"
+                    echo "PATH is: $PATH"
+                    echo "Checking for rsync command using 'command -v':"
+                    command -v rsync || { echo "ERROR: rsync command not found by 'command -v'!"; exit 1; }
+                    echo "Checking for rsync command using 'which':"
+                    which rsync || { echo "ERROR: rsync command not found by 'which'!"; exit 1; }
+                    echo "Attempting to get rsync version:"
+                    rsync --version || { echo "ERROR: failed to execute 'rsync --version'!"; exit 1; }
+                    echo "rsync seems accessible. Proceeding with original script..."
+                    echo "--- End Debugging ---"
 
+                    # --- Script Rsync Original ---
                     VPS_HOST="${{ secrets[env.SECRET_NAME_HOST] }}"
                     SECRET_USER_VALUE="${{ secrets[env.SECRET_NAME_USER] }}"
                     VPS_USER="${SECRET_USER_VALUE:-deploy}"
@@ -150,6 +162,7 @@ jobs:
                     if [ ! -d "$SOURCE_DIR" ]; then echo "Error: Source directory ${SOURCE_DIR} not found." >&2; exit 1; fi
 
                     echo "Syncing ${SOURCE_DIR} to ${VPS_USER}@${VPS_HOST}:${TARGET_DIR}/"
+                    # Ejecutar rsync
                     rsync -avzL --delete --exclude='.git'             "${SOURCE_DIR}"             "${VPS_USER}@${VPS_HOST}:${TARGET_DIR}/"             || { echo "Rsync failed!"; exit 1; }
                     echo "Rsync finished."
 
