@@ -4,73 +4,76 @@ Este directorio contiene un generador Nx (`@mi-org/vps` - ajusta el scope) para 
 
 ## Objetivos
 
-* **Scaffolding:** Generar la estructura de archivos necesaria (Nginx en Docker Compose, scripts de despliegue, configs básicas) para configurar un VPS.
+* **Scaffolding:** Generar la estructura de archivos necesaria (Nginx en Docker Compose, scripts de despliegue, configs SSL básicas) para configurar un VPS.
 * **Consistencia:** Asegurar que todas las configuraciones de VPS sigan un patrón estándar y robusto.
-* **Despliegue Continuo (CD):** Integrar con GitHub Actions para automatizar el despliegue (`.github/workflows/cd-deploy.yml`) usando `nx affected`.
+* **Despliegue Continuo (CD):** Integrar con GitHub Actions para automatizar el despliegue (`.github/workflows/cd-deploy.yml`) usando `nx affected` (vía `nx show projects`).
 * **Simplicidad y Robustez:** Buscar soluciones profesionales, mantenibles y seguras, priorizando el principio de menor privilegio.
 
 ## Filosofía y Decisiones Clave
 
-* **Desarrollo Incremental:** Avance por fases (Hello World -> Nginx/Docker -> SSL).
+* **Desarrollo Incremental:** Avance por fases (Hello World -> Nginx/Docker -> SSL -> Monitoring).
 * **Nx `affected`:** Se usa `nx show projects --affected --with-target=deploy --json` para detectar proyectos afectados y generar una matriz dinámica en el workflow de CD.
-* **Sin `sudo` para `deploy` en CD:** El usuario `deploy` opera **sin** `sudo`. Los permisos necesarios para gestionar contenedores se obtienen añadiéndolo al grupo `docker`. Las tareas que requieren root (como renovación de Certbot) se manejan por mecanismos del sistema (systemd timer, deploy hooks).
-* **Containerización (Nginx):** Nginx se ejecuta dentro de un contenedor Docker gestionado por `docker-compose` para aislamiento, consistencia y gestión de permisos simplificada.
-* **Control de Despliegue:** El workflow de CD apunta a un "Environment" de GitHub Actions (ej. `vps-production`) que puede configurarse con reglas de protección (Wait timer, Required reviewers) para controlar cuándo se ejecutan los despliegues reales.
-* **Secrets por Proyecto:** Las credenciales SSH (Host, User, Key) se configuran como Repository Secrets en GitHub con nombres específicos por proyecto (ej. `VPS_HOSTINGER_HOST`, `VPS_HOSTINGER_USER`, `VPS_HOSTINGER_KEY`) para permitir despliegues multi-destino.
+* **Sin `sudo` para `deploy` en CD:** El usuario `deploy` opera **sin** `sudo`. Los permisos necesarios (Docker) se obtienen añadiéndolo al grupo `docker`. Las tareas root (Certbot) se manejan por mecanismos del sistema o pasos manuales iniciales documentados.
+* **Containerización (Nginx):** Nginx se ejecuta dentro de un contenedor Docker (`nginx:stable-alpine`) gestionado por `docker-compose` para aislamiento y consistencia.
+* **Control de Despliegue:** El workflow de CD apunta a un "Environment" de GitHub Actions (ej. `vps-production`) configurable con reglas de protección (Wait timer, Required reviewers).
+* **Secrets por Proyecto:** Credenciales SSH (`VPS_<NAME>_HOST`, `VPS_<NAME>_USER`, `VPS_<NAME>_KEY`) se configuran como Repository Secrets en GitHub con nombres específicos por proyecto.
+* **Gestión SSL:** Certbot se ejecuta en el **host** (disparado por `certbot.timer`). Se recomienda validación **DNS-01** para obtención inicial (requiere paso manual único). Renovaciones usan el método configurado (DNS o webroot). Nginx en contenedor monta `/etc/letsencrypt` (ro) y sirve desafíos webroot desde un volumen dedicado (`/var/www/letsencrypt/challenges`) si se usa ese método. Un `deploy_hook` manual en la config de renovación de Certbot reinicia el contenedor Nginx.
 
 ## Scripts Auxiliares de Configuración del Servidor
 
-Se proporcionan dos scripts en `tools/vps/scripts/` para preparar un nuevo VPS Debian/Ubuntu:
+Ubicados en `tools/vps/scripts/`, ejecutar en orden en un VPS Debian/Ubuntu nuevo:
 
-1.  **`debian-harden.sh`:**
-    * **Propósito:** Seguridad base del SO.
-    * **Acciones:** Actualiza sistema, crea usuario *administrador* con `sudo`, configura acceso SSH *solo por clave* para ese usuario, deshabilita login root y password SSH, instala y configura firewall `ufw`, opcionalmente instala `fail2ban`.
-    * **Ejecución:** Como `root` en un servidor nuevo. Interactivo (pide nombre de usuario admin y su clave pública).
-2.  **`vps-initial-setup.sh`:**
-    * **Propósito:** Preparar entorno para despliegue de aplicaciones/contenedores.
-    * **Acciones:** Crea usuario `deploy` (sin sudo), instala `docker`, `docker-compose-plugin`, `certbot` (y plugins DNS cloudflare/digitalocean), `rsync`, añade `deploy` al grupo `docker`, crea estructura de directorios (`/home/deploy/apps`, `/var/www/letsencrypt/challenges`, etc.), configura clave SSH opcional para `deploy`, guía sobre secretos DNS para Certbot.
-    * **Ejecución:** Como usuario `sudo` (el creado por `debian-harden.sh`) después del hardening inicial.
+1.  **`debian-harden.sh` (Ejecutar como `root`):**
+    * Seguridad base SO, usuario admin con `sudo`, hardening SSH (solo clave), firewall `ufw` (permite SSH, HTTP, HTTPS), opcionalmente `fail2ban`.
+2.  **`vps-initial-setup.sh` (Ejecutar con `sudo`):**
+    * Usuario `deploy` (sin sudo, en grupo `docker`), Docker, Docker Compose, Certbot + plugins DNS (cloudflare, digitalocean), `rsync`, directorios (`/home/deploy/apps`, `/var/www/letsencrypt/challenges`), configuración clave SSH opcional para `deploy`, guía secretos DNS Certbot.
 
 ## Flujo de Trabajo Recomendado para un Nuevo VPS
 
-1.  **Crea el VPS:** (Debian 12 / Ubuntu LTS recomendado).
-2.  **Acceso Inicial:** Conéctate como `root`.
-3.  **Ejecuta Hardening:** Copia y ejecuta `debian-harden.sh`. Sigue los pasos, crea tu usuario `sudo` (`tu_admin_user`) y configura su clave. **Verifica el acceso SSH con clave para `tu_admin_user` antes de desconectar la sesión root.**
-4.  **Ejecuta Setup Entorno:** Conéctate como `tu_admin_user`. Copia y ejecuta `vps-initial-setup.sh` usando `sudo`. Proporciona la clave pública para el usuario `deploy` (recomendado, usa una clave dedicada, ej. `github_actions_deploy_key.pub`). Configura los archivos de secretos DNS si usarás validación DNS.
-5.  **Genera Configuración Nx:** En tu máquina local: `nx g @mi-org/vps:create nombre-vps [--directory=...] [--tags=...]`. Usa `--forceOverwrite` si necesitas regenerar sobre una configuración existente.
-6.  **Configura Secrets GitHub:** Ve a `Settings > Secrets and variables > Actions` en tu repo y crea los secrets `VPS_<NOMBRE_VPS_UPPER>_HOST`, `VPS_<NOMBRE_VPS_UPPER>_USER`, `VPS_<NOMBRE_VPS_UPPER>_KEY` (la clave *privada* generada para despliegue, ej. el contenido de `github_actions_deploy_key`).
-7.  **Configura Environment GitHub:** Ve a `Settings > Environments`, crea `vps-production` (o el nombre usado en el workflow) y configura reglas de protección (ej. Wait timer de 5-15 min, revisores si aplica). Desactiva "Allow administrators to bypass..." si quieres que las reglas siempre apliquen.
-8.  **Commit y Push:** Sube los archivos generados (`apps/<nombre-vps>/`, `.github/workflows/cd-deploy.yml`) a la rama `main`.
-9.  **Monitoriza/Aprueba Despliegue:** Ve a la pestaña "Actions". El workflow se ejecutará. Si configuraste aprobación/timer, el job `deploy` pausará. Una vez aprobado/esperado, los archivos se copiarán vía `rsync` y se ejecutará `deploy.sh` en el servidor usando `docker compose`.
-10. **Verifica:** Accede a la IP/Dominio de tu VPS para ver el resultado.
+1.  **Crea VPS** (Debian/Ubuntu).
+2.  **Acceso Inicial** (root).
+3.  **Ejecuta `debian-harden.sh`**. Verifica acceso con nuevo usuario sudo y clave.
+4.  **Ejecuta `vps-initial-setup.sh`** (con sudo). Proporciona clave pública para `deploy` (recomendado). Configura secretos DNS si aplica.
+5.  **Genera Configuración Nx** (local): `nx g @mi-org/vps:create <nombre> --domains=<lista-dominios>`.
+6.  **Configura Secrets GitHub:** `VPS_<NOMBRE_UPPER>_HOST/USER/KEY` (KEY es la clave *privada* de despliegue).
+7.  **Configura Environment GitHub:** Crea `vps-production`, añade reglas (Wait timer / Reviewers). Desactiva bypass de admin.
+8.  **Obtén Certificado Inicial (Manual en VPS):** Conéctate como admin y ejecuta `sudo certbot certonly --dns-[provider] ...` listando todos los dominios (ver README generado en `apps/<nombre>/README.md` para comando exacto).
+9.  **Configura Deploy Hook (Manual en VPS):** Edita `/etc/letsencrypt/renewal/<dominio_ppal>.conf` (con sudo) y añade la línea `deploy_hook` para reiniciar el contenedor Nginx (ver README generado).
+10. **Commit y Push:** Sube los archivos generados a `main`.
+11. **Monitoriza/Aprueba Despliegue:** Observa GitHub Actions. Aprueba o espera el timer. El CD copiará archivos y ejecutará `deploy.sh`.
+12. **Verifica:** Accede a `https://<tu-dominio>`.
+
+## Gestionar Dominios (Post-Creación)
+
+Para añadir o eliminar dominios/subdominios de una configuración existente (`<nombre>`):
+
+1.  **Actualiza DNS:** Añade/elimina los registros DNS necesarios para los nuevos/viejos dominios.
+2.  **Regenera Configuración Nx:** Ejecuta `nx g @mi-org/vps:create <nombre> --domains=<NUEVA_lista_completa_dominios> --forceOverwrite`. Esto actualizará `apps/<nombre>/nginx-conf/default.conf`.
+3.  **Actualiza Certificado (Manual en VPS):** Conéctate como admin y ejecuta `sudo certbot certonly --cert-name <dominio_ppal> --dns-[provider] ...` listando **todos** los dominios que debe cubrir el certificado actualizado (incluyendo los nuevos, omitiendo los eliminados). Usa `--cert-name` para modificar el existente. Certbot actualizará los archivos y la configuración de renovación (preservando el hook).
+4.  **Commit y Push:** Sube el `default.conf` modificado. El CD desplegará la nueva configuración Nginx, que usará el certificado actualizado.
 
 ## Estrategia de Gestión de Certificados (Let's Encrypt)
 
-* **Renovación:** Automatizada por `certbot renew` ejecutado por el **timer de systemd** (`certbot.timer`) en el servidor VPS (configurado por `vps-initial-setup.sh`).
-* **Método Preferido (Webroot):**
-    * **Directorio Host:** Certbot (corriendo como root) escribe desafíos en `/var/www/letsencrypt/challenges/`.
-    * **Config Certbot Host:** Los archivos `/etc/letsencrypt/renewal/*.conf` deben usar `authenticator = webroot` y `webroot_path = /var/www/letsencrypt/challenges`.
-    * **Montaje Docker:** El volumen `- /var/www/letsencrypt/challenges:/var/www/letsencrypt/challenges-in-container:ro` se define en `docker-compose.vps.yml`.
-    * **Config Nginx (Contenedor):** El bloque `location /.well-known/acme-challenge/ { alias /var/www/letsencrypt/challenges-in-container/; }` en `default.conf` sirve los desafíos.
-* **Método Alternativo (DNS-01 - para Wildcards):**
-    * Requiere plugins (`python3-certbot-dns-*`) y credenciales de API (guardadas de forma segura en `/home/deploy/.secrets/*.ini` con permisos `600 root:root`). El script `vps-initial-setup.sh` prepara los archivos placeholder y da instrucciones.
-* **Instalación/Hook:** Certbot **NO** instala certificados automáticamente (`installer = None` implícito o explícito en `.conf`). El contenedor Nginx monta `/etc/letsencrypt:/etc/letsencrypt:ro`. Se usa un `deploy_hook` en los `.conf` de Certbot para reiniciar el contenedor Nginx (`docker compose -f /ruta/compose restart nginx`) después de una renovación exitosa.
+* **Renovación:** Automática vía `certbot.timer` (host) + `deploy_hook` (en `/etc/letsencrypt/renewal/*.conf`) para reiniciar contenedor Nginx.
+* **Obtención Inicial:** **Manual** vía `sudo certbot certonly --dns-[provider] ...` en el host.
+* **Método Webroot (Para Renovación si no se usa DNS):** Certbot (host) escribe en `/var/www/letsencrypt/challenges/`. Docker monta este directorio en `/var/www/letsencrypt/challenges-in-container:ro`. Nginx (contenedor) usa `alias /var/www/letsencrypt/challenges-in-container/;` en el bloque `location /.well-known/acme-challenge/`.
+* **Método DNS:** Requiere plugins y credenciales API en `/home/deploy/.secrets/*.ini` (propietario root, modo 600).
+* **Instalación:** Nginx (contenedor) monta `/etc/letsencrypt:/etc/letsencrypt:ro` y usa los certificados directamente. Certbot (host) no necesita `installer`.
 
 ## Estado Actual (2025-04-14)
 
-* **Fase 1 Completada.**
-* **Fase 2 Completada.**
-* **Fase 3 Completada (Funcionalidad Base):**
-    * Generador `vps:create` acepta opción `--domains`.
-    * Templates Nginx generan configuración HTTP y HTTPS (usando `primaryDomain` para rutas de certs, `include` para opciones SSL, `ssl_dhparam`).
-    * Template `README.md` generado incluye instrucciones detalladas para obtención inicial de certificado (manual vía DNS-01) y configuración del `deploy_hook` de Certbot.
-    * Script `debian-harden.sh` ahora abre puertos 80/443 en UFW.
-    * Log final del generador recuerda los pasos manuales de Certbot.
-* **Pendiente:**
-    * Refinamientos opcionales (manejo de errores, logs más detallados).
-    * Considerar arquitectura de Proxy Inverso si se necesita alojar múltiples dominios independientes en el mismo VPS.
-    * Pruebas exhaustivas en diferentes escenarios.
-    * 
+* **Fase 1 (Hello World):** Completada.
+* **Fase 2 (Nginx/Docker Básico):** Completada.
+* **Fase 3 (SSL/HTTPS Básico):** Completada.
+    * Generador acepta `--domains`.
+    * Templates Nginx generan configuración HTTPS funcional.
+    * Documentación (generada y principal) incluye pasos manuales para Certbot inicial y deploy hook.
+    * Workflow CD validado (incluyendo detección de afectados y environment/timer).
+* **Pendiente (Próximos Pasos):**
+    * **Fase 4: Monitoring:** Implementar stack de monitoreo (Prometheus, Grafana, Loki, etc.).
+    * **Mejoras:** Proxy inverso para múltiples dominios independientes, manejo de variables de entorno para apps, bases de datos, etc.
+    * Pruebas exhaustivas.
+
 ## Continuidad del Chat con Gemini
 
 Para retomar este trabajo en una nueva sesión de chat con Gemini, sigue estos pasos:
