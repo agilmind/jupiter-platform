@@ -152,22 +152,21 @@ export async function updateCdWorkflow(
       {
          name: 'Sync Files via Rsync',
          run:`
+          # Pasos de depuración (mantener por ahora)
           echo "--- Debugging Rsync ---"
           echo "PATH is: $PATH"
           echo "Checking for rsync command using 'command -v':"
           RSYNC_PATH=$(command -v rsync) || { echo "ERROR: rsync command not found by 'command -v'!"; exit 1; }
           echo "rsync found at: $RSYNC_PATH"
           echo "Attempting to get rsync version:"
-          # Usar ruta explícita
           "$RSYNC_PATH" --version
           RSYNC_VERSION_EXIT_CODE=$?
           echo "rsync --version exit code: $RSYNC_VERSION_EXIT_CODE"
-          # Fallar si rsync --version falló, aunque haya impreso algo
           if [ $RSYNC_VERSION_EXIT_CODE -ne 0 ]; then echo "ERROR: executing '$RSYNC_PATH --version' failed!"; exit 1; fi
           echo "rsync seems executable. Proceeding..."
           echo "--- End Debugging ---"
 
-          # --- Script Rsync Original ---
+          # Definir variables
           VPS_HOST="\${{ secrets[env.SECRET_NAME_HOST] }}"
           SECRET_USER_VALUE="\${{ secrets[env.SECRET_NAME_USER] }}"
           VPS_USER="\${SECRET_USER_VALUE:-deploy}"
@@ -179,12 +178,9 @@ export async function updateCdWorkflow(
 
           echo "Syncing \${SOURCE_DIR} to \${VPS_USER}@\${VPS_HOST}:\${TARGET_DIR}/"
 
-          # --- Ejecutar rsync usando la RUTA ABSOLUTA ($RSYNC_PATH) ---
-          echo "Executing: $RSYNC_PATH -avzL --delete --exclude='.git' $SOURCE_DIR \${VPS_USER}@\${VPS_HOST}:\${TARGET_DIR}/"
-          "$RSYNC_PATH" -avzL --delete --exclude='.git' \
-            "\${SOURCE_DIR}" \
-            "\${VPS_USER}@\${VPS_HOST}:\${TARGET_DIR}/" \
-            || { echo "Rsync failed! Exit code: $?"; exit 1; } # Mostrar código de salida de rsync
+          # --- Ejecutar rsync usando ruta absoluta y EN UNA SOLA LÍNEA ---
+          echo "Executing: /usr/bin/rsync -avzL --delete --exclude='.git' $SOURCE_DIR \${VPS_USER}@\${VPS_HOST}:\${TARGET_DIR}/"
+          /usr/bin/rsync -avzL --delete --exclude='.git' "\${SOURCE_DIR}" "\${VPS_USER}@\${VPS_HOST}:\${TARGET_DIR}/" || { echo "Rsync failed! Exit code: $?"; exit 1; }
           echo "Rsync finished."
          `,
       },

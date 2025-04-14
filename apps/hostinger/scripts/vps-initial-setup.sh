@@ -106,11 +106,10 @@ create_deploy_user() {
 }
 
 
-# --- Install Required Packages (MODIFIED v2 - Fixed GPG Order) ---
 install_packages() {
     info "Updating package lists (apt update)..."
     apt-get update -y || error_exit "Failed to run apt update. Check network connection and apt sources."
-    local all_packages=( ca-certificates curl gnupg apt-transport-https lsb-release docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin certbot python3-certbot-dns-cloudflare python3-certbot-dns-digitalocean )
+    local all_packages=( ca-certificates curl gnupg apt-transport-https lsb-release docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin certbot python3-certbot-dns-cloudflare python3-certbot-dns-digitalocean rsync )
     local repo_prereqs=( ca-certificates curl gnupg apt-transport-https lsb-release )
     local prereqs_to_install=() main_packages_to_install=() docker_ce_installed=true
     info "Checking system package status..."
