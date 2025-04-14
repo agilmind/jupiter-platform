@@ -151,7 +151,7 @@ export async function updateCdWorkflow(
       },
       {
          name: 'Sync Files via Rsync',
-         run: `|
+         run: `
           echo "--- Debugging Rsync ---"
           echo "PATH is: $PATH"
           echo "Checking for rsync command using 'command -v':"
