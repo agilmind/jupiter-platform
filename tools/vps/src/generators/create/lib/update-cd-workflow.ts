@@ -2,6 +2,7 @@ import { Tree, logger, readNxJson } from '@nx/devkit';
 import * as yaml from 'js-yaml';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { NormalizedOptions } from './types';
 
 // Interfaces y helpers (getDefaultBranch, readWorkflowScript) como estaban antes...
 interface VpsCreateGeneratorSchema {
@@ -9,15 +10,6 @@ interface VpsCreateGeneratorSchema {
   directory?: string;
   tags?: string;
   forceOverwrite?: boolean;
-}
-
-interface NormalizedOptions extends VpsCreateGeneratorSchema {
-  projectName: string;
-  projectRoot: string;
-  projectDirectory: string;
-  vpsName: string;
-  parsedTags: string[];
-  vpsNameUpper: string;
 }
 
 function getDefaultBranch(tree: Tree): string { /* ... */
@@ -222,15 +214,4 @@ export async function updateCdWorkflow(
     logger.error(`❌ Failed to dump/write YAML: ${e.message}`);
     throw e;
   }
-}
-
-// Interfaz normalizada (debe definirse o importarse)
-interface NormalizedOptions {
-  projectName: string;
-  projectRoot: string;
-  projectDirectory: string;
-  vpsName: string;
-  parsedTags: string[];
-  forceOverwrite?: boolean;
-  vpsNameUpper: string;
 }

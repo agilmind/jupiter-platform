@@ -7,50 +7,85 @@ import {
   names,
   readProjectConfiguration,
   Tree,
+  updateProjectConfiguration, // Importar por si actualizamos config
 } from '@nx/devkit';
 import * as path from 'path';
-import { updateCdWorkflow } from './lib/update-cd-workflow';
 import { VpsCreateGeneratorSchema } from './schema';
+import { NormalizedOptions } from './lib/types'
+import { updateCdWorkflow } from './lib/update-cd-workflow';
 
-function normalizeOptions(tree: Tree, options: VpsCreateGeneratorSchema) {
+function normalizeOptions(tree: Tree, options: VpsCreateGeneratorSchema): NormalizedOptions { // <-- Usar tipo importado
   const name = names(options.name).fileName;
   const projectDirectory = options.directory
     ? joinPathFragments('apps', options.directory, name)
     : joinPathFragments('apps', name);
   const projectName = name;
-  const parsedTags = options.tags
-    ? options.tags.split(',').map(s => s.trim()).filter(Boolean)
-    : [];
+
+  if (!options.domains || options.domains.trim().length === 0) { /*...*/ }
+  const domainsList = options.domains.split(',').map(d => d.trim()).filter(Boolean);
+  if (domainsList.length === 0) { /*...*/ }
+  const primaryDomain = domainsList[0];
+
+  const parsedTags = options.tags ? options.tags.split(',').map(s => s.trim()).filter(Boolean) : [];
   const defaultTags = ['type:vps', `scope:${name}`];
-  return { ...options, projectName, projectRoot: projectDirectory, projectDirectory, vpsName: name, parsedTags: [...defaultTags, ...parsedTags] };
+
+  // --- CALCULAR vpsNameUpper AQUÍ ---
+  const vpsNameUpper = name.toUpperCase().replace(/-/g, '_');
+
+  return {
+    ...options,
+    projectName,
+    projectRoot: projectDirectory,
+    projectDirectory,
+    vpsName: name,
+    parsedTags: [...defaultTags, ...parsedTags],
+    domainsList: domainsList,
+    primaryDomain: primaryDomain,
+    vpsNameUpper: vpsNameUpper, // <-- Añadir al objeto devuelto
+  };
 }
 
-// --- GENERADOR PRINCIPAL (ACTUALIZADO LINT TARGET) ---
 export default async function vpsCreateGenerator(
   tree: Tree,
   options: VpsCreateGeneratorSchema
 ): Promise<void> {
   const normalizedOptions = normalizeOptions(tree, options);
-  const { projectName, projectRoot, parsedTags, vpsName, forceOverwrite } = normalizedOptions;
+  const {
+    projectName,
+    projectRoot,
+    parsedTags,
+    vpsName,
+    forceOverwrite,
+    domainsList,
+    primaryDomain
+   } = normalizedOptions;
 
   let projectExists = false;
   try {
-    readProjectConfiguration(tree, projectName); projectExists = true; logger.info(`Project '${projectName}' exists. Checking --forceOverwrite...`);
-  } catch (e) { projectExists = false; logger.info(`Creating new project '${projectName}' at ${projectRoot}.`); }
+    readProjectConfiguration(tree, projectName);
+    projectExists = true;
+    logger.info(`Project '${projectName}' already exists at ${projectRoot}. Checking --forceOverwrite...`);
+  } catch (e) {
+    projectExists = false;
+    logger.info(`Creating new project '${projectName}' at ${projectRoot}.`);
+  }
 
   if (projectExists && !forceOverwrite) {
-    logger.error(`❌ Project '${projectName}' already exists. Use --forceOverwrite.`); throw new Error(`Project '${projectName}' already exists.`);
+    logger.error(`❌ Project '${projectName}' already exists. Use --forceOverwrite.`);
+    throw new Error(`Project '${projectName}' already exists.`);
   }
-  if (projectExists && forceOverwrite) { logger.warn(`--forceOverwrite specified. Overwriting files for project '${projectName}'...`); }
+  if (projectExists && forceOverwrite) {
+    logger.warn(`--forceOverwrite specified. Overwriting files for project '${projectName}'...`);
+  }
 
   // --- Acciones Comunes ---
 
-  // 1. Añadir/Actualizar Configuración (Solo si no existía)
+  // 1. Añadir/Actualizar Configuración
   if (!projectExists) {
     addProjectConfiguration(tree, projectName, {
       root: projectRoot, projectType: 'application', sourceRoot: projectRoot, tags: parsedTags,
       targets: {
-        lint: { // Actualizar para incluir más archivos si se desea
+        lint: {
           executor: '@nx/eslint:lint', outputs: ['{options.outputFile}'],
           options: {
             lintFilePatterns: [
@@ -65,40 +100,65 @@ export default async function vpsCreateGenerator(
         },
       },
     });
+  } else if (forceOverwrite) {
+     // Opcional: Actualizar solo tags si se fuerza sobrescritura
+     try {
+        const existingConfig = readProjectConfiguration(tree, projectName);
+        existingConfig.tags = parsedTags; // Actualizar tags
+        updateProjectConfiguration(tree, projectName, existingConfig);
+        logger.info(`Updated tags for existing project '${projectName}'.`);
+     } catch(e) {
+        logger.warn(`Could not update project configuration for ${projectName}. It might need manual review.`);
+     }
   }
-  // (Opcional: Lógica para actualizar project.json si existe y forceOverwrite=true)
 
   // 2. Generar/Sobrescribir Archivos desde Templates
-  logger.info('Generating files from blueprints...');
-  const templateOptions = { ...normalizedOptions, vpsName: vpsName, scope: vpsName, template: '' };
+  logger.info('Generating files from Phase 3 blueprints (incl. SSL)...');
+  const templateOptions = {
+    ...normalizedOptions, // Pasa todas las opciones normalizadas
+    vpsName: vpsName,
+    scope: vpsName,
+    // Pasar variables específicas para templates
+    domains: domainsList.join(' '), // String para server_name en Nginx
+    primaryDomain: primaryDomain, // String para rutas de certs
+    template: '', // Requerido por generateFiles
+  };
+
+  // generateFiles copia todo el contenido de la carpeta fuente (blueprints)
+  // procesando archivos .template y copiando los demás tal cual (como ssl-dhparams.pem)
   generateFiles(
     tree,
-    // Asegúrate que esta ruta sea correcta relativa a este archivo generator.ts
-    // Probablemente necesite '../' si blueprints está en src/ y generator en src/generators/create
-    path.join(__dirname, '../../blueprints'),
-    projectRoot, // Destino
+    path.join(__dirname, '../../blueprints'), // Ruta a los templates
+    projectRoot, // Ruta de destino
     templateOptions
   );
   logger.info(`NOTE: Ensure 'deploy.sh.template' has execute permissions in Git.`);
+  logger.info(`NOTE: Ensure 'ssl-dhparams.pem' exists in blueprints/nginx-conf/ (generate once with openssl).`);
+
 
   // 3. Actualizar Workflow de CD
   logger.info('Updating CD workflow file...');
-  // Pasamos las opciones normalizadas, incluyendo vpsName_upper si la función lo necesita
-  await updateCdWorkflow(tree, { ...normalizedOptions, vpsNameUpper: vpsName.toUpperCase().replace(/-/g, '_') });
+  // No necesitamos pasar vpsNameUpper aquí, el workflow lo calcula en la matriz
+  await updateCdWorkflow(tree, normalizedOptions);
   logger.info('CD workflow update complete.');
 
   // 4. Formatear Archivos
   await formatFiles(tree);
 
   // 5. Mostrar Mensajes Finales
-  // ... (Mensajes finales como antes) ...
   logger.info('-----------------------------------------------------');
   if (projectExists && forceOverwrite) { logger.info(`VPS configuration '${vpsName}' updated successfully.`); }
   else if (!projectExists) { logger.info(`VPS configuration '${vpsName}' created successfully.`); }
-  logger.info(`Review files in '${projectRoot}' and commit changes.`);
+  logger.info(`Review files in '${projectRoot}'.`);
+  logger.info(' ');
+  logger.warn('>>> MANUAL ACTIONS REQUIRED ON VPS (if first time or domains changed): <<<');
+  logger.info(`  1. Obtain Initial SSL Certificate: Connect to the VPS via SSH (as admin user)`);
+  logger.info(`     and run 'sudo certbot certonly --dns-[provider] ...' for domain(s): ${domainsList.join(', ')}`);
+  logger.info(`     (See detailed command in ${projectRoot}/README.md)`);
+  logger.info(`  2. Configure Certbot Hook: Edit '/etc/letsencrypt/renewal/${primaryDomain}.conf' (as root)`);
+  logger.info(`     and add/verify the 'deploy_hook' line to restart the nginx container.`);
+  logger.info(`     (See detailed command in ${projectRoot}/README.md)`);
+  logger.info(`  3. Configure GitHub Secrets: Ensure secrets for HOST, USER, and KEY are set.`);
+  logger.info(`     (See ${projectRoot}/README.md)`);
   logger.info('-----------------------------------------------------');
 }
-
-// --- Interfaces y Helpers (Asegúrate que estén definidas o importadas) ---
-// import { updateCdWorkflow } from './lib/update-cd-workflow'; // O define localmente
-// async function updateCdWorkflow(tree: Tree, options: NormalizedOptions & { vpsNameUpper: string }) { /* ... */ }

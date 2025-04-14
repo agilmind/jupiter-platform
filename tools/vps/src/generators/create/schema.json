@@ -2,35 +2,41 @@
   "$schema": "http://json-schema.org/schema",
   "cli": "nx",
   "id": "VpsCreate",
-  "title": "Create VPS Configuration",
-  "description": "Creates or updates a VPS configuration application structure.", // Descripción actualizada
+  "title": "Create/Update VPS Configuration",
+  "description": "Creates or updates a VPS configuration application structure with Nginx/Docker.",
   "type": "object",
   "properties": {
     "name": {
       "type": "string",
-      "description": "The name of the VPS configuration (e.g., hostinger, my-app-server). Used for directory name and project name.",
+      "description": "The short name for this configuration (e.g., hostinger, my-app). Used for directory and Nx project name.",
       "$default": {
         "$source": "argv",
         "index": 0
       },
-      "x-prompt": "What name would you like to use for this VPS configuration?"
+      "x-prompt": "Enter a short name for this configuration:"
+    },
+    "domains": {
+      "type": "string",
+      "description": "Comma-separated list of domains/subdomains for Nginx & SSL (e.g., domain.com,www.domain.com,api.domain.com). The first domain is used for certificate paths.",
+      "alias": "d",
+      "x-prompt": "Enter the domain(s), separated by commas:"
     },
     "directory": {
       "type": "string",
-      "description": "The directory relative to apps/ where the configuration will be created (e.g., 'servers' -> apps/servers/your-name).",
+      "description": "The directory relative to apps/ where the configuration will be created.",
       "alias": "dir"
     },
     "tags": {
       "type": "string",
-      "description": "Add tags to the project (used for linting, testing, affected commands). Comma-separated.",
+      "description": "Add tags to the project (comma-separated).",
       "alias": "t"
     },
     "forceOverwrite": {
       "type": "boolean",
-      "description": "Overwrite existing files if the project configuration already exists. Use with caution.",
+      "description": "Overwrite existing files if the project configuration already exists.",
       "default": false,
       "alias": "force"
     }
   },
-  "required": ["name"]
+  "required": ["name", "domains"]
 }
