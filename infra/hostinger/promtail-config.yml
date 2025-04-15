@@ -6,7 +6,7 @@ server:
 
 positions:
   # Fichero para guardar la posición de lectura de los logs
-  filename: /var/log/positions.yaml # Debe mapearse a un volumen persistente
+  filename: /etc/promtail/positions/positions.yaml # Usar la ruta del volumen montado
 
 clients:
   - url: http://loki:3100/loki/api/v1/push # URL del servicio Loki en Docker Compose

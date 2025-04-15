@@ -21,10 +21,6 @@ api:
 entryPoints:
   web:
     address: ":80" # Escuchar en puerto 80
-    # Redirección permanente HTTP a HTTPS para todas las peticiones
-    http:
-      middlewares:
-        - https-redirect@file # Aplicar middleware de redirección
   websecure:
     address: ":443" # Escuchar en puerto 443
     # Configuración TLS por defecto para este entrypoint
@@ -88,17 +84,11 @@ http:
     # Middleware para Autenticación Básica del Dashboard Traefik
     dashboard-auth:
       basicAuth:
-        # Los usuarios se definen como variables de entorno leídas del .env
-        # Ejemplo: TRAEFIK_DASHBOARD_USER=admin
-        # Ejemplo: TRAEFIK_DASHBOARD_HASHED_PASSWORD=... (generado con htpasswd)
-        # Traefik los leerá si se pasan al contenedor
-        # Aquí solo referenciamos, la creación de usuarios/hash es manual/externa
-        # users:
-        #  - "admin:$$apr1$$...." # Ejemplo - NO hardcodear aquí, usar env vars o archivo
-        # Alternativa más segura: Usar usersFile y montar un archivo htpasswd
-        # usersFile: /path/to/.htpasswd # Requiere montar el archivo
-        # O usar variables de entorno (ver https://doc.traefik.io/traefik/middlewares/http/basicauth/#users)
-         env: true # Indicar a Traefik que lea usuarios de variables de entorno
+        # usersFile: /path/to/users.htpasswd # Usar esta opción
+        usersFile: /etc/traefik/auth/.htpasswd # Ruta DENTRO del contenedor
+        # realm: "Traefik Dashboard" # Opcional
+        # headerField: "X-WebAuth-User" # Opcional
+        # removeHeader: false # Opcional
 
     # Middleware para añadir headers de seguridad básicos (opcional)
     # security-headers:

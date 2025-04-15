@@ -10,48 +10,33 @@ x-logging-options: &logging-options
 services:
   # --- Proxy Inverso Traefik ---
   traefik:
-    image: traefik:latest # O una versión específica ej: traefik:v2.11
+    image: traefik:latest
     container_name: <%= infraName %>-traefik
     restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - webproxy # Conectar a la red compartida
-    ports:
-      - "80:80"   # Puerto HTTP
-      - "443:443" # Puerto HTTPS
-      # - "8080:8080" # Opcional: Puerto para API/Dashboard de Traefik (si no se expone vía router)
+    security_opt: [no-new-privileges:true]
+    networks: [webproxy]
+    ports: ["80:80", "443:443"]
     volumes:
-      # Montar config estática de Traefik
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
-      # Montar socket de Docker para que Traefik descubra contenedores
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Montar volumen nombrado para almacenar certificados ACME (Let's Encrypt)
       - traefik-acme:/etc/traefik/acme
-      # Opcional: Montar directorio para configuraciones dinámicas adicionales si usas File Provider
-      # - ./traefik_dynamic:/etc/traefik/dynamic:ro
-    environment:
-      # Pasar secretos/tokens para el desafío DNS ACME si se configura en traefik.yml
-      # Estos se leerán del archivo .env en el mismo directorio que este compose file
-      - CF_API_EMAIL=${CF_API_EMAIL:-} # Ejemplo Cloudflare
-      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:-} # Ejemplo Cloudflare (usar token, no key global)
-      # - DO_AUTH_TOKEN=${DO_AUTH_TOKEN:-} # Ejemplo DigitalOcean
-      # Añadir otras variables de entorno necesarias para Traefik/ACME/Plugins
+      # --- AÑADIR MONTAJE HTPSASSWD ---
+      - ./traefik-auth/.htpasswd:/etc/traefik/auth/.htpasswd:ro
+    environment: # Solo para DNS challenge (ejemplo)
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:-}
     labels:
-      # Habilitar Traefik para su propio dashboard
       - "traefik.enable=true"
-      # Router para el dashboard sobre HTTPS
+      # Router HTTP (SIN redirect middleware aquí, ACME lo necesita)
+      - "traefik.http.routers.traefik-dashboard-http.rule=Host(`<%= traefikDomain %>`)"
+      - "traefik.http.routers.traefik-dashboard-http.entrypoints=web"
+      # Router HTTPS (Seguro)
       - "traefik.http.routers.traefik-dashboard-secure.rule=Host(`<%= traefikDomain %>`)"
       - "traefik.http.routers.traefik-dashboard-secure.entrypoints=websecure"
       - "traefik.http.routers.traefik-dashboard-secure.tls=true"
-      - "traefik.http.routers.traefik-dashboard-secure.tls.certresolver=myresolver" # Usar el resolver ACME
-      - "traefik.http.routers.traefik-dashboard-secure.service=api@internal" # Servicio interno de Traefik
-      # Middleware para autenticación básica en el dashboard (definido en traefik.yml)
-      - "traefik.http.routers.traefik-dashboard-secure.middlewares=dashboard-auth@file"
-      # Router HTTP solo para redirección (opcional pero recomendado)
-      - "traefik.http.routers.traefik-dashboard-http.rule=Host(`<%= traefikDomain %>`)"
-      - "traefik.http.routers.traefik-dashboard-http.entrypoints=web"
-      - "traefik.http.routers.traefik-dashboard-http.middlewares=https-redirect@file" # Middleware de redirección (definido en traefik.yml)
+      - "traefik.http.routers.traefik-dashboard-secure.tls.certresolver=myresolver"
+      - "traefik.http.routers.traefik-dashboard-secure.service=api@internal"
+      # --- CORREGIR MIDDLEWARE AUTH ---
+      - "traefik.http.routers.traefik-dashboard-secure.middlewares=dashboard-auth" # Sin @file
     logging: *logging-options
 
 <%# Inicio Bloque Condicional Monitoreo %>
@@ -66,15 +51,9 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--path.rootfs=/rootfs'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker|rootfs/run/docker/netns)($$|/)'
-      - '--collector.filesystem.ignored-fs-types=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$$'
+    command: [ '--path.procfs=/host/proc', '--path.sysfs=/host/sys', '--path.rootfs=/rootfs', '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker|rootfs/run/docker/netns)($$|/)', '--collector.filesystem.ignored-fs-types=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$$' ]
     pid: host
-    networks:
-      - webproxy
+    networks: [webproxy]
     logging: *logging-options
 
   prometheus:
@@ -84,12 +63,8 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=15d' # Retención de datos
-      - '--web.enable-lifecycle' # Permite recarga de config vía API (útil)
-    networks:
-      - webproxy
+    command: [ '--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.retention.time=15d', '--web.enable-lifecycle' ]
+    networks: [webproxy]
     logging: *logging-options
 
   loki:
@@ -100,8 +75,7 @@ services:
       - ./loki-config.yml:/etc/loki/config.yml
       - loki-data:/loki
     command: -config.file=/etc/loki/config.yml
-    networks:
-      - webproxy
+    networks: [webproxy]
     logging: *logging-options
 
   promtail:
@@ -110,65 +84,53 @@ services:
     restart: unless-stopped
     volumes:
       - ./promtail-config.yml:/etc/promtail/config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro # Para descubrir logs de Docker
-      - /var/log:/var/log:ro # Opcional: para leer logs del host si se configura
-      - promtail-positions:/etc/promtail/positions # Usar volumen nombrado
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Usar volumen nombrado para positions (ruta debe coincidir con promtail-config.yml)
+      - promtail-positions:/etc/promtail/positions
     command: -config.file=/etc/promtail/config.yml
-    networks:
-      - webproxy
+    networks: [webproxy]
     logging: *logging-options
-    depends_on:
-      - loki
+    depends_on: [loki]
 
   grafana:
     image: grafana/grafana-oss:latest
     container_name: <%= infraName %>-grafana
     restart: unless-stopped
     volumes:
-      - grafana-data:/var/lib/grafana # Usar volumen nombrado
-      # Opcional: Montar para provisioning de datasources/dashboards
-      # - ./grafana-provisioning/:/etc/grafana/provisioning/
+      - grafana-data:/var/lib/grafana
     environment:
-      # Leer contraseña desde archivo .env (recomendado)
-      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-changeme} # Default inseguro si no está en .env
-      - GF_SERVER_ROOT_URL=https://<%= grafanaDomain %> # URL pública para Grafana
-      - GF_AUTH_ANONYMOUS_ENABLED=false # Deshabilitar acceso anónimo
-      # Otras variables de Grafana si son necesarias
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-changeme}
+      - GF_SERVER_ROOT_URL=https://<%= grafanaDomain %>
+      # - GF_AUTH_ANONYMOUS_ENABLED=false # Ya es false por defecto
     labels:
-      # Habilitar Traefik
       - "traefik.enable=true"
-      # Router HTTP (solo para redirección)
+      # Router HTTP (SIN redirect middleware aquí para ACME)
       - "traefik.http.routers.grafana-http.rule=Host(`<%= grafanaDomain %>`)"
       - "traefik.http.routers.grafana-http.entrypoints=web"
-      - "traefik.http.routers.grafana-http.middlewares=https-redirect@file" # Middleware definido en traefik.yml
+      # - "traefik.http.routers.grafana-http.middlewares=https-redirect" # <-- ELIMINAR
       # Router HTTPS
       - "traefik.http.routers.grafana-secure.rule=Host(`<%= grafanaDomain %>`)"
       - "traefik.http.routers.grafana-secure.entrypoints=websecure"
       - "traefik.http.routers.grafana-secure.tls=true"
-      - "traefik.http.routers.grafana-secure.tls.certresolver=myresolver" # Usar resolver ACME
-      # Servicio Backend apuntando al puerto interno de Grafana
+      - "traefik.http.routers.grafana-secure.tls.certresolver=myresolver"
+      # Servicio Backend
       - "traefik.http.services.grafana-service.loadbalancer.server.port=3000"
       - "traefik.http.routers.grafana-secure.service=grafana-service"
-    networks:
-      - webproxy
+    networks: [webproxy]
     logging: *logging-options
-    depends_on:
-      - prometheus
-      - loki
+    depends_on: [prometheus, loki]
 <% } %>
 <%# Fin Bloque Condicional Monitoreo %>
 
 # --- Redes ---
 networks:
   webproxy:
-    name: webproxy # Nombre explícito para la red compartida
+    name: webproxy
     driver: bridge
-    # Si la red es creada externamente (ej: docker network create webproxy), descomenta:
-    # external: true
 
 # --- Volúmenes Nombrados ---
 volumes:
-  traefik-acme: {} # Para certificados ACME
+  traefik-acme: {}
 <% if (monitoringEnabled) { %> # Volúmenes solo necesarios si monitoreo está activado
   prometheus-data: {}
   loki-data: {}
