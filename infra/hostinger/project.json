@@ -1,0 +1,24 @@
+{
+  "name": "hostinger",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "tags": ["type:infra", "scope:hostinger"],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "infra/hostinger/**/*.yml",
+          "infra/hostinger/**/*.yaml",
+          "!infra/hostinger/.env"
+        ]
+      }
+    },
+    "show-deploy-steps": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "echo \"Manual Deployment Steps for hostinger:\n1. Ensure VPS initialized.\n2. Copy files from 'infra/hostinger' to '/home/deploy/hostinger/' on VPS.\n3. Create/Update '/home/deploy/hostinger/.env' on VPS.\n4. Run 'cd /home/deploy/hostinger && docker compose -f docker-compose-infra.yml up -d' on VPS.\n5. Configure DNS for infra domains.\""
+      }
+    }
+  }
+}

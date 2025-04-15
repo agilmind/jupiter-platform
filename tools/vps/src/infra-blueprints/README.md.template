@@ -25,6 +25,9 @@ Antes de desplegar esta configuración por primera vez:
     (Consulta `tools/vps/README.md` para detalles sobre estos scripts).
 2.  **Acceso SSH `deploy`:** Confirma que puedes acceder al VPS como usuario `deploy` usando la clave SSH que configuraste.
 3.  **Repositorio Git:** Asegúrate de haber hecho `commit` y `push` de todos los archivos dentro de este directorio (`<%= infraConfigRoot %>/`) a tu repositorio Git.
+4.  **Configuración DNS y `.env` (Antes del Primer Despliegue Exitoso):**
+    * **DNS:** Los registros DNS para los subdominios de infraestructura (`<%= traefikDomain %>`, `<% if (monitoringEnabled) { %><%= grafanaDomain %><% } %>`) deben existir y apuntar a la IP del VPS.
+    * **Archivo `.env`:** Debes crear y configurar el archivo `.env` con los secretos necesarios **en el servidor VPS** (ver instrucciones detalladas en la sección "Pasos para el Primer Despliegue") antes de que `docker compose up` pueda ejecutarse con éxito por primera vez.
 
 ## Pasos para el Primer Despliegue
 

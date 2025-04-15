@@ -1,0 +1,9 @@
+# Ignore sensitive environment variables
+.env
+
+# Ignore runtime data volumes if mapped locally (though named volumes are preferred)
+# prometheus-data/
+# loki-data/
+# grafana-data/
+# promtail-positions/
+# traefik-acme/
