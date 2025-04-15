@@ -11,15 +11,15 @@ on:
       target_host_secret:
         description: 'Name of GitHub secret containing VPS HOST/IP'
         required: true
-        default: 'VPS_INFRA_HOST'
+        default: 'VPS_*_HOST'
       target_user_secret:
         description: 'Name of GitHub secret containing VPS SSH USER'
         required: true
-        default: 'VPS_INFRA_USER'
+        default: 'VPS_*_USER'
       target_key_secret:
         description: 'Name of GitHub secret containing VPS SSH PRIVATE KEY'
         required: true
-        default: 'VPS_INFRA_KEY'
+        default: 'VPS_*_KEY'
       target_deploy_path:
          description: 'Absolute path on VPS to deploy infra files'
          required: true
