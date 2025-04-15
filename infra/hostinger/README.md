@@ -43,13 +43,13 @@ El despliegue inicial y las actualizaciones se realizan preferentemente usando e
 
 2.  **Crear y Configurar Archivo `.env` en el Servidor:**
 
-    - **Copia los archivos generados** de tu workspace local al directorio de infraestructura en el servidor (ej. `/home/deploy/hostinger/`). Puedes usar `scp`:
+    - **Copia los archivos generados** de tu workspace local al directorio de infraestructura en el servidor (`/home/deploy/infra/`). Puedes usar `scp`:
       ```bash
       # Desde tu máquina local, en la raíz del workspace Nx:
-      scp -r infra/hostinger/* deploy@<IP_DEL_VPS>:/home/deploy/hostinger/
+      scp -r infra/hostinger/* deploy@<IP_DEL_VPS>:/home/deploy/infra/
       ```
     - **Conéctate al VPS** como usuario `deploy`: `ssh deploy@<IP_DEL_VPS>`
-    - **Navega** al directorio: `cd /home/deploy/hostinger/`
+    - **Navega** al directorio: `cd /home/deploy/infra/`
     - **Crea `.env`** desde la plantilla: `cp .env.template .env`
     - **Edita `.env`:** `nano .env`
     - **Rellena los valores requeridos:**
@@ -72,7 +72,7 @@ El despliegue inicial y las actualizaciones se realizan preferentemente usando e
     - Ejecuta el workflow. Este copiará los archivos desde Git (excluyendo `.env`) y ejecutará `docker compose -f docker-compose-infra.yml up -d` en el servidor. Leerá el `.env` que creaste manualmente.
 
 4.  **Verificación:**
-    - Espera unos minutos a que los contenedores arranquen y Traefik obtenga los certificados SSL (puedes monitorizar con `ssh deploy@<IP_DEL_VPS> "cd /home/deploy/hostinger && docker compose logs -f"`).
+    - Espera unos minutos a que los contenedores arranquen y Traefik obtenga los certificados SSL (puedes monitorizar con `ssh deploy@<IP_DEL_VPS> "cd /home/deploy/infra && docker compose logs -f"`).
     - Intenta acceder en tu navegador:
       - `https://traefik.jupiter.ar` (Te pedirá el usuario/contraseña que configuraste en `.env`).
       - `https://grafana.jupiter.ar` (Login inicial: `admin`/`tu-password-grafana`)

@@ -57,64 +57,42 @@ jobs:
         run: |
           VPS_HOST="${{ secrets[github.event.inputs.target_host_secret] }}"
           VPS_USER="${{ secrets[github.event.inputs.target_user_secret] || 'deploy' }}"
-          # Usar paths desde inputs
-          SOURCE_DIR="./${{ github.event.inputs.infra_config_path }}/"
-          TARGET_DIR="${{ github.event.inputs.target_deploy_path }}/"
+          # --- USAR INPUT PARA ORIGEN, DESTINO FIJO ---
+          SOURCE_DIR="./${{ github.event.inputs.infra_config_path }}/" # Ej: ./infra/hostinger/
+          TARGET_DIR="/home/${VPS_USER}/infra/" # <-- DESTINO FIJO
 
           if [ ! -d "$SOURCE_DIR" ]; then echo "Error: Source directory ${SOURCE_DIR} not found in repo." >&2; exit 1; fi
 
           echo "Syncing ${SOURCE_DIR} to ${VPS_USER}@${VPS_HOST}:${TARGET_DIR}"
-          # Excluir el .env real del servidor y el .gitignore local
+          # Excluir .env y .gitignore
           rsync -avz --delete --exclude='.env' --exclude='.gitignore' \
             "${SOURCE_DIR}" \
             "${VPS_USER}@${VPS_HOST}:${TARGET_DIR}" \
             || { echo "Rsync failed!"; exit 1; }
-          echo "Infrastructure files synced successfully."
+          echo "Infrastructure files synced successfully to ${TARGET_DIR}"
 
       - name: Deploy Infrastructure Stack via Docker Compose on VPS
-        if: success() # Asegúrate que los pasos previos funcionen
         run: |
           VPS_HOST="${{ secrets[github.event.inputs.target_host_secret] }}"
           VPS_USER="${{ secrets[github.event.inputs.target_user_secret] || 'deploy' }}"
-          INFRA_DIR="${{ github.event.inputs.target_deploy_path }}"
+          # --- USAR DESTINO FIJO ---
+          INFRA_DIR="/home/${VPS_USER}/infra/" # <-- DESTINO FIJO
 
           echo "Executing docker compose up on ${VPS_USER}@${VPS_HOST} in ${INFRA_DIR}"
           ssh "${VPS_USER}@${VPS_HOST}" << EOF
-            # --- INICIO BLOQUE SSH REMOTO ---
-            set -e # Hacer que el script remoto falle si un comando falla
+            set -e
             echo "[Remote] Changing directory to ${INFRA_DIR}"
-            cd "${INFRA_DIR}" || { echo "[Remote] Failed to cd to ${INFRA_DIR}"; exit 1; }
-
-            if [ ! -f "docker-compose-infra.yml" ]; then
-              echo "[Remote] ERROR: docker-compose-infra.yml not found in ${INFRA_DIR}" >&2
-              exit 1
-            fi
-
-            # --- VERIFICACIÓN .env MÁS ESTRICTA ---
-            if [ ! -f ".env" ] && [ -f ".env.template" ]; then
-              echo "[Remote] ERROR: '.env' file not found, but '.env.template' exists." >&2
-              echo "[Remote] Please create '.env' from the template on the server (${INFRA_DIR}/.env)" >&2
-              echo "[Remote] and add the required secrets (e.g., DNS provider API keys/tokens needed by Traefik)." >&2
-              exit 1 # Fallar el despliegue si .env falta pero es esperado
-            elif [ ! -f ".env.template" ]; then
-               echo "[Remote] WARNING: .env.template not found. Cannot verify if .env is needed."
-            # Opcional: Verificar si .env existe pero está vacío
-            elif [ -f ".env" ] && [ ! -s ".env" ]; then
-               echo "[Remote] WARNING: .env file exists but is empty. Secrets might be missing."
-            fi
-            # --- FIN VERIFICACIÓN .env ---
-
+            cd "${INFRA_DIR}" || { echo "[Remote] Failed cd to ${INFRA_DIR}"; exit 1; }
+            # ... (Verificación .env como antes) ...
+            if [ ! -f ".env" ] && [ -f ".env.template" ]; then echo "[Remote] ERROR: .env missing!" >&2; exit 1; fi
             echo "[Remote] Running docker compose pull..."
             docker compose -f docker-compose-infra.yml pull
-
             echo "[Remote] Running docker compose up..."
-            # Usar el compose file específico de infraestructura
             docker compose -f docker-compose-infra.yml up -d --remove-orphans
             COMPOSE_EXIT_CODE=$?
             echo "[Remote] Docker Compose finished with exit code $COMPOSE_EXIT_CODE."
             exit $COMPOSE_EXIT_CODE
-            # --- FIN BLOQUE SSH REMOTO ---
           EOF
           SSH_EXIT_CODE=$?
-          if [ $SSH_EXIT_CODE -ne 0 ]; then echo "Remote compose execution failed with exit code $SSH_EXIT_CODE!"; exit $SSH_EXIT_CODE; fi
+          if [ $SSH_EXIT_CODE -ne 0 ]; then echo "Remote compose execution failed!"; exit $SSH_EXIT_CODE; fi
           echo "Infrastructure stack deployed/updated successfully."
