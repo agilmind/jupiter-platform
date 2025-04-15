@@ -7,182 +7,173 @@ import {
   names,
   readProjectConfiguration,
   Tree,
-  updateProjectConfiguration, // Importar por si actualizamos config
+  updateProjectConfiguration, // Para actualizar si ya existe
+  readJson, // Para leer nx.json si fuera necesario (aunque no lo usamos aquí)
 } from '@nx/devkit';
 import * as path from 'path';
-import { VpsCreateGeneratorSchema } from './schema';
-import { NormalizedOptions } from './lib/types'
-import { updateCdWorkflow } from './lib/update-cd-workflow';
-import { getDefaultBranch } from './utils';
+import { VpsSetupInfraSchema } from './schema'; // Importar schema de infra
 
-function normalizeOptions(tree: Tree, options: VpsCreateGeneratorSchema): NormalizedOptions { // <-- Usar tipo importado
-  const name = names(options.name).fileName;
-  const projectDirectory = options.directory
-    ? joinPathFragments('apps', options.directory, name)
-    : joinPathFragments('apps', name);
-  const projectName = name;
+// Interfaz interna para opciones normalizadas
+interface NormalizedInfraOptions extends VpsSetupInfraSchema {
+  infraConfigRoot: string; // Ruta donde se generan los archivos ej: infra/main
+  traefikDomain: string;   // Dominio completo ej: traefik.jupiter.ar
+  grafanaDomain: string;   // Dominio completo ej: grafana.jupiter.ar (puede ser vacía)
+}
 
-  if (!options.domains || options.domains.trim().length === 0) { /*...*/ }
-  const domainsList = options.domains.split(',').map(d => d.trim()).filter(Boolean);
-  if (domainsList.length === 0) { /*...*/ }
-  const primaryDomain = domainsList[0];
-  const parsedTags = options.tags ? options.tags.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const defaultTags = ['type:vps', `scope:${name}`];
-  const vpsNameUpper = name.toUpperCase().replace(/-/g, '_');
+// Función para normalizar y calcular opciones
+function normalizeOptions(
+  tree: Tree,
+  options: VpsSetupInfraSchema
+): NormalizedInfraOptions {
+  const infraNameNormalized = names(options.infraName).fileName;
+
+  // Calcular directorio de salida dentro del workspace. Default: infra/<infraName>
+  const infraConfigRoot =
+    options.outputDirectory || joinPathFragments('infra', infraNameNormalized);
+
+  // Construir los FQDNs
+  const traefikDomain = `${options.traefikSubdomain}.${options.baseDomain}`;
+  // Devolver string vacío para grafanaDomain si monitoring está desactivado o es undefined
+  const monitoringEnabled = options.monitoring ?? true; // Default a true si es undefined
+  const grafanaDomain = monitoringEnabled
+    ? `${options.grafanaSubdomain}.${options.baseDomain}`
+    : '';
 
   return {
     ...options,
-    projectName,
-    projectRoot: projectDirectory,
-    projectDirectory,
-    vpsName: name,
-    parsedTags: [...defaultTags, ...parsedTags],
-    domainsList: domainsList,
-    primaryDomain: primaryDomain,
-    vpsNameUpper: vpsNameUpper, // <-- Añadir al objeto devuelto
+    infraName: infraNameNormalized, // Usar nombre normalizado
+    infraConfigRoot,
+    traefikDomain,
+    grafanaDomain,
+    monitoring: monitoringEnabled, // Asegurar valor booleano
   };
 }
 
+// --- GENERADOR PRINCIPAL vps:create (setup-infra) ---
 export default async function vpsCreateGenerator(
   tree: Tree,
-  options: VpsCreateGeneratorSchema
+  options: VpsSetupInfraSchema
 ): Promise<void> {
   const normalizedOptions = normalizeOptions(tree, options);
   const {
-    projectName,
-    projectRoot,
-    parsedTags,
-    vpsName,
-    forceOverwrite,
-    domainsList,
-    primaryDomain,
-    monitoring
-   } = normalizedOptions;
+    infraName,
+    infraConfigRoot,
+    baseDomain,
+    acmeEmail,
+    monitoring, // Ya tiene el valor booleano correcto
+    grafanaDomain,
+    traefikDomain,
+  } = normalizedOptions;
 
-  const defaultBranch = getDefaultBranch(tree);
-  logger.info(`Default branch detected/set to: ${defaultBranch}`);
+  logger.info(`Generating Infrastructure Stack configuration '${infraName}'...`);
+  logger.info(`  Target Directory (within workspace): ${infraConfigRoot}`);
+  logger.info(`  Base Domain: ${baseDomain}`);
+  logger.info(`  ACME Email: ${acmeEmail}`);
+  logger.info(`  Monitoring Enabled: ${monitoring}`);
+  if (monitoring && grafanaDomain) { // Solo mostrar si está habilitado Y el dominio se calculó
+    logger.info(`  Grafana Access FQDN: https://${grafanaDomain}`);
+  }
+  logger.info(`  Traefik Dashboard FQDN: https://${traefikDomain}`);
 
-  let projectExists = false;
+  // 1. Registrar o Actualizar Proyecto Nx
+  // Esto permite usar comandos Nx sobre la carpeta de infraestructura (lint, etc.)
   try {
-    readProjectConfiguration(tree, projectName);
-    projectExists = true;
-    logger.info(`Project '${projectName}' already exists at ${projectRoot}. Checking --forceOverwrite...`);
+    const existingProjectConfig = readProjectConfiguration(tree, infraName);
+    logger.warn(
+      `Nx project '${infraName}' already exists. Configuration files in '${infraConfigRoot}' will be overwritten.`
+    );
+    // Actualizamos tags por si cambian
+    existingProjectConfig.tags = ['type:infra', `scope:${infraName}`];
+    updateProjectConfiguration(tree, infraName, existingProjectConfig);
   } catch (e) {
-    projectExists = false;
-    logger.info(`Creating new project '${projectName}' at ${projectRoot}.`);
-  }
-
-  if (projectExists && !forceOverwrite) {
-    logger.error(`❌ Project '${projectName}' already exists. Use --forceOverwrite.`);
-    throw new Error(`Project '${projectName}' already exists.`);
-  }
-  if (projectExists && forceOverwrite) {
-    logger.warn(`--forceOverwrite specified. Overwriting files for project '${projectName}'...`);
-  }
-
-  // --- Acciones Comunes ---
-
-  // 1. Añadir/Actualizar Configuración
-  if (!projectExists) {
-    addProjectConfiguration(tree, projectName, {
-      root: projectRoot, projectType: 'application', sourceRoot: projectRoot, tags: parsedTags,
+    addProjectConfiguration(tree, infraName, {
+      root: infraConfigRoot,
+      projectType: 'application', // O 'library', application permite más tipos de executors
+      tags: ['type:infra', `scope:${infraName}`],
       targets: {
         lint: {
-          executor: '@nx/eslint:lint', outputs: ['{options.outputFile}'],
+          executor: '@nx/eslint:lint',
           options: {
-            lintFilePatterns: [
-              joinPathFragments(projectRoot, 'deploy.sh'),
-              joinPathFragments(projectRoot, 'docker-compose.vps.yml'),
-              joinPathFragments(projectRoot, 'nginx/nginx.conf'),
-              joinPathFragments(projectRoot, 'nginx/conf.d/**/*.conf'),
-              joinPathFragments(projectRoot, 'nginx/includes/**/*.conf'),
-            ]
+            lintFilePatterns: [ // Patrones para linting (ajustar si se usa otro linter)
+              joinPathFragments(infraConfigRoot, '**/*.yml'),
+              joinPathFragments(infraConfigRoot, '**/*.yaml'),
+              // Excluir .env de linting
+              `!${joinPathFragments(infraConfigRoot, '.env')}`,
+            ],
+          },
+        },
+        // Target simple para mostrar los pasos manuales
+        'show-deploy-steps': {
+          executor: 'nx:run-commands',
+          options: {
+            command: `echo "Manual Deployment Steps for ${infraName}:\n1. Ensure VPS initialized.\n2. Copy files from '${infraConfigRoot}' to '/home/deploy/${infraName}/' on VPS.\n3. Create/Update '/home/deploy/${infraName}/.env' on VPS.\n4. Run 'cd /home/deploy/${infraName} && docker compose -f docker-compose-infra.yml up -d' on VPS.\n5. Configure DNS for infra domains."`
           }
-        },
-        deploy: {
-          executor: 'nx:run-commands', options: { command: `echo 'INFO: Deployment for ${vpsName} is via CD workflow.'` }, dependsOn: ['lint']
-        },
+        }
       },
     });
-  } else if (forceOverwrite) {
-     // Opcional: Actualizar solo tags si se fuerza sobrescritura
-     try {
-        const existingConfig = readProjectConfiguration(tree, projectName);
-        existingConfig.tags = parsedTags; // Actualizar tags
-        updateProjectConfiguration(tree, projectName, existingConfig);
-        logger.info(`Updated tags for existing project '${projectName}'.`);
-     } catch(e) {
-        logger.warn(`Could not update project configuration for ${projectName}. It might need manual review.`);
+    logger.info(`Registered Nx project '${infraName}' at ${infraConfigRoot}.`);
+  }
+
+  // 2. Definir ubicación de Blueprints de Infraestructura
+  const blueprintDir = 'tools/vps/src/infra-blueprints';
+  if (!tree.exists(blueprintDir)) {
+    throw new Error(`Infrastructure blueprints directory not found at ${blueprintDir}. Please create it and add templates.`);
+  }
+
+  // 3. Generar Archivos de Infraestructura desde Blueprints
+  logger.info(`Generating files from ${blueprintDir} into ${infraConfigRoot}...`);
+  const templateOptions = {
+    // Pasar todas las opciones normalizadas y calculadas a EJS
+    ...normalizedOptions,
+    monitoringEnabled: monitoring, // Pasar flag explícito para <% if %>
+    // Pasar variables con nombres simples si se prefiere en templates
+    infraName: infraName,
+    baseDomain: baseDomain,
+    acmeEmail: acmeEmail,
+    grafanaDomain: grafanaDomain,
+    traefikDomain: traefikDomain,
+    template: '', // Requerido por generateFiles
+  };
+
+  // generateFiles copia TODO el contenido del blueprintDir al infraConfigRoot,
+  // procesando los .template y copiando los demás tal cual.
+  generateFiles(
+    tree,
+    blueprintDir,    // Origen
+    infraConfigRoot, // Destino
+    templateOptions
+  );
+
+  // 4. Crear/Actualizar .gitignore dentro del directorio de infra
+  const gitignorePath = joinPathFragments(infraConfigRoot, '.gitignore');
+  const gitignoreContent = '# Ignore sensitive environment variables\n.env\n\n# Ignore runtime data volumes if mapped locally (though named volumes are preferred)\n# prometheus-data/\n# loki-data/\n# grafana-data/\n# promtail-positions/\n# traefik-acme/\n';
+  if (!tree.exists(gitignorePath)) {
+    tree.write(gitignorePath, gitignoreContent);
+    logger.info(`Created ${gitignorePath} to ignore .env file.`);
+  } else {
+     let content = tree.read(gitignorePath, 'utf-8') || '';
+     if (!content.includes('.env')) {
+         content = content.trim() + '\n.env\n';
+         tree.write(gitignorePath, content);
+         logger.info(`Ensured '.env' is ignored in ${gitignorePath}.`);
      }
   }
 
-  // 2. Generar/Sobrescribir Archivos desde Templates
-  const templateOptions = {
-      name: normalizedOptions.name,
-      vpsName: normalizedOptions.vpsName,
-      scope: normalizedOptions.vpsName,
-      domains: normalizedOptions.domainsList.join(' '), // Para el server_name HTTP y el primer HTTPS
-      domainsList: normalizedOptions.domainsList, // Pasar el array para lógica EJS
-      primaryDomain: normalizedOptions.primaryDomain,
-      monitoringEnabled: normalizedOptions.monitoring, // Pasar el flag de monitoreo
-      template: '',
-  };
-
-  generateFiles(
-    tree,
-    path.join(__dirname, '../../blueprints'), // Ruta a los templates
-    projectRoot, // Destino
-    templateOptions
-  );
-  logger.info(`NOTE: Ensure 'deploy.sh.template' has execute permissions in Git.`);
-  logger.info(`NOTE: Ensure 'ssl-dhparams.pem' exists in blueprints/nginx-conf/ (generate once with openssl).`);
-
-
-  // 3. Generar Archivos de Monitoreo (Condicional)
-  if (monitoring) {
-    logger.info('Monitoring enabled. Generating monitoring configuration files...');
-    // Definir ruta donde guardar configs de monitoreo (ej: dentro del proyecto)
-    const monitoringConfigPath = joinPathFragments(projectRoot, 'monitoring-conf');
-    generateFiles(
-      tree,
-      path.join(__dirname, '../../monitoring-blueprints'),
-      monitoringConfigPath, // <- Destino para configs de monitoring
-      templateOptions // Reusamos las mismas opciones
-    );
-  }
-
-  // 4. Actualizar Workflow de CD
-  logger.info('Updating CD workflow file...');
-  await updateCdWorkflow(tree, normalizedOptions);
-  logger.info('CD workflow update complete.');
-
-  // 5. Formatear Archivos
+  // 5. Formatear Archivos Generados/Modificados
   await formatFiles(tree);
 
   // 6. Mostrar Mensajes Finales
   logger.info('-----------------------------------------------------');
-  if (projectExists && forceOverwrite) { logger.info(`VPS configuration '${vpsName}' updated successfully.`); }
-  else if (!projectExists) { logger.info(`VPS configuration '${vpsName}' created successfully.`); }
-  if (normalizedOptions.monitoring) { logger.info(`   Monitoring stack (Prometheus, Grafana, Loki) included.`); }
-  logger.info(`   Project Root: ${projectRoot}`);
+  logger.info(`✅ Infrastructure configuration '${infraName}' generated/updated successfully.`);
+  logger.info(`   Files located in: ${infraConfigRoot}`);
   logger.info(' ');
-  logger.warn('>>> ACCIONES MANUALES REQUERIDAS EN EL SERVIDOR VPS <<<');
-  logger.info('   (Ver detalles completos en el README generado)');
-  logger.warn('  1. Obtener Certificado SSL Inicial:');
-  logger.info(`     - Conéctate al VPS como admin y ejecuta 'sudo certbot certonly --dns-[provider]'`);
-  logger.info(`     - Incluye TODOS los dominios: ${domainsList.join(', ')}`);
-  logger.info(`     - ¡Haz esto ANTES del primer despliegue del workflow!`);
-  logger.warn('  2. Configurar Certbot Deploy Hook:');
-  logger.info(`     - Después de obtener el certificado, edita (con sudo) el archivo:`);
-  logger.info(`       /etc/letsencrypt/renewal/${primaryDomain}.conf`);
-  logger.info(`     - Añade/Verifica la línea 'deploy_hook' para reiniciar Nginx:`);
-  logger.info(`       deploy_hook = docker compose -f /home/deploy/apps/${vpsName}/docker-compose.vps.yml restart nginx`);
-  logger.warn('  3. Configurar GitHub Secrets:');
-  logger.info(`     - Asegúrate de que los secrets para HOST, USER y KEY de '${vpsName.toUpperCase().replace(/-/g, '_')}' estén creados en GitHub.`);
+  logger.warn('>>> IMPORTANT: Review the generated README.md for next steps! <<<');
+  logger.info(`   -> ${joinPathFragments(infraConfigRoot, 'README.md')} <-`);
   logger.info(' ');
-  logger.info('>>> PRÓXIMOS PASOS: <<<');
-  logger.info(`  1. Realiza las acciones manuales en el VPS si es la primera vez.`);
-  logger.info(`  2. Revisa y haz commit de los archivos generados/actualizados.`);
-  logger.info(`  3. Haz push a la rama '${defaultBranch}' para iniciar el despliegue vía GitHub Actions.`);
+  logger.info('Summary of next steps usually involves:');
+  logger.info(`  1. Commit generated files to Git.`);
+  logger.info(`  2. Ensure target VPS is initialized.`);
+  logger.info(`  3. Manually set up DNS records and '.env' file with secrets on the VPS.`);
+  logger.info(`  4. Trigger the manual 'Deploy VPS Infrastructure Stack (Manual)' workflow on GitHub Actions.`);
   logger.info('-----------------------------------------------------');
 }

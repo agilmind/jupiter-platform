@@ -3,15 +3,12 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/hostinger",
   "projectType": "application",
-  "tags": ["type:vps", "scope:hostinger"],
+  "tags": ["type:infra", "scope:hostinger"],
   "targets": {
     "lint": {
       "executor": "@nx/eslint:lint",
       "options": {
-        "lintFilePatterns": [
-          "apps/hostinger/deploy.sh"
-          // Add other config files (e.g., *.conf, *.yml) later if needed
-        ]
+        "lintFilePatterns": ["apps/hostinger/deploy.sh"]
       },
       "outputs": ["{options.outputFile}"]
     },
@@ -22,6 +19,5 @@
       },
       "dependsOn": ["lint"]
     }
-    // No 'build' target applicable for this project type.
   }
 }

@@ -1,135 +1,117 @@
-# Generador de Configuración VPS (`tools/vps`)
+# Generadores VPS: Infraestructura y Aplicaciones (`tools/vps`)
 
-Este directorio contiene un generador Nx (`@mi-org/vps` - ajusta el scope) para facilitar la creación y gestión de configuraciones para desplegar aplicaciones en Servidores Virtuales Privados (VPS) dentro de este monorepo.
+Este directorio contiene las herramientas y generadores Nx para configurar servidores VPS (Máquinas Virtuales Privadas) utilizando una arquitectura moderna basada en Docker y Traefik como proxy inverso.
 
-## Objetivos
+## Arquitectura Objetivo
 
-* **Scaffolding:** Generar la estructura de archivos necesaria (Nginx en Docker Compose, scripts de despliegue, configs SSL básicas) para configurar un VPS.
-* **Consistencia:** Asegurar que todas las configuraciones de VPS sigan un patrón estándar y robusto.
-* **Despliegue Continuo (CD):** Integrar con GitHub Actions para automatizar el despliegue (`.github/workflows/cd-deploy.yml`) usando `nx affected` (vía `nx show projects`).
-* **Simplicidad y Robustez:** Buscar soluciones profesionales, mantenibles y seguras, priorizando el principio de menor privilegio.
+Se implementa una separación clara entre la infraestructura base compartida y las aplicaciones individuales desplegadas en el mismo VPS:
 
-## Filosofía y Decisiones Clave
+1.  **Stack de Infraestructura Central (Gestionado por `@mi-org/vps:create`):**
+    * Un `docker-compose-infra.yml` que se genera localmente en el workspace (ej. `infra/main/`) y se despliega manualmente o vía un workflow CD dedicado (`cd-infra.yml`). Corre continuamente en un directorio en el VPS (ej. `/home/deploy/infra`).
+    * **Proxy Inverso (Traefik):** Contenedor Traefik como único punto de entrada (puertos 80/443 del host). Descubre y enruta automáticamente el tráfico a contenedores de aplicación basado en **etiquetas Docker (labels)**. Gestiona **automáticamente** SSL de Let's Encrypt vía ACME.
+    * **Stack de Monitoreo (Opcional):** Contenedores para Prometheus, Grafana, Loki, Promtail, Node Exporter. Grafana se expone vía Traefik en un subdominio.
+    * **Red Docker Compartida:** Una red (ej. `webproxy`) a la que se conectan todos los contenedores.
 
-* **Desarrollo Incremental:** Avance por fases (Hello World -> Nginx/Docker -> SSL -> Monitoring).
-* **Nx `affected`:** Se usa `nx show projects --affected --with-target=deploy --json` para detectar proyectos afectados y generar una matriz dinámica en el workflow de CD.
-* **Sin `sudo` para `deploy` en CD:** El usuario `deploy` opera **sin** `sudo`. Los permisos necesarios (Docker) se obtienen añadiéndolo al grupo `docker`. Las tareas root (Certbot) se manejan por mecanismos del sistema o pasos manuales iniciales documentados.
-* **Containerización (Nginx):** Nginx se ejecuta dentro de un contenedor Docker (`nginx:stable-alpine`) gestionado por `docker-compose` para aislamiento y consistencia.
-* **Control de Despliegue:** El workflow de CD apunta a un "Environment" de GitHub Actions (ej. `vps-production`) configurable con reglas de protección (Wait timer, Required reviewers).
-* **Secrets por Proyecto:** Credenciales SSH (`VPS_<NAME>_HOST`, `VPS_<NAME>_USER`, `VPS_<NAME>_KEY`) se configuran como Repository Secrets en GitHub con nombres específicos por proyecto.
-* **Gestión SSL:** Certbot se ejecuta en el **host** (disparado por `certbot.timer`). Se recomienda validación **DNS-01** para obtención inicial (requiere paso manual único). Renovaciones usan el método configurado (DNS o webroot). Nginx en contenedor monta `/etc/letsencrypt` (ro) y sirve desafíos webroot desde un volumen dedicado (`/var/www/letsencrypt/challenges`) si se usa ese método. Un `deploy_hook` manual en la config de renovación de Certbot reinicia el contenedor Nginx.
+2.  **Stacks de Aplicaciones (Gestionados por `@mi-org/project:create` u otros):**
+    * Viven en `apps/<app-name>`. Tienen su propio `docker-compose-app.yml`.
+    * Exponen puertos *internos* a la red `webproxy`. No mapean 80/443 al host. No gestionan SSL.
+    * Incluyen **`labels` Docker** para que Traefik configure enrutamiento y SSL.
+    * Se despliegan vía el workflow CD automático para apps (`.github/workflows/cd-deploy.yml`) basado en `nx affected`.
 
-## Scripts Auxiliares de Configuración del Servidor
+## Generadores Dentro de `tools/vps`
 
-Ubicados en `tools/vps/scripts/`, ejecutar en orden en un VPS Debian/Ubuntu nuevo:
+1.  **`@mi-org/vps:create` (Setup Infraestructura):**
+    * **Propósito:** Generar los archivos de configuración para el Stack de Infraestructura Central localmente en el workspace Nx (ej. en `infra/<infraName>`).
+    * **Salida:** `docker-compose-infra.yml.template`, `traefik.yml.template`, `prometheus.yml.template`, `.env.template`, etc., dentro de la carpeta especificada (o `infra/<infraName>` por defecto).
+    * **Registro Nx:** Registra el directorio generado como un proyecto Nx (con `project.json`).
+    * **Schema:** Acepta `infraName`, `baseDomain`, `acmeEmail`, `monitoring`, `grafanaSubdomain`, `traefikSubdomain`, `outputDirectory`.
+2.  **`@mi-org/vps:remove` (Limpieza Workspace):**
+    * **Propósito:** Eliminar un directorio de configuración de infraestructura (`infra/<infraName>`) del **workspace local Nx** y desregistrar el proyecto Nx asociado.
+    * **Acción:** Delega a `@nx/workspace:remove`.
+    * **NO afecta** la infraestructura desplegada en el servidor VPS.
 
-1.  **`debian-harden.sh` (Ejecutar como `root`):**
-    * Seguridad base SO, usuario admin con `sudo`, hardening SSH (solo clave), firewall `ufw` (permite SSH, HTTP, HTTPS), opcionalmente `fail2ban`.
-2.  **`vps-initial-setup.sh` (Ejecutar con `sudo`):**
-    * Usuario `deploy` (sin sudo, en grupo `docker`), Docker, Docker Compose, Certbot + plugins DNS (cloudflare, digitalocean), `rsync`, directorios (`/home/deploy/apps`, `/var/www/letsencrypt/challenges`), configuración clave SSH opcional para `deploy`, guía secretos DNS Certbot.
+## Scripts de Preparación del Servidor (`tools/vps/scripts/`)
 
-## Flujo de Trabajo Recomendado para un Nuevo VPS
+Ejecutar manualmente en un nuevo VPS Debian/Ubuntu antes de cualquier despliegue Docker.
 
-1.  **Crea VPS** (Debian/Ubuntu).
-2.  **Acceso Inicial** (root).
-3.  **Ejecuta `debian-harden.sh`**. Verifica acceso con nuevo usuario sudo y clave.
-4.  **Ejecuta `vps-initial-setup.sh`** (con sudo). Proporciona clave pública para `deploy` (recomendado). Configura secretos DNS si aplica.
-5.  **Genera Configuración Nx** (local): `nx g @mi-org/vps:create <nombre> --domains=<lista-dominios>`.
-6.  **Configura Secrets GitHub:** `VPS_<NOMBRE_UPPER>_HOST/USER/KEY` (KEY es la clave *privada* de despliegue).
-7.  **Configura Environment GitHub:** Crea `vps-production`, añade reglas (Wait timer / Reviewers). Desactiva bypass de admin.
-8.  **Obtén Certificado Inicial (Manual en VPS):** Conéctate como admin y ejecuta `sudo certbot certonly --dns-[provider] ...` listando todos los dominios (ver README generado en `apps/<nombre>/README.md` para comando exacto).
-9.  **Configura Deploy Hook (Manual en VPS):** Edita `/etc/letsencrypt/renewal/<dominio_ppal>.conf` (con sudo) y añade la línea `deploy_hook` para reiniciar el contenedor Nginx (ver README generado).
-10. **Commit y Push:** Sube los archivos generados a `main`.
-11. **Monitoriza/Aprueba Despliegue:** Observa GitHub Actions. Aprueba o espera el timer. El CD copiará archivos y ejecutará `deploy.sh`.
-12. **Verifica:** Accede a `https://<tu-dominio>`.
+1.  **`debian-harden.sh` (Ejecutar como `root`):** Seguridad base SO, usuario admin `sudo`, hardening SSH (solo clave), firewall `ufw` (permite SSH, HTTP, HTTPS).
+2.  **`vps-initial-setup.sh` (Ejecutar con `sudo`):** Usuario `deploy` (sin sudo, en grupo `docker`), Docker, Docker Compose plugin, `rsync`. Crea directorios `/home/deploy/apps` y `/home/deploy/infra`. Configura clave SSH opcional para `deploy`. (Versión v4 simplificada para Traefik).
 
-## Gestionar Dominios (Post-Creación)
+## Despliegue y Actualización de la Infraestructura
 
-Para añadir o eliminar dominios/subdominios de una configuración existente (`<nombre>`):
+1.  **Generación/Actualización Local:** Usa `nx g @mi-org/vps:create <infraName> ...` (usa `--forceOverwrite` para actualizar). Haz commit de los cambios en `infra/<infraName>/`.
+2.  **Prerrequisitos del Primer Despliegue (Manual en VPS):**
+    * Ejecutar scripts `debian-harden.sh` y `vps-initial-setup.sh`.
+    * Crear y configurar DNS para los subdominios de infra (ej. `traefik.<baseDomain>`, `grafana.<baseDomain>`).
+    * Crear el archivo `.env` en `/home/deploy/infra/` a partir de `.env.template` y añadir los secretos necesarios (ej. API keys DNS para Traefik AC
 
-1.  **Actualiza DNS:** Añade/elimina los registros DNS necesarios para los nuevos/viejos dominios.
-2.  **Regenera Configuración Nx:** Ejecuta `nx g @mi-org/vps:create <nombre> --domains=<NUEVA_lista_completa_dominios> --forceOverwrite`. Esto actualizará `apps/<nombre>/nginx-conf/default.conf`.
-3.  **Actualiza Certificado (Manual en VPS):** Conéctate como admin y ejecuta `sudo certbot certonly --cert-name <dominio_ppal> --dns-[provider] ...` listando **todos** los dominios que debe cubrir el certificado actualizado (incluyendo los nuevos, omitiendo los eliminados). Usa `--cert-name` para modificar el existente. Certbot actualizará los archivos y la configuración de renovación (preservando el hook).
-4.  **Commit y Push:** Sube el `default.conf` modificado. El CD desplegará la nueva configuración Nginx, que usará el certificado actualizado.
+## Despliegue de Aplicaciones
 
-## Estrategia de Gestión de Certificados (Let's Encrypt)
-
-* **Renovación:** Automática vía `certbot.timer` (host) + `deploy_hook` (en `/etc/letsencrypt/renewal/*.conf`) para reiniciar contenedor Nginx.
-* **Obtención Inicial:** **Manual** vía `sudo certbot certonly --dns-[provider] ...` en el host.
-* **Método Webroot (Para Renovación si no se usa DNS):** Certbot (host) escribe en `/var/www/letsencrypt/challenges/`. Docker monta este directorio en `/var/www/letsencrypt/challenges-in-container:ro`. Nginx (contenedor) usa `alias /var/www/letsencrypt/challenges-in-container/;` en el bloque `location /.well-known/acme-challenge/`.
-* **Método DNS:** Requiere plugins y credenciales API en `/home/deploy/.secrets/*.ini` (propietario root, modo 600).
-* **Instalación:** Nginx (contenedor) monta `/etc/letsencrypt:/etc/letsencrypt:ro` y usa los certificados directamente. Certbot (host) no necesita `installer`.
+* Gestionado por el generador `@mi-org/project:create` (o similar).
+* El generador crea el proyecto en `apps/<app-name>` y añade las `labels` de Traefik al `docker-compose-app.yml`.
+* El workflow `.github/workflows/cd-deploy.yml` (el que usa `nx affected` sobre `apps/`) se activa con push a `main`.
+* Detecta la app afectada, copia sus archivos a `/home/deploy/apps/<app-name>/`, ejecuta `docker compose -f docker-compose-app.yml up -d`.
+* Traefik detecta el nuevo contenedor y configura el enrutamiento/SSL automáticamente basado en las labels.
 
 ## Estado Actual (2025-04-14)
 
-* **Fase 1 (Hello World):** Completada.
-* **Fase 2 (Nginx/Docker Básico):** Completada.
-* **Fase 3 (SSL/HTTPS Básico):** Completada.
-    * Generador acepta `--domains`.
-    * Templates Nginx generan configuración HTTPS funcional.
-    * Documentación (generada y principal) incluye pasos manuales para Certbot inicial y deploy hook.
-    * Workflow CD validado (incluyendo detección de afectados y environment/timer).
-* **Pendiente (Próximos Pasos):**
-    * **Fase 4: Monitoring:** Implementar stack de monitoreo (Prometheus, Grafana, Loki, etc.).
-    * **Mejoras:** Proxy inverso para múltiples dominios independientes, manejo de variables de entorno para apps, bases de datos, etc.
-    * Pruebas exhaustivas.
+* Arquitectura final definida (Infra con Traefik + Apps separadas).
+* Generador `vps:create` redefinido para generar configuración de infraestructura localmente y registrarla como proyecto Nx.
+* Generador `vps:remove` definido para limpiar la configuración de infraestructura del workspace Nx.
+* Scripts `debian-harden.sh` y `vps-initial-setup.sh` (v4) definidos para preparar el host.
+* Workflow `cd-infra.yml` (manual) definido conceptualmente para desplegar la infraestructura.
+* Workflow `cd-deploy.yml` (automático, `nx affected`) definido conceptualmente para desplegar aplicaciones.
+* **Pendiente:** Implementar las plantillas y la lógica del generador `vps:create` para la infraestructura Traefik+Monitoring.
 
 ## Continuidad del Chat con Gemini
 
-Para retomar este trabajo en una nueva sesión de chat con Gemini, sigue estos pasos:
+Para retomar este trabajo en una nueva sesión de chat:
 
-1.  **Indica el Objetivo:** Comienza diciendo algo como: "Hola Gemini, estamos continuando el desarrollo de un generador Nx llamado 'vps' para configurar y desplegar sitios en VPS con Docker y Nginx. El estado actual está documentado en el README que te proporcionaré."
-2.  **Proporciona el Contexto Principal (Este Archivo):** Copia y pega el **contenido completo** de este archivo (`tools/vps/README.md`) en el chat.
-3.  **Prepárate para Proporcionar Código Clave:** Menciona que puedes proporcionar el contenido de archivos específicos si es necesario. Los más relevantes probablemente serán:
-    * `tools/vps/src/generators/create/generator.ts`
-    * `tools/vps/src/generators/create/lib/update-cd-workflow.ts`
-    * `tools/vps/src/generators/create/lib/scripts/calculate-affected.sh`
+1.  **Objetivo:** "Continuando generador Nx '@mi-org/vps:create' para stack de infraestructura VPS (Traefik + Monitoring) y generador '@mi-org/vps:remove'. La arquitectura está definida en el README."
+2.  **Contexto Principal:** Pega el contenido completo de **este archivo README.md**.
+3.  **Archivos Clave (Prepárate para Copiar Contenido si se Pide):**
     * `tools/vps/scripts/debian-harden.sh`
-    * `tools/vps/scripts/vps-initial-setup.sh`
-    * Templates de `tools/vps/src/blueprints/` (`docker-compose.vps.yml.template`, `nginx-conf/default.conf.template`, `deploy.sh.template`)
-    * El `.github/workflows/cd-deploy.yml` generado.
-4.  **Indica el Siguiente Paso:** Di claramente qué quieres hacer a continuación (ej. "Implementemos la configuración SSL/HTTPS (Fase 3)").
-
-## Troubleshooting / Diagnóstico Básico
-
-Si el despliegue falla o el sitio no está accesible después de un despliegue exitoso, aquí hay algunos comandos útiles para ejecutar en el servidor VPS:
-
-**1. Verificar Contenedores Docker:**
-   * Conéctate como usuario `deploy`.
-   * Ve al directorio de la app: `cd /home/deploy/apps/<vps-name>/`
-   * Comprueba estado: `docker compose -f docker-compose.vps.yml ps` (¿Está 'running'?)
-   * Mira logs (especialmente si está en 'Restarting'): `docker compose -f docker-compose.vps.yml logs nginx`
-
-**2. Verificar Firewall (UFW):**
-   * Conéctate como usuario admin (con sudo).
-   * `sudo ufw status verbose` (Asegúrate que 80/tcp y 443/tcp estén 'ALLOW IN').
-   * Si faltan: `sudo ufw allow http && sudo ufw allow https`
-
-**3. Verificar Puertos en Escucha:**
-   * Conéctate como usuario admin (con sudo).
-   * `sudo ss -tlpn | grep -E ':80|:443'` (Deberías ver `docker-proxy` escuchando).
-
-**4. Probar Nginx Localmente:**
-   * Conéctate como admin o deploy.
-   * `curl -v http://localhost`
-   * `curl -v --insecure https://localhost` (Debería devolver el HTML o un error de Nginx).
-
-**5. Error "Permission denied (publickey)" en el Workflow:**
-   * Verifica que el contenido del secret `VPS_<NAME>_KEY` en GitHub coincida EXACTAMENTE con tu clave privada de despliegue.
-   * Verifica que la clave pública correspondiente esté EXACTAMENTE igual en `/home/deploy/.ssh/authorized_keys` en el servidor.
-   * Verifica permisos: `sudo stat -c "%a %U:%G" /home/deploy/.ssh /home/deploy/.ssh/authorized_keys` (Deberían ser `700 deploy:deploy` y `600 deploy:deploy` respectivamente).
-
-**6. Error "PasswordAuthentication yes" / Login con Contraseña Aún Activo:**
-   * Verifica `/etc/ssh/sshd_config` y asegúrate que `PasswordAuthentication no` esté descomentado.
-   * Revisa archivos en `/etc/ssh/sshd_config.d/` (especialmente los de `cloud-init`) por si están sobrescribiendo la configuración. Edita esos archivos si es necesario.
-   * Reinicia SSH: `sudo systemctl restart sshd`.
-
-**7. Problemas con Renovación o Certificados SSL:**
-   * Verifica certificados existentes: `sudo certbot certificates`
-   * Prueba renovación manual: `sudo certbot renew --dry-run`
-   * Revisa configuración de renovación y hook: `sudo cat /etc/letsencrypt/renewal/tudominio.com.conf`
-   * Revisa configuración Nginx para SSL (`apps/<vps-name>/nginx-conf/default.conf`).
-
+    * `tools/vps/scripts/vps-initial-setup.sh` (v4 - Traefik)
+    * `tools/vps/src/generators/create/schema.json` (vps:create infra schema)
+    * `tools/vps/src/generators/create/schema.d.ts` (vps:create infra schema)
+    * `tools/vps/src/generators/create/generator.ts` (vps:create infra logic - ¡aún por finalizar!)
+    * `tools/vps/src/generators/remove/schema.json` (vps:remove schema)
+    * `tools/vps/src/generators/remove/schema.d.ts` (vps:remove schema)
+    * `tools/vps/src/generators/remove/generator.ts` (vps:remove logic)
+    * `.github/workflows/cd-infra.yml` (Manual infra deployment workflow)
+    * `.github/workflows/cd-deploy.yml` (Automatic app deployment workflow - el complejo que ya teníamos)
+    * *Plantillas a crear/usar* para `vps:create` (infra): `docker-compose-infra.yml.template`, `traefik.yml.template`, `prometheus.yml.template`, etc.
+4.  **Siguiente Paso:** Indica qué quieres hacer (ej. "Definamos la plantilla `docker-compose-infra.yml.template` para Traefik y Monitoreo").
 
 ---
-*Este es un documento vivo y se actualizará a medida que el proyecto evolucione.*
+*Este es un documento vivo que refleja la arquitectura objetivo con Traefik.*
+
+
+tools/vps/
+├── README.md                  # <--- Este archivo que acabamos de actualizar
+├── package.json               # Dependencias del plugin (ej. js-yaml)
+├── tsconfig.json              # Configuración TS del plugin
+└── src/
+    ├── generators/
+    │   ├── create/            # Generador vps:create (setup-infra)
+    │   │   ├── schema.json
+    │   │   ├── schema.d.ts
+    │   │   ├── generator.ts   # Lógica principal (genera configs infra)
+    │   │   ├── index.ts       # Exportador
+    │   │   └── lib/           # Helpers para 'create'
+    │   │       └── utils.ts   # (Ej: getDefaultBranch si aún se usa en logs)
+    │   └── remove/            # Generador vps:remove (remove-infra-config)
+    │       ├── schema.json
+    │       ├── schema.d.ts
+    │       ├── generator.ts   # Lógica principal (llama a nx remove)
+    │       └── index.ts       # Exportador
+    ├── infra-blueprints/      # <--- NUEVO: Plantillas para la INFRAESTRUCTURA
+    │   ├── docker-compose-infra.yml.template
+    │   ├── traefik.yml.template
+    │   ├── .env.template
+    │   ├── prometheus.yml.template
+    │   ├── loki-config.yml.template
+    │   └── promtail-config.yml.template
+    └── scripts/                 # Scripts de setup manual para el VPS
+        ├── debian-harden.sh
+        └── vps-initial-setup.sh # Versión simplificada v4 (Traefik)

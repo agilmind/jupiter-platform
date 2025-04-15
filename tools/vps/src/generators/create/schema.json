@@ -1,48 +1,53 @@
 {
   "$schema": "http://json-schema.org/schema",
   "cli": "nx",
-  "id": "VpsCreate",
-  "title": "Create/Update VPS Configuration",
-  "description": "Creates or updates a VPS configuration application structure with Nginx/Docker.",
+  "id": "VpsSetupInfra",
+  "title": "Setup VPS Infrastructure Stack",
+  "description": "Generates configuration files locally within the workspace for the central VPS infrastructure stack (Traefik Reverse Proxy + Optional Monitoring).",
   "type": "object",
   "properties": {
-    "name": {
+    "infraName": {
       "type": "string",
-      "description": "The short name for this configuration (e.g., hostinger, my-app). Used for directory and Nx project name.",
+      "description": "A short name for this infrastructure instance (used for generated directory, container prefixes, Nx project name).",
+      "default": "infra",
       "$default": {
         "$source": "argv",
         "index": 0
       },
-      "x-prompt": "Enter a short name for this configuration:"
+      "alias": "name"
     },
-    "domains": {
+    "baseDomain": {
       "type": "string",
-      "description": "Comma-separated list of domains/subdomains for Nginx & SSL (e.g., domain.com,www.domain.com,api.domain.com). The first domain is used for certificate paths.",
-      "alias": "d",
-      "x-prompt": "Enter the domain(s), separated by commas:"
+      "description": "The base domain name used to access infrastructure services (e.g., jupiter.ar). Subdomains are derived from this.",
+      "x-prompt": "Enter the base domain name (e.g., yourdomain.com):"
     },
-    "directory": {
+    "acmeEmail": {
       "type": "string",
-      "description": "The directory relative to apps/ where the configuration will be created.",
-      "alias": "dir"
-    },
-    "tags": {
-      "type": "string",
-      "description": "Add tags to the project (comma-separated).",
-      "alias": "t"
-    },
-    "forceOverwrite": {
-      "type": "boolean",
-      "description": "Overwrite existing files if the project configuration already exists.",
-      "default": false,
-      "alias": "force"
+      "format": "email",
+      "description": "Email address required for Let's Encrypt (ACME) registration via Traefik for SSL certificates.",
+      "x-prompt": "Enter the email address for Let's Encrypt registration:"
     },
     "monitoring": {
       "type": "boolean",
-      "description": "Include monitoring stack (Prometheus, Grafana, Loki) in the configuration.",
-      "default": false,
+      "description": "Include the monitoring stack (Grafana, Prometheus, Loki)?",
+      "default": true,
       "alias": "m"
+    },
+    "grafanaSubdomain": {
+      "type": "string",
+      "description": "Subdomain prefix for accessing Grafana (e.g., 'grafana' -> grafana.yourdomain.com). Ignored if monitoring is false.",
+      "default": "grafana"
+    },
+    "traefikSubdomain": {
+      "type": "string",
+      "description": "Subdomain prefix for accessing the Traefik dashboard (e.g., 'traefik').",
+      "default": "traefik"
+    },
+    "outputDirectory": {
+      "type": "string",
+      "description": "Directory where generated infra files will be placed (relative to workspace root). Defaults to 'infra/<infraName>'.",
+      "alias": "o"
     }
   },
-  "required": ["name", "domains"]
+  "required": ["baseDomain", "acmeEmail"]
 }

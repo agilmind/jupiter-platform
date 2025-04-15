@@ -34,7 +34,7 @@ scrape_configs:
       # Añadir label con el nombre del proyecto VPS para agrupar
       - source_labels: [] # No necesita source
         target_label: 'vps_project'
-        replacement: '<%= vpsName %>' # Variable del generador
+        replacement: '<%= infraName %>' # Variable del generador
 
   # --- Alternativa: Scrape config leyendo archivos json de Docker ---
   # Menos dinámico, requiere montar /var/lib/docker/containers
@@ -46,7 +46,7 @@ scrape_configs:
   #         job: containerlogs
   #         # Ruta DENTRO del contenedor Promtail donde montaste los logs del host
   #         __path__: /var/lib/docker/containers/*/*-json.log
-  #         vps_project: '<%= vpsName %>'
+  #         vps_project: '<%= infraName %>'
   #   pipeline_stages:
   #     - json:
   #         expressions:

@@ -1,0 +1,108 @@
+# Configuración estática de Traefik para <%= infraName %>
+
+# --- Configuraciones Globales ---
+global:
+  checkNewVersion: true # Recomendar buscar actualizaciones
+  sendAnonymousUsage: false # Deshabilitar telemetría (opcional)
+
+# --- Logs de Traefik ---
+log:
+  level: INFO # Nivel de log (DEBUG, INFO, WARN, ERROR)
+  # format: json # Opcional: formato json
+  # filePath: /var/log/traefik.log # Opcional: escribir a archivo (necesita volumen)
+
+# --- API y Dashboard ---
+api:
+  dashboard: true # Habilitar dashboard web
+  # insecure: true # Habilitar en puerto 8080 sin seguridad (NO RECOMENDADO)
+  # En su lugar, lo exponemos de forma segura a través de un Router con TLS y Auth (ver labels en docker-compose)
+
+# --- EntryPoints (Puertos de Entrada) ---
+entryPoints:
+  web:
+    address: ":80" # Escuchar en puerto 80
+    # Redirección permanente HTTP a HTTPS para todas las peticiones
+    http:
+      middlewares:
+        - https-redirect@file # Aplicar middleware de redirección
+  websecure:
+    address: ":443" # Escuchar en puerto 443
+    # Configuración TLS por defecto para este entrypoint
+    http:
+      tls:
+        certResolver: myresolver # Usar el resolvedor Let's Encrypt definido abajo
+        # Opcional: Dominios principales para TLS (si no se definen en routers)
+        # domains:
+        #   - main: "<%= baseDomain %>"
+        #     sans:
+        #       - "www.<%= baseDomain %>"
+
+# --- Proveedores de Configuración ---
+providers:
+  # Proveedor Docker: Detecta contenedores y lee sus labels
+  docker:
+    endpoint: "unix:///var/run/docker.sock" # Usar socket Docker
+    exposedByDefault: false # Requerir label "traefik.enable=true" en cada contenedor a exponer
+    network: webproxy # Nombre de la red Docker a usar
+    # swarmMode: false # Si no usas Docker Swarm
+
+  # Proveedor de Archivo: Para definir middlewares, etc. de forma estática
+  file:
+    # filename: /etc/traefik/dynamic.yml # Si tuvieras un archivo dinámico separado
+    # watch: true
+    # En lugar de archivo separado, definimos middlewares aquí mismo:
+    directory: /etc/traefik/ # Traefik puede leer configs de un dir, pero es más simple en el principal
+    # O podemos definir middlewares directamente bajo http:
+    # (ver sección http.middlewares abajo)
+
+# --- Resolvedor de Certificados ACME (Let's Encrypt) ---
+certificatesResolvers:
+  myresolver: # Nombre del resolvedor (usado en labels/routers)
+    acme:
+      email: <%= acmeEmail %> # Email de registro
+      storage: /etc/traefik/acme/acme.json # Archivo donde guardar certificados (montado como volumen)
+      # --- Elegir Desafío ACME ---
+      # 1. HTTP-01 (Más simple si no hay restricciones de puerto 80)
+      httpChallenge:
+        entryPoint: web # Usar el entrypoint HTTP (puerto 80) para el desafío
+      # 2. DNS-01 (Necesario para wildcards, más robusto si puerto 80 está bloqueado)
+      # QUITAR httpChallenge y DESCOMENTAR/CONFIGURAR lo siguiente si usas DNS:
+      # dnsChallenge:
+      #   provider: cloudflare # o digitalocean, etc.
+      #   delayBeforeCheck: 0 # Tiempo a esperar antes de verificar TXT record
+      #   resolvers:
+      #     - "1.1.1.1:53"
+      #     - "8.8.8.8:53"
+      #   # Las credenciales (ej. CF_DNS_API_TOKEN) se leen de las variables de entorno
+      #   # definidas en docker-compose-infra.yml, las cuales leen del archivo .env
+
+# --- Middlewares HTTP (Definidos estáticamente) ---
+http:
+  middlewares:
+    # Middleware para redirección HTTP a HTTPS
+    https-redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    # Middleware para Autenticación Básica del Dashboard Traefik
+    dashboard-auth:
+      basicAuth:
+        # Los usuarios se definen como variables de entorno leídas del .env
+        # Ejemplo: TRAEFIK_DASHBOARD_USER=admin
+        # Ejemplo: TRAEFIK_DASHBOARD_HASHED_PASSWORD=... (generado con htpasswd)
+        # Traefik los leerá si se pasan al contenedor
+        # Aquí solo referenciamos, la creación de usuarios/hash es manual/externa
+        # users:
+        #  - "admin:$$apr1$$...." # Ejemplo - NO hardcodear aquí, usar env vars o archivo
+        # Alternativa más segura: Usar usersFile y montar un archivo htpasswd
+        # usersFile: /path/to/.htpasswd # Requiere montar el archivo
+        # O usar variables de entorno (ver https://doc.traefik.io/traefik/middlewares/http/basicauth/#users)
+         env: true # Indicar a Traefik que lea usuarios de variables de entorno
+
+    # Middleware para añadir headers de seguridad básicos (opcional)
+    # security-headers:
+    #   headers:
+    #     frameDeny: true
+    #     contentTypeNosniff: true
+    #     # Añadir otros como HSTS aquí si no se gestiona en los routers

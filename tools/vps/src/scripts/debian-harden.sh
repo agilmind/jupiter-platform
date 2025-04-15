@@ -198,8 +198,8 @@ configure_firewall() {
 
     # (Optional) Allow HTTP/HTTPS if needed immediately
     # info "Allowing HTTP (80/tcp) and HTTPS (443/tcp)..."
-    # ufw allow http || warn "Failed to allow HTTP."
-    # ufw allow https || warn "Failed to allow HTTPS."
+    ufw allow http || warn "Failed to allow HTTP."
+    ufw allow https || warn "Failed to allow HTTPS."
 
     # Enable UFW
     if prompt_yes_no "Enable the firewall now?"; then

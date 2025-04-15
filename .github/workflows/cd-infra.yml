@@ -1,0 +1,120 @@
+name: Deploy VPS Infrastructure Stack (Manual)
+
+on:
+  # Permite la ejecución manual desde la pestaña Actions
+  workflow_dispatch:
+    inputs:
+      infra_config_path:
+        description: 'Workspace path to infra config'
+        required: true
+        default: 'infra/main' # Directorio por defecto donde genera vps:create
+      target_host_secret:
+        description: 'Name of GitHub secret containing VPS HOST/IP'
+        required: true
+        default: 'VPS_INFRA_HOST'
+      target_user_secret:
+        description: 'Name of GitHub secret containing VPS SSH USER'
+        required: true
+        default: 'VPS_INFRA_USER'
+      target_key_secret:
+        description: 'Name of GitHub secret containing VPS SSH PRIVATE KEY'
+        required: true
+        default: 'VPS_INFRA_KEY'
+      target_deploy_path:
+         description: 'Absolute path on VPS to deploy infra files'
+         required: true
+         default: '/home/deploy/infra' # Asume /home/deploy/infra
+
+jobs:
+  deploy-infra:
+    name: Deploy Infrastructure to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          # Usar nombre del secret pasado como input
+          ssh-private-key: ${{ secrets[github.event.inputs.target_key_secret] }}
+
+      - name: Add VPS Host to Known Hosts
+        run: |
+          VPS_HOST="${{ secrets[github.event.inputs.target_host_secret] }}"
+          if [ -z "$VPS_HOST" ]; then echo "Error: Host secret missing." >&2; exit 1; fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          echo "Added $VPS_HOST to known_hosts"
+
+      - name: Install rsync (on runner)
+        run: sudo apt-get update && sudo apt-get install -y rsync
+
+      - name: Sync Infrastructure Files via Rsync
+        run: |
+          VPS_HOST="${{ secrets[github.event.inputs.target_host_secret] }}"
+          VPS_USER="${{ secrets[github.event.inputs.target_user_secret] || 'deploy' }}"
+          # Usar paths desde inputs
+          SOURCE_DIR="./${{ github.event.inputs.infra_config_path }}/"
+          TARGET_DIR="${{ github.event.inputs.target_deploy_path }}/"
+
+          if [ ! -d "$SOURCE_DIR" ]; then echo "Error: Source directory ${SOURCE_DIR} not found in repo." >&2; exit 1; fi
+
+          echo "Syncing ${SOURCE_DIR} to ${VPS_USER}@${VPS_HOST}:${TARGET_DIR}"
+          # Excluir el .env real del servidor y el .gitignore local
+          rsync -avz --delete --exclude='.env' --exclude='.gitignore' \
+            "${SOURCE_DIR}" \
+            "${VPS_USER}@${VPS_HOST}:${TARGET_DIR}" \
+            || { echo "Rsync failed!"; exit 1; }
+          echo "Infrastructure files synced successfully."
+
+      - name: Deploy Infrastructure Stack via Docker Compose on VPS
+        if: success() # Asegúrate que los pasos previos funcionen
+        run: |
+          VPS_HOST="${{ secrets[github.event.inputs.target_host_secret] }}"
+          VPS_USER="${{ secrets[github.event.inputs.target_user_secret] || 'deploy' }}"
+          INFRA_DIR="${{ github.event.inputs.target_deploy_path }}"
+
+          echo "Executing docker compose up on ${VPS_USER}@${VPS_HOST} in ${INFRA_DIR}"
+          ssh "${VPS_USER}@${VPS_HOST}" << EOF
+            # --- INICIO BLOQUE SSH REMOTO ---
+            set -e # Hacer que el script remoto falle si un comando falla
+            echo "[Remote] Changing directory to ${INFRA_DIR}"
+            cd "${INFRA_DIR}" || { echo "[Remote] Failed to cd to ${INFRA_DIR}"; exit 1; }
+
+            if [ ! -f "docker-compose-infra.yml" ]; then
+              echo "[Remote] ERROR: docker-compose-infra.yml not found in ${INFRA_DIR}" >&2
+              exit 1
+            fi
+
+            # --- VERIFICACIÓN .env MÁS ESTRICTA ---
+            if [ ! -f ".env" ] && [ -f ".env.template" ]; then
+              echo "[Remote] ERROR: '.env' file not found, but '.env.template' exists." >&2
+              echo "[Remote] Please create '.env' from the template on the server (${INFRA_DIR}/.env)" >&2
+              echo "[Remote] and add the required secrets (e.g., DNS provider API keys/tokens needed by Traefik)." >&2
+              exit 1 # Fallar el despliegue si .env falta pero es esperado
+            elif [ ! -f ".env.template" ]; then
+               echo "[Remote] WARNING: .env.template not found. Cannot verify if .env is needed."
+            # Opcional: Verificar si .env existe pero está vacío
+            elif [ -f ".env" ] && [ ! -s ".env" ]; then
+               echo "[Remote] WARNING: .env file exists but is empty. Secrets might be missing."
+            fi
+            # --- FIN VERIFICACIÓN .env ---
+
+            echo "[Remote] Running docker compose pull..."
+            docker compose -f docker-compose-infra.yml pull
+
+            echo "[Remote] Running docker compose up..."
+            # Usar el compose file específico de infraestructura
+            docker compose -f docker-compose-infra.yml up -d --remove-orphans
+            COMPOSE_EXIT_CODE=$?
+            echo "[Remote] Docker Compose finished with exit code $COMPOSE_EXIT_CODE."
+            exit $COMPOSE_EXIT_CODE
+            # --- FIN BLOQUE SSH REMOTO ---
+          EOF
+          SSH_EXIT_CODE=$?
+          if [ $SSH_EXIT_CODE -ne 0 ]; then echo "Remote compose execution failed with exit code $SSH_EXIT_CODE!"; exit $SSH_EXIT_CODE; fi
+          echo "Infrastructure stack deployed/updated successfully."

@@ -1,25 +1,26 @@
 {
     "$schema": "http://json-schema.org/schema",
     "cli": "nx",
-    "id": "VpsRemove",
-    "title": "Remove VPS Configuration",
-    "description": "Removes an existing VPS configuration application.",
+    "id": "VpsRemoveInfra",
+    "title": "Remove VPS Infrastructure Configuration",
+    "description": "Removes an existing VPS infrastructure configuration project from the Nx workspace.",
     "type": "object",
     "properties": {
         "projectName": {
             "type": "string",
-            "description": "The name of the VPS configuration project to remove.",
+            "description": "The name of the infrastructure project to remove (should match 'infraName' used during creation, e.g., 'infra').",
             "$default": {
                 "$source": "argv",
                 "index": 0
             },
             "alias": "name",
-            "x-prompt": "Which VPS configuration project do you want to remove?"
+            "x-prompt": "Which infrastructure configuration project do you want to remove from the workspace?"
         },
         "forceRemove": {
             "type": "boolean",
-            "description": "Skip confirmation prompts when removing the project.",
-            "default": false
+            "description": "Skip confirmation prompts when removing the project files and configuration.",
+            "default": false,
+             "alias": "force"
         }
     },
     "required": ["projectName"]

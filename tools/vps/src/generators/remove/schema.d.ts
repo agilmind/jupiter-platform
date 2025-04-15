@@ -1,4 +1,4 @@
-export interface VpsRemoveGeneratorSchema {
-  projectName: string; // Name of the project to remove
-  forceRemove?: boolean; // Skip confirmation prompt
+export interface VpsRemoveInfraSchema {
+  projectName: string; // Nombre del proyecto Nx a eliminar (ej: 'infra')
+  forceRemove?: boolean; // Opción para forzar, alias 'force'
 }
