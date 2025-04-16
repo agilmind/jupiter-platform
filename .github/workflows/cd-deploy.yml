@@ -170,8 +170,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          # --- MODIFICADO: Usar GITHUB_TOKEN en lugar de PAT ---
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       # Paso 8: Generar los tags para la imagen Docker
       - name: Generate Image Tags
