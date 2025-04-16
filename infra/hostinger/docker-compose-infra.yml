@@ -20,8 +20,8 @@ services:
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-acme:/etc/traefik/acme
-      # --- AÑADIR MONTAJE HTPSASSWD ---
-      - ./traefik-auth/.htpasswd:/etc/traefik/auth/.htpasswd:ro
+      # Monta el archivo DESDE EL HOST (VPS) a DENTRO DEL CONTENEDOR
+      - /home/deploy/infra/traefik-auth/.htpasswd:/etc/traefik/auth/.htpasswd:ro
     environment: # Solo para DNS challenge (ejemplo)
       - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:-}
     labels:
@@ -36,7 +36,7 @@ services:
       - 'traefik.http.routers.traefik-dashboard-secure.tls.certresolver=myresolver'
       - 'traefik.http.routers.traefik-dashboard-secure.service=api@internal'
       # MIDDLEWARE AUTH
-      - 'traefik.http.middlewares.dashboard-auth.basicauth.usersfile=/home/deploy/infra/traefik-auth/.htpasswd'
+      - 'traefik.http.middlewares.dashboard-auth.basicauth.usersfile=/etc/traefik/auth/.htpasswd'
       - 'traefik.http.routers.traefik-dashboard-secure.middlewares=dashboard-auth@docker'
 
   # --- Stack de Monitoreo ---
