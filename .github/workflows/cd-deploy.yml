@@ -108,9 +108,6 @@ jobs:
           echo "has_affected=${HAS_AFFECTED}" >> $GITHUB_OUTPUT
           echo "Finished setting outputs."
 
-  # --------------------------------------------------------------------------
-  # Job 2: Construir y Desplegar las Aplicaciones Afectadas
-  # --------------------------------------------------------------------------
   deploy_affected:
     name: Build and Deploy ${{ matrix.project }} # Nombre dinámico del job
     needs: check_affected     # Depende del job anterior
