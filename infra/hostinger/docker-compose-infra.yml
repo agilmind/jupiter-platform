@@ -26,9 +26,6 @@ services:
       - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:-}
     labels:
       - 'traefik.enable=true'
-      # Router HTTP (SIN redirect middleware aquí, ACME lo necesita)
-      - 'traefik.http.routers.traefik-dashboard-http.rule=Host(`traefik.jupiter.ar`)'
-      - 'traefik.http.routers.traefik-dashboard-http.entrypoints=web'
       # Router HTTPS (Seguro)
       - 'traefik.http.routers.traefik-dashboard-secure.rule=Host(`traefik.jupiter.ar`)'
       - 'traefik.http.routers.traefik-dashboard-secure.entrypoints=websecure'
@@ -114,9 +111,6 @@ services:
       # - GF_AUTH_ANONYMOUS_ENABLED=false # Ya es false por defecto
     labels:
       - 'traefik.enable=true'
-      # Router HTTP (SIN redirect middleware aquí para ACME)
-      - 'traefik.http.routers.grafana-http.rule=Host(`grafana.jupiter.ar`)'
-      - 'traefik.http.routers.grafana-http.entrypoints=web'
       # - "traefik.http.routers.grafana-http.middlewares=https-redirect" # <-- ELIMINAR
       # Router HTTPS
       - 'traefik.http.routers.grafana-secure.rule=Host(`grafana.jupiter.ar`)'
