@@ -65,7 +65,10 @@ jobs:
 
           echo "Syncing ${SOURCE_DIR} to ${VPS_USER}@${VPS_HOST}:${TARGET_DIR}"
           # Excluir .env y .gitignore
-          rsync -avz --delete --exclude='.env' --exclude='.gitignore' \
+          rsync -avz --delete \
+            --exclude='.env' \
+            --exclude='.gitignore' \
+            --exclude='traefik-auth/' \
             "${SOURCE_DIR}" \
             "${VPS_USER}@${VPS_HOST}:${TARGET_DIR}" \
             || { echo "Rsync failed!"; exit 1; }
