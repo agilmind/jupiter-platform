@@ -31,10 +31,7 @@ jobs:
       - name: Get Affected Projects
         id: get_affected
         run: |
-          # --- USA npx AQUÍ ---
           AFFECTED_OUTPUT=$(npx nx affected --target=deploy-info --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} --json)
-          # --- FIN DEL CAMBIO ---
-
           echo "Raw Affected Output: $AFFECTED_OUTPUT" # Para depuración
 
           # Extraer la lista de nombres de proyecto del JSON
