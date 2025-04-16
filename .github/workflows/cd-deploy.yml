@@ -99,7 +99,9 @@ jobs:
     strategy:                 # Nivel 4
       fail-fast: false        # Nivel 6
       matrix:                 # Nivel 6
-        project: ${{ fromJson(needs.check_affected.outputs.affected_projects) }} # Nivel 8
+#        project: ${{ fromJson(needs.check_affected.outputs.affected_projects) }} # Nivel 8
+        project: ['test-project'] # Un array estático
+
 
     steps:                    # Nivel 4 (inicio de pasos para deploy_affected)
       - name: Checkout Repository # Nivel 6
