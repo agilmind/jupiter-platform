@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "id": "AgilmindAppRemove",
+  "title": "Remove Agilmind Deployable Application Component",
+  "type": "object",
+  "properties": {
+    "projectName": {
+      "type": "string",
+      "description": "The name of the logical project the app belongs to (e.g., jupiter).",
+      "$default": {
+        "$source": "argv",
+        "index": 0
+      },
+      "x-prompt": "What is the project name of the app to remove (e.g., jupiter)?"
+    },
+    "appName": {
+      "type": "string",
+      "description": "The name of the specific application component to remove (e.g., www, api).",
+      "$default": {
+        "$source": "argv",
+        "index": 1
+      },
+      "x-prompt": "What is the name of the application component to remove (e.g., www)?"
+    },
+    "force": {
+      "type": "boolean",
+      "default": false,
+      "description": "Skip confirmation prompts and force removal."
+    },
+    "skipFormat": {
+      "description": "Skip formatting files.",
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": ["projectName", "appName"]
+}
+

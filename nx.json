@@ -1,5 +1,9 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "npmScope": "agilmind",
+  "affected": {
+    "defaultBase": "main"
+  },
   "tasksRunnerOptions": {
     "default": {
       "runner": "nx/tasks-runners/default",
@@ -89,9 +93,9 @@
       "tags": [],
       "root": "apps/mi-proyecto"
     },
-    "jupiter": {
+    "jupiter-old": {
       "tags": [],
-      "root": "apps/jupiter"
+      "root": "apps/jupiter-old"
     }
   }
 }

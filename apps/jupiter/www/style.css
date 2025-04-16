@@ -1,0 +1,17 @@
+/* tools/app/src/app-blueprints/static/style.css */
+body {
+  font-family: sans-serif;
+  padding: 2em;
+  line-height: 1.5;
+  background-color: #f0f0f0;
+}
+
+h1 {
+  color: #333;
+}
+
+strong {
+  background-color: #eee;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}

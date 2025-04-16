@@ -1,0 +1,17 @@
+# Dockerfile.template for <%= nxProjectName %>
+
+# Use a specific alpine version of Nginx for stability and size
+FROM nginx:1.27-alpine
+
+# Remove default nginx static assets created by the base image
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy static assets from the build context (this directory)
+# to the default Nginx public directory inside the container.
+COPY . /usr/share/nginx/html/
+
+# Nginx listens on port 80 by default. EXPOSE documents this.
+EXPOSE 80
+
+# Command to run Nginx in the foreground when the container starts
+CMD ["nginx", "-g", "daemon off;"]

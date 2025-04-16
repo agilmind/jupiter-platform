@@ -1,0 +1,14 @@
+{
+  "generators": {
+    "create": {
+      "factory": "./src/generators/create/generator",
+      "schema": "./src/generators/create/schema.json",
+      "description": "Crear una nueva app para un proyecto en la estructura de monorepo para desplegar en un VPS"
+    },
+    "remove": {
+      "factory": "./src/generators/remove/generator",
+      "schema": "./src/generators/remove/schema.json",
+      "description": "Remueve una app dentro de un proyecto de despliegue de VPS de la estructura de monorepo"
+    }
+  }
+}

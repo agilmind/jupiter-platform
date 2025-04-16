@@ -1,0 +1,195 @@
+name: CD Deploy VPS
+'on':
+  push:
+    branches:
+      - main
+jobs:
+  determine-affected:
+    name: Determine Affected VPS Projects
+    runs-on: ubuntu-latest
+    outputs:
+      affected_matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_affected: ${{ steps.set-matrix.outputs.has_affected }}
+    steps:
+      - name: Checkout Repository (Fetch Full History)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Clear Nx Cache
+        run: rm -rf node_modules/.cache/nx
+      - name: Derive Appropriate SHAs for Nx Affected
+        uses: nrwl/nx-set-shas@v4
+        with: {}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install Dependencies
+        run: npm ci
+      - name: Install jq (for JSON processing)
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Calculate Affected VPS Projects
+        id: set-matrix
+        run: |
+          #!/bin/bash
+          # ==============================================================================
+          # Script para GitHub Actions: Calcula Proyectos Afectados y Genera Matriz (v6 - Correct jq for array output)
+          # ==============================================================================
+          set -euo pipefail
+
+          echo "[calculate-affected.sh] Calculating affected projects with target 'deploy'..."
+          echo "[calculate-affected.sh] Base SHA: $NX_BASE | Head SHA: $NX_HEAD"
+
+          # --- Use nx show projects --affected --with-target --json ---
+          echo "[calculate-affected.sh] Running nx show projects --affected --with-target=deploy --json command..."
+          RAW_AFFECTED_OUTPUT=""
+          NX_EXIT_CODE=0
+          RAW_AFFECTED_OUTPUT=$(npx nx show projects --affected --with-target=deploy --json --base=$NX_BASE --head=$NX_HEAD --exclude=tag:type:other-app || true)
+          NX_EXIT_CODE=$?
+
+          echo "[calculate-affected.sh] nx show projects exit code: $NX_EXIT_CODE"
+          echo "[calculate-affected.sh] Raw output from nx show projects:"
+          echo "--------------------- BEGIN RAW OUTPUT ---------------------"
+          echo "$RAW_AFFECTED_OUTPUT"
+          echo "---------------------- END RAW OUTPUT ----------------------"
+
+          AFFECTED_JSON="[]" # Default
+
+          # Validar que el comando tuvo éxito Y que la salida es un array JSON no vacío
+          if [ $NX_EXIT_CODE -eq 0 ] && [ -n "$RAW_AFFECTED_OUTPUT" ] && echo "$RAW_AFFECTED_OUTPUT" | jq -e 'type=="array" and length > 0' > /dev/null 2>&1; then
+              echo "[calculate-affected.sh] Output is a valid non-empty JSON array. Assigning directly."
+              # La salida ya es el array JSON que necesitamos, ej: ["hostinger"]
+              AFFECTED_JSON="$RAW_AFFECTED_OUTPUT"
+          else
+              echo "[calculate-affected.sh] WARNING: 'nx show projects' failed, produced empty/invalid output, or no projects affected. Assuming empty list."
+              if [ $NX_EXIT_CODE -ne 0 ]; then echo "[calculate-affected.sh] nx exit code was: $NX_EXIT_CODE"; fi
+              AFFECTED_JSON="[]" # Asegurar fallback
+          fi
+
+          echo "[calculate-affected.sh] Final Affected Projects JSON: $AFFECTED_JSON"
+
+          # Exportar para Node.js
+          export AFFECTED_JSON
+
+          # Usar node para construir la matriz (Node script sin cambios)
+          MATRIX_OBJECT=$(node -e "
+            try {
+              const projects = JSON.parse(process.env.AFFECTED_JSON || '[]');
+              const validProjects = projects.filter(p => typeof p === 'string' && p.length > 0);
+              const includeList = validProjects.map(p => ({
+                vps_name: p,
+                vps_name_upper: p.toUpperCase().replace(/-/g, '_')
+              }));
+              console.log(JSON.stringify({ include: includeList }));
+            } catch (e) {
+              console.error('[NodeScript] Error processing affected projects:', e);
+              console.log(JSON.stringify({ include: [] }));
+            }
+          " || echo '{"include":[]}')
+
+          HAS_AFFECTED=$(node -e "try { console.log(JSON.parse(process.env.AFFECTED_JSON || '[]').length > 0 ? 'true' : 'false'); } catch { console.log('false'); }" || echo 'false')
+
+          echo "[calculate-affected.sh] Generated Matrix Object: $MATRIX_OBJECT"
+          echo "[calculate-affected.sh] Has Affected Projects: $HAS_AFFECTED"
+
+          echo "matrix=$(echo $MATRIX_OBJECT | jq -c .)" >> $GITHUB_OUTPUT
+          echo "has_affected=$HAS_AFFECTED" >> $GITHUB_OUTPUT
+
+          echo "[calculate-affected.sh] Outputs set for GitHub Actions."
+        env:
+          NX_BASE: ${{ env.NX_BASE }}
+          NX_HEAD: ${{ env.NX_HEAD }}
+          AFFECTED_JSON: ''
+  deploy:
+    name: Deploy Affected VPS Configurations
+    needs: determine-affected
+    if: ${{ needs.determine-affected.outputs.has_affected == 'true' }}
+    environment:
+      name: vps-production
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.determine-affected.outputs.affected_matrix) }}
+    env:
+      SECRET_NAME_HOST: VPS_${{ matrix.vps_name_upper }}_HOST
+      SECRET_NAME_USER: VPS_${{ matrix.vps_name_upper }}_USER
+      SECRET_NAME_KEY: VPS_${{ matrix.vps_name_upper }}_KEY
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Log Deployment Target
+        run: echo "Deploying project ${{ matrix.vps_name }} to host <span class="math-inline">{{ secrets[env.SECRET_NAME_HOST] }}..."
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets[env.SECRET_NAME_KEY] }}
+      - name: Add VPS Host to Known Hosts
+        run: |2-
+
+                    VPS_HOST="${{ secrets[env.SECRET_NAME_HOST] }}"
+                    if [ -z "$VPS_HOST" ]; then echo "Error: VPS host secret missing." >&2; exit 1; fi
+                    mkdir -p ~/.ssh
+                    chmod 700 ~/.ssh
+                    ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+                    chmod 600 ~/.ssh/known_hosts
+                    echo "Added $VPS_HOST to known_hosts"
+
+      - name: Install rsync (on runner)
+        run: sudo apt-get update && sudo apt-get install -y rsync
+      - name: Sync Files via Rsync
+        run: |2-
+
+                    # Pasos de depuración (mantener por ahora)
+                    echo "--- Debugging Rsync ---"
+                    echo "PATH is: $PATH"
+                    echo "Checking for rsync command using 'command -v':"
+                    RSYNC_PATH=$(command -v rsync) || { echo "ERROR: rsync command not found by 'command -v'!"; exit 1; }
+                    echo "rsync found at: $RSYNC_PATH"
+                    echo "Attempting to get rsync version:"
+                    "$RSYNC_PATH" --version
+                    RSYNC_VERSION_EXIT_CODE=$?
+                    echo "rsync --version exit code: $RSYNC_VERSION_EXIT_CODE"
+                    if [ $RSYNC_VERSION_EXIT_CODE -ne 0 ]; then echo "ERROR: executing '$RSYNC_PATH --version' failed!"; exit 1; fi
+                    echo "rsync seems executable. Proceeding..."
+                    echo "--- End Debugging ---"
+
+                    # Definir variables
+                    VPS_HOST="${{ secrets[env.SECRET_NAME_HOST] }}"
+                    SECRET_USER_VALUE="${{ secrets[env.SECRET_NAME_USER] }}"
+                    VPS_USER="${SECRET_USER_VALUE:-deploy}"
+                    PROJECT_NAME="${{ matrix.vps_name }}"
+                    TARGET_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
+                    SOURCE_DIR="./apps/${PROJECT_NAME}/"
+
+                    if [ ! -d "$SOURCE_DIR" ]; then echo "Error: Source directory $SOURCE_DIR not found." >&2; exit 1; fi
+
+                    echo "Syncing $SOURCE_DIR to $VPS_USER@$VPS_HOST:$TARGET_DIR/"
+
+                    # --- Ejecutar rsync usando ruta absoluta y EN UNA SOLA LÍNEA ---
+                    echo "Executing: /usr/bin/rsync -avzL --delete --exclude='.git' $SOURCE_DIR $VPS_USER@$VPS_HOST:$TARGET_DIR/"
+                    /usr/bin/rsync -avzL --delete --exclude='.git' "$SOURCE_DIR" "$VPS_USER@$VPS_HOST:$TARGET_DIR/" || { echo "Rsync failed! Exit code: $?"; exit 1; }
+                    echo "Rsync finished."
+
+      - name: Execute Remote Deployment Script
+        run: |2-
+
+                    VPS_HOST="${{ secrets[env.SECRET_NAME_HOST] }}"
+                    SECRET_USER_VALUE="${{ secrets[env.SECRET_NAME_USER] }}"
+                    VPS_USER="${SECRET_USER_VALUE:-deploy}"
+                    PROJECT_NAME="${{ matrix.vps_name }}"
+                    REMOTE_APP_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
+                    REMOTE_SCRIPT_PATH="${REMOTE_APP_DIR}/deploy.sh"
+
+                    echo "Executing $REMOTE_SCRIPT_PATH on $VPS_USER@$VPS_HOST..."
+                    ssh "$VPS_USER@$VPS_HOST" << EOF
+                      echo "[Remote] Executing deploy script for $PROJECT_NAME..."
+                      cd "$REMOTE_APP_DIR" || { echo "[Remote] Failed to cd to $REMOTE_APP_DIR"; exit 1; }
+                      bash deploy.sh
+                      SCRIPT_EXIT_CODE=$?
+                      echo "[Remote] deploy.sh finished with exit code $SCRIPT_EXIT_CODE."
+                      exit $SCRIPT_EXIT_CODE
+                    EOF
+                    SSH_EXIT_CODE=$?
+                    if [ $SSH_EXIT_CODE -ne 0 ]; then echo "Remote script execution failed with exit code $SSH_EXIT_CODE!"; exit $SSH_EXIT_CODE; fi
+                    echo "Remote script executed successfully."

@@ -34,10 +34,20 @@ Antes de intentar desplegar esta configuración:
 4.  **Registros DNS Creados:** Los registros DNS para los subdominios de infraestructura deben existir y apuntar a la IP pública del VPS **antes** de intentar el despliegue.
     * `<%= traefikSubdomain %>.<%= baseDomain %>` -> `IP_DEL_VPS`
     <% if (monitoringEnabled) { %>* `<%= grafanaSubdomain %>.<%= baseDomain %>` -> `IP_DEL_VPS`<% } %>
-5.  **Secretos de GitHub Actions:** Asegúrate de que los secretos necesarios para el workflow `cd-infra.yml` existan en la configuración de tu repositorio GitHub. Basado en el `infraName` **`<%= infraName %>`**, el workflow esperará secretos llamados:
-    * `VPS_<%= infraName.toUpperCase() %>_HOST`: IP o Hostname del VPS.
-    * `VPS_<%= infraName.toUpperCase() %>_USER`: Usuario SSH (debería ser `deploy`).
-    * `VPS_<%= infraName.toUpperCase() %>_KEY`: Clave privada SSH para el usuario `deploy`.
+5.  **Secretos de GitHub Actions:** Asegúrate de que los secretos necesarios para el workflow `cd-infra.yml` existan en la configuración de tu repositorio GitHub ([Settings] > [Secrets and variables] > [Actions]). Basado en el `infraName` **`<%= infraName %>`**, el workflow esperará secretos con nombres que siguen este patrón:
+    * `VPS_<%= infraName.toUpperCase() %>_HOST`: IP pública o Hostname del VPS.
+    * `VPS_<%= infraName.toUpperCase() %>_USER`: Usuario SSH configurado en el VPS para despliegues (debería ser `deploy`).
+    * `VPS_<%= infraName.toUpperCase() %>_KEY`: **El contenido completo de la clave privada SSH** que permite la conexión como usuario `deploy`.
+        * **Origen de la Clave:** Esta clave privada **NO se encuentra en el servidor VPS**. Pertenece a un par de claves SSH (pública/privada) que generalmente se genera en **tu máquina de desarrollo local** o en un lugar seguro destinado a gestionar credenciales de despliegue.
+        * **Correspondencia:** La **clave pública** correspondiente a esta clave privada debe estar añadida al archivo `/home/deploy/.ssh/authorized_keys` en el servidor VPS. El script `vps-initial-setup.sh` usualmente ayuda a configurar esto, pidiendo la clave pública durante su ejecución o usando una preconfigurada.
+        * **Cómo Obtener el Valor para el Secreto:**
+            1.  Localiza el archivo de la **clave privada** en tu máquina (ej. `~/.ssh/id_rsa_deploy_infra`, `~/.ssh/id_ed25519`, o la que hayas generado para este propósito).
+            2.  Visualiza su contenido completo. Por ejemplo, usando `cat`:
+                ```bash
+                cat ~/.ssh/id_tu_clave_privada_deploy
+                ```
+            3.  Copia **todo el bloque de texto**, incluyendo las líneas `-----BEGIN OPENSSH PRIVATE KEY-----` (o similar) y `-----END OPENSSH PRIVATE KEY-----`, así como todos los saltos de línea intermedios.
+            4.  Ve a la configuración de secretos de GitHub Actions de tu repositorio y crea o actualiza el secreto `VPS_<%= infraName.toUpperCase() %>_KEY`, pegando el contenido completo que copiaste como su valor.
 
 ## Pasos para el Primer Despliegue (y Únicos Pasos Manuales Necesarios)
 

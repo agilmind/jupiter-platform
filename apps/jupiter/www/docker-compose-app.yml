@@ -1,0 +1,38 @@
+# docker-compose-app.yml.template for jupiter-www
+services:
+  # Service name can be simple like 'app' or descriptive
+  app:
+    # Use the unique Nx project name for the container for easier identification
+    container_name: jupiter-www
+    image: ${APP_IMAGE_NAME:-ghcr.io/fallback-owner/jupiter-www:latest}
+    # Build the image from the Dockerfile in the current directory (.)
+    # Note: In a CI/CD scenario, you might replace 'build' with 'image: your-registry/jupiter-www:latest'
+    # and add 'pull_policy: always'
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      # Connect to the shared Traefik network created by the infra stack
+      - webproxy
+    labels:
+      # --- Labels de Traefik ---
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.jupiter-www-secure.rule=Host(`www.jupiter.ar`)'
+      - 'traefik.http.routers.jupiter-www-secure.entrypoints=websecure'
+      - 'traefik.http.routers.jupiter-www-secure.tls=true'
+      - 'traefik.http.routers.jupiter-www-secure.tls.certresolver=myresolver'
+      - 'traefik.http.services.jupiter-www-service.loadbalancer.server.port=80'
+      - 'traefik.http.routers.jupiter-www-secure.service=jupiter-www-service'
+
+      # --- Optional: Prometheus Scrape Labels ---
+      # If you configure Nginx to expose metrics (e.g., via stub_status module)
+      # and configure Prometheus to scrape based on labels, you can uncomment these.
+      # - "prometheus.io/scrape=true"
+      # - "prometheus.io/path=/nginx_status" # Adjust path if needed
+      # - "prometheus.io/port=80"
+
+networks:
+  webproxy:
+    external: true # Indicates using a pre-existing network
+    name: webproxy # Must match the name of the network created by vps:create

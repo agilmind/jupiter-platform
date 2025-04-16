@@ -1,0 +1,16 @@
+# .gitignore for <%= nxProjectName %>
+
+# Ignore environment file containing secrets
+.env
+
+# Ignore node_modules if you add a build step later
+node_modules/
+
+# Ignore common build output directories
+dist/
+build/
+coverage/
+
+# OS-specific files
+.DS_Store
+Thumbs.db

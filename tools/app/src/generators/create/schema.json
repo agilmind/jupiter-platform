@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "id": "AgilmindAppCreate",
+  "title": "Create Agilmind Deployable Application Component",
+  "type": "object",
+  "properties": {
+    "projectName": {
+      "type": "string",
+      "description": "The name of the logical project this app belongs to (e.g., jupiter, my-product). Used for grouping under apps/.",
+      "$default": {
+        "$source": "argv",
+        "index": 0
+      },
+      "x-prompt": "What is the project name (e.g., jupiter)?"
+    },
+    "appName": {
+      "type": "string",
+      "description": "The name of the specific application component within the project (e.g., www, api, email-worker).",
+      "$default": {
+        "$source": "argv",
+        "index": 1
+      },
+      "x-prompt": "What is the name of the application component (e.g., www, api)?"
+    },
+    "appType": {
+      "type": "string",
+      "description": "The type of application component to generate.",
+      "enum": [
+        "static"
+      ],
+      "x-prompt": {
+        "message": "Which type of application component do you want to create?",
+        "type": "list",
+        "items": [
+          { "value": "static", "label": "Static HTML (served by Nginx)" }
+        ]
+      }
+    },
+    "domain": {
+      "type": "string",
+      "description": "The full domain name to access the application (e.g., www.jupiter.ar).",
+      "x-prompt": "What is the full domain name for this application component (e.g., www.jupiter.ar)?"
+    },
+    "directory": {
+      "type": "string",
+      "description": "Optional: Explicit directory path relative to workspace root (e.g., apps/other-project/my-app). If omitted, it will be derived from projectName and appName as apps/<projectName>/<appName>.",
+      "alias": "dir"
+    },
+    "tags": {
+      "type": "string",
+      "description": "Comma-separated tags for the Nx project (e.g., scope:jupiter, type:frontend)."
+    }
+  },
+  "required": ["projectName", "appName", "appType", "domain"]
+}

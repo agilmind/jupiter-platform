@@ -3,7 +3,7 @@ services:
   app-server:
     build:
       context: ../../
-      dockerfile: apps/jupiter/app-server/Dockerfile
+      dockerfile: /app-server/Dockerfile
       args:
         NODE_ENV: staging
     container_name: jupiter-app-server
@@ -30,7 +30,7 @@ services:
   web-app:
     build:
       context: ../../
-      dockerfile: apps/jupiter/web-app/Dockerfile
+      dockerfile: /web-app/Dockerfile
     container_name: jupiter-web-app
     environment:
       - SERVER_PORT=${SERVER_PORT}
@@ -51,7 +51,7 @@ services:
   worker-sample:
     build:
       context: ../../
-      dockerfile: apps/jupiter/worker-sample/Dockerfile
+      dockerfile: /worker-sample/Dockerfile
       args:
         NODE_ENV: staging
     container_name: jupiter-worker-sample
