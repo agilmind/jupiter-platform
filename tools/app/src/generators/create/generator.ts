@@ -84,14 +84,7 @@ export async function appCreateGenerator(
     targets: {
       // Target simple para detección con 'nx affected' en workflows CD
       'deploy-info': {
-        // Usamos run-commands para una acción mínima como imprimir un mensaje
-        // Asegúrate que @nx/workspace (o @nrwl/workspace) esté instalado
-        executor: '@nx/workspace:run-commands',
-        options: {
-          command: `echo Project ${nxProjectName} marked for deployment info.`
-        }
-        // Alternativamente, si 'nx:noop' está disponible en tu versión:
-        // executor: 'nx:noop'
+         executor: 'nx:noop'
       }
       // Aquí se podrían añadir targets 'build', 'lint', 'serve' específicos más adelante
     },

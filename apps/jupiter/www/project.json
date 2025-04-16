@@ -5,10 +5,7 @@
   "tags": ["scope:jupiter", "type:frontend", "scope:jupiter", "type:static"],
   "targets": {
     "deploy-info": {
-      "executor": "@nx/workspace:run-commands",
-      "options": {
-        "command": "echo Project jupiter-www marked for deployment info."
-      }
+      "executor": "nx:noop"
     }
   }
 }
