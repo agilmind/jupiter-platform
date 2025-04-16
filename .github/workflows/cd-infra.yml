@@ -12,10 +12,6 @@ on:
           - hostinger
           # - otro-VPS
         default: 'hostinger' # Opcional: pon el más común por defecto
-      target_deploy_path:
-         description: 'Absolute path on VPS to deploy infra files'
-         required: true
-         default: '/home/deploy/infra' # Asume /home/deploy/infra
 
 jobs:
   deploy-infra:

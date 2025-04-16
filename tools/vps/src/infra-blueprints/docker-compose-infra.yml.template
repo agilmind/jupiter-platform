@@ -35,9 +35,9 @@ services:
       - "traefik.http.routers.traefik-dashboard-secure.tls=true"
       - "traefik.http.routers.traefik-dashboard-secure.tls.certresolver=myresolver"
       - "traefik.http.routers.traefik-dashboard-secure.service=api@internal"
-      # --- CORREGIR MIDDLEWARE AUTH ---
-      - "traefik.http.routers.traefik-dashboard-secure.middlewares=dashboard-auth" # Sin @file
-    logging: *logging-options
+      # MIDDLEWARE AUTH
+      - "traefik.http.middlewares.dashboard-auth.basicauth.usersfile=/home/deploy/infra/traefik-auth/.htpasswd"
+      - "traefik.http.routers.traefik-dashboard-secure.middlewares=dashboard-auth@docker"
 
 <%# Inicio Bloque Condicional Monitoreo %>
 <% if (monitoringEnabled) { %>
