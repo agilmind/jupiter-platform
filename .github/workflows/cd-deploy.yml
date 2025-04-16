@@ -1,75 +1,93 @@
+# .github/workflows/cd-deploy.yml
+# Workflow para desplegar aplicaciones afectadas en el directorio apps/
+
 name: Deploy Affected Applications
 
+# Triggers: Push a main si cambian archivos en apps/
 on:
   push:
-    branches: [ main ] # O la rama que uses para desplegar
+    branches: [ main ]
     paths:
-      - 'apps/**'     # Solo se activa si hay cambios dentro de apps/
+      - 'apps/**'
 
+# Variables de entorno globales para el workflow
 env:
-  REGISTRY: ghcr.io # Usaremos GitHub Container Registry
-  # El namespace suele ser el usuario u organización dueña del repo
-  IMAGE_NAMESPACE: ${{ github.repository_owner }}
-  # Asumimos un único VPS destino por ahora, usando los secretos de 'hostinger'
-  VPS_HOST_SECRET: VPS_HOSTINGER_HOST # Nombre del secreto para el Host
-  VPS_USER_SECRET: VPS_HOSTINGER_USER # Nombre del secreto para el User (deploy)
-  VPS_KEY_SECRET: VPS_HOSTINGER_KEY   # Nombre del secreto para la Clave SSH Privada
+  REGISTRY: ghcr.io # Registro de contenedores (GitHub Container Registry)
+  IMAGE_NAMESPACE: ${{ github.repository_owner }} # Namespace (usuario u org de GitHub)
+  # Nombres de los secretos de GitHub Actions para la conexión SSH al VPS
+  VPS_HOST_SECRET: VPS_HOSTINGER_HOST # Ajustar si usas otro nombre de infra/secreto
+  VPS_USER_SECRET: VPS_HOSTINGER_USER # Ajustar si usas otro nombre de infra/secreto
+  VPS_KEY_SECRET: VPS_HOSTINGER_KEY   # Ajustar si usas otro nombre de infra/secreto
 
 jobs:
-  # ----- Job 1: Determinar qué aplicaciones fueron afectadas -----
-  check_affected:             # Nivel de indentación 2 (bajo jobs)
-    name: Check Affected Apps   # Nivel 4
-    runs-on: ubuntu-latest    # Nivel 4
-    outputs:                    # Nivel 4
-      affected_projects: ${{ steps.get_affected.outputs.affected_projects }} # Nivel 6
-      has_affected: ${{ steps.get_affected.outputs.has_affected }}       # Nivel 6
+  # --------------------------------------------------------------------------
+  # Job 1: Determinar qué aplicaciones (proyectos Nx) fueron afectadas
+  # --------------------------------------------------------------------------
+  check_affected:
+    name: Check Affected Apps
+    runs-on: ubuntu-latest
+    outputs:
+      affected_projects: ${{ steps.get_affected.outputs.affected_projects }} # Output: JSON array de proyectos afectados como string
+      has_affected: ${{ steps.get_affected.outputs.has_affected }}       # Output: "true" o "false" como string
 
-    steps:                      # Nivel 4 (inicio de pasos para check_affected)
-      - name: Checkout Repository # Nivel 6
+    steps:
+      # Paso 1: Checkout del código completo para análisis de Nx
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Necesario para comparar SHAs correctamente
 
-      - name: Setup Node.js       # Nivel 6
+      # Paso 2: Configurar Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20' # O la versión requerida por tu workspace Nx
 
-      - name: Clear Nx Cache      # Nivel 6
+      # Paso 3: Limpiar caché de Nx (preventivo)
+      - name: Clear Nx Cache
         run: rm -rf node_modules/.cache/nx || true
 
-      - name: Install Dependencies  # Nivel 6
-        run: npm ci
+      # Paso 4: Instalar dependencias
+      - name: Install Dependencies
+        run: npm ci # O el comando de instalación que uses (yarn, pnpm)
 
-      - name: Derive SHAs for Nx Affected # Nivel 6
-        uses: nrwl/nx-set-shas@v3 # o nx/nx-set-shas@v4
+      # Paso 5: Derivar SHAs base y head para Nx Affected
+      - name: Derive SHAs for Nx Affected
+        # Asegúrate que esta acción (o nx/nx-set-shas@v4) sea compatible con tu setup
+        uses: nrwl/nx-set-shas@v3
         with:
-           main-branch-name: 'main'
+           main-branch-name: 'main' # Rama contra la que comparar
 
-      - name: List Changed Files  # Nivel 6
+      # Paso 6: Listar archivos cambiados (para depuración)
+      - name: List Changed Files
         run: |
           echo "Listing files changed between BASE (${{ env.NX_BASE }}) and HEAD (${{ env.NX_HEAD }}):"
           git diff --name-only ${{ env.NX_BASE }} ${{ env.NX_HEAD }} || echo "git diff command failed (maybe first commit?)"
           echo "--- End of changed files list ---"
 
-      - name: Get Affected Projects # Nivel 6
+      # Paso 7: Obtener la lista de proyectos afectados
+      - name: Get Affected Projects
         id: get_affected
         run: |
-          # set -x # Puedes quitarlo si ya no es necesario depurar este script
+          # set -x # Descomentar para trace detallado si sigue fallando
+
           echo "NX_BASE SHA: ${{ env.NX_BASE }}"
           echo "NX_HEAD SHA: ${{ env.NX_HEAD }}"
 
+          # Usar 'nx show projects --affected' que devuelve un array JSON
           AFFECTED_PROJECTS_JSON=$(npx nx show projects --affected --with-target=deploy-info --json --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} 2>&1)
           NX_EXIT_CODE=$?
 
           echo "Raw Affected Projects JSON (incl. stderr): [$AFFECTED_PROJECTS_JSON]"
           echo "NX Exit Code: $NX_EXIT_CODE"
 
+          # Validar salida del comando Nx
           if [ $NX_EXIT_CODE -ne 0 ]; then
             echo "::error::nx show projects --affected command failed with exit code $NX_EXIT_CODE. Output/Error was: $AFFECTED_PROJECTS_JSON"
             exit $NX_EXIT_CODE
           fi
 
+          # Procesar la salida JSON
           AFFECTED_PROJECTS="[]"
           HAS_AFFECTED="false"
 
@@ -83,146 +101,178 @@ jobs:
               echo "::warning::nx show projects --affected (with target) output was not a valid JSON array. Assuming no projects affected. Output: $AFFECTED_PROJECTS_JSON"
           fi
 
+          # Establecer outputs para el job
           echo "Final Affected Projects JSON (for matrix): $AFFECTED_PROJECTS"
           echo "Final Has Affected (for matrix): $HAS_AFFECTED"
           echo "affected_projects=${AFFECTED_PROJECTS}" >> $GITHUB_OUTPUT
           echo "has_affected=${HAS_AFFECTED}" >> $GITHUB_OUTPUT
           echo "Finished setting outputs."
-          # set +x
 
-  # ----- Job 2: Construir y Desplegar Aplicaciones Afectadas -----
-  deploy_affected:            # Nivel de indentación 2 (igual que check_affected)
-    name: Build and Deploy ${{ matrix.project }} # Nivel 4
-    needs: check_affected     # Nivel 4
-    if: needs.check_affected.outputs.has_affected == 'true' # Nivel 4
-    runs-on: ubuntu-latest  # Nivel 4
-    strategy:                 # Nivel 4
-      fail-fast: false        # Nivel 6
-      matrix:                 # Nivel 6
-#        project: ${{ fromJson(needs.check_affected.outputs.affected_projects) }} # Nivel 8
-        project: ['test-project'] # Un array estático
+  # --------------------------------------------------------------------------
+  # Job 2: Construir y Desplegar las Aplicaciones Afectadas
+  # --------------------------------------------------------------------------
+  deploy_affected:
+    name: Build and Deploy ${{ matrix.project }} # Nombre dinámico del job
+    needs: check_affected     # Depende del job anterior
+    # Condición: Solo se ejecuta si el job anterior encontró proyectos afectados
+    if: needs.check_affected.outputs.has_affected == true # Comparando con booleano
+    runs-on: ubuntu-latest  # Runner
+    strategy:                 # Estrategia para paralelizar/iterar
+      fail-fast: false        # No cancelar otros jobs si uno falla
+      matrix:                 # Define la matriz de ejecución
+        # Crea una instancia de este job por cada proyecto en el array JSON del output
+        project: ${{ fromJson(needs.check_affected.outputs.affected_projects) }}
 
-
-    steps:                    # Nivel 4 (inicio de pasos para deploy_affected)
-      - name: Checkout Repository # Nivel 6
+    steps:                    # Pasos para CADA instancia de la matriz
+      # Paso 1: Checkout del código
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js       # Nivel 6
+      # Paso 2: Configurar Node.js (necesario para nx show project)
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install Dependencies  # Nivel 6
+      # Paso 3: Instalar dependencias
+      - name: Install Dependencies
         run: npm ci
 
-      - name: Get Project Root Path # Nivel 6
+      # Paso 4: Obtener la ruta raíz del proyecto actual de la matriz
+      - name: Get Project Root Path
         id: get_root
         run: |
           PROJECT_ROOT=$(npx nx show project ${{ matrix.project }} --json | jq -r .root)
-          echo "Project Root: $PROJECT_ROOT"
+          if [ -z "$PROJECT_ROOT" ] || [ "$PROJECT_ROOT" == "null" ]; then
+            echo "::error::Could not determine project root for ${{ matrix.project }}"
+            exit 1
+          fi
+          echo "Project Root for ${{ matrix.project }}: $PROJECT_ROOT"
           echo "root=$PROJECT_ROOT" >> $GITHUB_OUTPUT
 
-      - name: Set up QEMU          # Nivel 6
+      # --- Pasos para Build y Push a GHCR ---
+      # Paso 5: Configurar QEMU (para builds multi-plataforma, buena práctica)
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx  # Nivel 6
+
+      # Paso 6: Configurar Docker Buildx (builder avanzado)
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry # Nivel 6
+      # Paso 7: Login a GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN }} # Nombre del secreto con el PAT
 
-      - name: Generate Image Tags  # Nivel 6
+      # Paso 8: Generar los tags para la imagen Docker
+      - name: Generate Image Tags
         id: image_tags
         run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.project }}"
-          IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          # Construir nombre base de imagen (convertido a minúsculas)
+          IMAGE_NAME=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.project }}" | tr '[:upper:]' '[:lower:]')
+          # Tag :latest
           TAG_LATEST="${IMAGE_NAME}:latest"
+          # Tag con el SHA del commit para versionado único
           TAG_SHA="${IMAGE_NAME}:${{ github.sha }}"
+          # Guardar tags para el siguiente paso
           echo "tags=${TAG_LATEST},${TAG_SHA}" >> $GITHUB_OUTPUT
+          # Guardar tag con SHA para usar en despliegue
           echo "image_name_sha=${TAG_SHA}" >> $GITHUB_OUTPUT
           echo "Generated Tags: ${TAG_LATEST}, ${TAG_SHA}"
 
-      - name: Build and Push Docker image # Nivel 6
-        id: docker_build # Damos un id para referenciar outputs si fuera necesario
+      # Paso 9: Construir y Publicar la imagen Docker
+      - name: Build and Push Docker image
+        id: docker_build
         uses: docker/build-push-action@v6
         with:
-          context: ${{ steps.get_root.outputs.root }}
-          file: ${{ steps.get_root.outputs.root }}/Dockerfile
-          push: true
-          tags: ${{ steps.image_tags.outputs.tags }}
+          context: ${{ steps.get_root.outputs.root }} # Directorio raíz del proyecto como contexto
+          file: ${{ steps.get_root.outputs.root }}/Dockerfile # Ruta al Dockerfile
+          push: true # Publicar la imagen al registro
+          tags: ${{ steps.image_tags.outputs.tags }} # Tags generados en el paso anterior
+          # Habilitar caché de build de GitHub Actions para acelerar builds futuros
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Setup SSH Agent      # Nivel 6
+      # --- Pasos para Despliegue en VPS ---
+      # Paso 10: Configurar el agente SSH para la conexión
+      - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets[env.VPS_KEY_SECRET] }}
+          ssh-private-key: ${{ secrets[env.VPS_KEY_SECRET] }} # Usa la clave privada del secreto
 
-      - name: Add VPS Host to Known Hosts # Nivel 6
+      # Paso 11: Añadir el host del VPS a los hosts conocidos
+      - name: Add VPS Host to Known Hosts
         run: |
           VPS_HOST="${{ secrets[env.VPS_HOST_SECRET] }}"
-          if [ -z "$VPS_HOST" ]; then echo "Error: Host secret missing." >&2; exit 1; fi
+          if [ -z "$VPS_HOST" ]; then echo "Error: Host secret '${{ env.VPS_HOST_SECRET }}' missing." >&2; exit 1; fi
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          # Escanear y añadir la clave del host
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
           echo "Added $VPS_HOST to known_hosts"
 
-      - name: Prepare Remote Environment & Deploy # Nivel 6
+      # Paso 12: Preparar entorno remoto y desplegar
+      - name: Prepare Remote Environment & Deploy
         env:
           VPS_HOST: ${{ secrets[env.VPS_HOST_SECRET] }}
           VPS_USER: ${{ secrets[env.VPS_USER_SECRET] }}
-          PROJECT_NAME: ${{ matrix.project }}
-          # Referencia explícita al output del step de build/push
-          APP_IMAGE_NAME_SHA: ${{ steps.image_tags.outputs.image_name_sha }}
+          PROJECT_NAME: ${{ matrix.project }} # Nombre del proyecto Nx (ej: jupiter-www)
+          APP_IMAGE_NAME_SHA: ${{ steps.image_tags.outputs.image_name_sha }} # Imagen exacta a desplegar
         run: |
-          set -e # Asegura que el script falle si un comando falla
-          # Variables
+          set -e # Salir inmediatamente si un comando falla
+          # Variables para claridad
           REMOTE_USER_HOST="${VPS_USER}@${VPS_HOST}"
           REMOTE_APP_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
-          LOCAL_COMPOSE_FILE="${{ steps.get_root.outputs.root }}/docker-compose-app.yml" # Ruta local correcta
+          # Ruta al docker-compose.yml DENTRO del código fuente checkouteado en el runner
+          LOCAL_COMPOSE_FILE="${{ steps.get_root.outputs.root }}/docker-compose-app.yml"
           REMOTE_COMPOSE_FILE="${REMOTE_APP_DIR}/docker-compose-app.yml"
           REMOTE_ENV_FILE="${REMOTE_APP_DIR}/.env"
-          ENV_VAR_NAME="APP_IMAGE_NAME"
+          ENV_VAR_NAME="APP_IMAGE_NAME" # Variable a actualizar en .env remoto
 
           echo "Deploying project ${PROJECT_NAME} to ${REMOTE_USER_HOST}:${REMOTE_APP_DIR}"
-          echo "Using Image: ${APP_IMAGE_NAME_SHA}" # Usar la variable del env del step
+          echo "Using Image: ${APP_IMAGE_NAME_SHA}"
 
-          # 1. Crear directorio remoto
+          # 1. Crear directorio remoto (ignora error si ya existe con -p)
           ssh "$REMOTE_USER_HOST" "mkdir -p ${REMOTE_APP_DIR}" || true
 
-          # 2. Sincronizar docker-compose-app.yml
+          # 2. Sincronizar docker-compose-app.yml usando rsync
           echo "Syncing ${LOCAL_COMPOSE_FILE} to ${REMOTE_USER_HOST}:${REMOTE_COMPOSE_FILE}"
           rsync -avz "${LOCAL_COMPOSE_FILE}" "${REMOTE_USER_HOST}:${REMOTE_COMPOSE_FILE}" \
             || { echo "Rsync failed!"; exit 1; }
 
-          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto
+          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto (de forma segura)
           echo "Updating ${ENV_VAR_NAME} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
-          # Usamos printf para manejar correctamente caracteres especiales en la imagen SHA
+          # Escapar valor por si contiene caracteres especiales para sed/shell
           printf -v escaped_image_name "%q" "$APP_IMAGE_NAME_SHA"
           ssh "$REMOTE_USER_HOST" bash -s << EOF
+            # Script remoto para actualizar .env
             set -e
             ENV_FILE="${REMOTE_ENV_FILE}"
             VAR_NAME="${ENV_VAR_NAME}"
-            VAR_VALUE=$escaped_image_name # Usar la variable escapada
+            VAR_VALUE=$escaped_image_name # Usar valor escapado
 
+            # Crear .env si no existe, no falla si ya existe
             touch "\$ENV_FILE"
-            # Usar un delimitador diferente en sed por si VAR_VALUE contiene /
+            # Eliminar línea antigua si existe (usar delimitador alternativo para sed)
+            # Ignorar error si la línea no existe
             sed -i "\|^ *\${VAR_NAME}=|d" "\$ENV_FILE" || true
+            # Añadir nueva línea al final
             echo "\${VAR_NAME}=\${VAR_VALUE}" >> "\$ENV_FILE"
-            echo "Updated ${ENV_VAR_NAME} in \${ENV_FILE}"
+            echo "Updated/Set ${ENV_VAR_NAME} in \${ENV_FILE}"
           EOF
 
-          # 4. Ejecutar Docker Compose Remoto
+          # 4. Ejecutar Docker Compose Remoto (Pull & Up)
           echo "Running docker compose pull & up on remote host..."
           ssh "$REMOTE_USER_HOST" bash -s << EOF
             set -e
             cd "${REMOTE_APP_DIR}"
-            echo "[Remote] Pulling image specified in .env ..."
-            # Asegurarse que docker compose use el .env
+            echo "[Remote] Pulling image specified in .env (${ENV_VAR_NAME})..."
+            # Usar --env-file para asegurar que se lee .env para el pull y el up
             docker compose --env-file .env pull
             echo "[Remote] Starting application via Docker Compose..."
             docker compose --env-file .env -f docker-compose-app.yml up -d --remove-orphans
             echo "[Remote] Deployment complete for ${PROJECT_NAME}."
           EOF
+
