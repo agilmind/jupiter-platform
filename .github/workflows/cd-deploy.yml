@@ -2,44 +2,65 @@ name: Deploy Affected Applications
 
 on:
   push:
-    branches: [ main ]
-    paths: [ 'apps/**' ]
+    branches: [ main ] # O la rama que uses para desplegar
+    paths:
+      - 'apps/**'     # Solo se activa si hay cambios dentro de apps/
 
 env:
-  REGISTRY: ghcr.io
+  REGISTRY: ghcr.io # Usaremos GitHub Container Registry
+  # El namespace suele ser el usuario u organización dueña del repo
   IMAGE_NAMESPACE: ${{ github.repository_owner }}
-  VPS_HOST_SECRET: VPS_HOSTINGER_HOST
-  VPS_USER_SECRET: VPS_HOSTINGER_USER
-  VPS_KEY_SECRET: VPS_HOSTINGER_KEY
+  # Asumimos un único VPS destino por ahora, usando los secretos de 'hostinger'
+  VPS_HOST_SECRET: VPS_HOSTINGER_HOST # Nombre del secreto para el Host
+  VPS_USER_SECRET: VPS_HOSTINGER_USER # Nombre del secreto para el User (deploy)
+  VPS_KEY_SECRET: VPS_HOSTINGER_KEY   # Nombre del secreto para la Clave SSH Privada
 
 jobs:
-  check_affected:
-    # ... (definido en la respuesta anterior, sin cambios) ...
-    name: Check Affected Apps
-    runs-on: ubuntu-latest
-    outputs:
+  # ----- Job 1: Determinar qué aplicaciones fueron afectadas -----
+  check_affected:               # <--- Definición del Job
+    name: Check Affected Apps     # <--- Nombre del Job
+    runs-on: ubuntu-latest      # <--- Runner
+    outputs:                      # <--- Definición de Outputs
       affected_projects: ${{ steps.get_affected.outputs.affected_projects }}
       has_affected: ${{ steps.get_affected.outputs.has_affected }}
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - run: npm ci
-      - uses: nrwl/nx-set-shas@v3 # o nx/nx-set-shas@v4
-        with: { main-branch-name: 'main' }
-      - name: Get Affected Projects
+
+    steps:                        # <--- Inicio de la lista de Pasos (Steps)
+
+      - name: Checkout Repository # Paso 1: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necesario para que Nx calcule correctamente los SHAs base/head
+
+      - name: Setup Node.js       # Paso 2: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # O la versión que uses
+
+      - name: Install Dependencies  # Paso 3: Instalar dependencias
+        run: npm ci # O yarn install --frozen-lockfile
+
+      # Deriva los SHAs base y head para nx affected
+      - name: Derive SHAs for Nx Affected # Paso 4: Obtener SHAs
+        # Asegúrate que esta acción exista o usa una equivalente como nx/nx-set-shas@v4
+        uses: nrwl/nx-set-shas@v3
+        with:
+           main-branch-name: 'main' # Asegúrate que coincida con tu rama base
+
+      # Este es el paso cuyo script ya tenías, ahora correctamente ubicado
+      - name: Get Affected Projects # Paso 5: Obtener Afectados
         id: get_affected
         run: |
-          echo "NX_BASE SHA: ${{ env.NX_BASE }}" # Debug: Print base SHA
-          echo "NX_HEAD SHA: ${{ env.NX_HEAD }}" # Debug: Print head SHA
+          set -x # Mantener para depuración por ahora
+
+          echo "NX_BASE SHA: ${{ env.NX_BASE }}"
+          echo "NX_HEAD SHA: ${{ env.NX_HEAD }}"
 
           # Ejecuta nx affected, capturando stdout Y stderr (2>&1)
           AFFECTED_OUTPUT=$(npx nx affected --target=deploy-info --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} --json 2>&1)
           NX_EXIT_CODE=$? # Captura el código de salida del comando nx
 
-          echo "Raw Affected Output (incl. stderr): [$AFFECTED_OUTPUT]" # Added brackets for clarity
-          echo "NX Exit Code: $NX_EXIT_CODE" # Debug: Muestra el código de salida
+          echo "Raw Affected Output (incl. stderr): [$AFFECTED_OUTPUT]"
+          echo "NX Exit Code: $NX_EXIT_CODE"
 
           # Verifica si el comando nx falló explícitamente
           if [ $NX_EXIT_CODE -ne 0 ]; then
@@ -58,14 +79,9 @@ jobs:
           elif ! echo "$AFFECTED_OUTPUT" | jq -e . > /dev/null; then
               # Podría ser un mensaje de advertencia/error de Nx en lugar de JSON
               echo "::warning::nx affected output is not valid JSON. Assuming no projects affected."
-              # Considera fallar si siempre esperas JSON:
-              # echo "::error::nx affected output is not valid JSON."
-              # exit 1
           # 3. Si es JSON válido, intentar extraer '.projects'
           else
-              # Extraer el array .projects, con fallback a [] si .projects es null o no existe
               TEMP_PROJECTS=$(echo "$AFFECTED_OUTPUT" | jq -c '.projects // []')
-              # Comprobar si el array extraído no está vacío o nulo
               if [ "$TEMP_PROJECTS" != "[]" ] && [ "$TEMP_PROJECTS" != "null" ] ; then
                    AFFECTED_PROJECTS="$TEMP_PROJECTS"
                    HAS_AFFECTED="true"
@@ -78,10 +94,19 @@ jobs:
 
           echo "Affected Projects JSON: $AFFECTED_PROJECTS"
           echo "Has Affected: $HAS_AFFECTED"
+
+          # Añadimos echos antes de setear outputs para depuración
+          echo "Setting output affected_projects=${AFFECTED_PROJECTS}"
           echo "affected_projects=$AFFECTED_PROJECTS" >> $GITHUB_OUTPUT
+
+          echo "Setting output has_affected=${HAS_AFFECTED}"
           echo "has_affected=$HAS_AFFECTED" >> $GITHUB_OUTPUT
 
+          echo "Finished setting outputs."
+          set +x
+
   # ----- Job 2: Construir y Desplegar Aplicaciones Afectadas -----
+  # (Esta parte parecía correcta en tu versión anterior)
   deploy_affected:
     name: Build and Deploy ${{ matrix.project }}
     needs: check_affected
@@ -96,7 +121,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Necesitamos Node.js para ejecutar comandos nx
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -105,11 +129,11 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # Obtenemos la ruta raíz del proyecto afectado para usarla como contexto Docker
       - name: Get Project Root Path
         id: get_root
         run: |
-          PROJECT_ROOT=$(nx show project ${{ matrix.project }} --json | jq -r .root)
+          # Usamos npx para ejecutar nx show
+          PROJECT_ROOT=$(npx nx show project ${{ matrix.project }} --json | jq -r .root)
           echo "Project Root: $PROJECT_ROOT"
           echo "root=$PROJECT_ROOT" >> $GITHUB_OUTPUT
 
@@ -124,25 +148,24 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }} # Usa el nombre de tu secreto
+          password: ${{ secrets.GHCR_TOKEN }} # Asegúrate que este sea el nombre de tu secreto
 
       - name: Generate Image Tags
         id: image_tags
         run: |
           IMAGE_NAME="${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.project }}"
-          # Convertir a minúsculas (requerido por Docker tags)
-          IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]') # Convertir a minúsculas
           TAG_LATEST="${IMAGE_NAME}:latest"
           TAG_SHA="${IMAGE_NAME}:${{ github.sha }}"
           echo "tags=${TAG_LATEST},${TAG_SHA}" >> $GITHUB_OUTPUT
-          echo "image_name_sha=${TAG_SHA}" >> $GITHUB_OUTPUT # Output específico con SHA
+          echo "image_name_sha=${TAG_SHA}" >> $GITHUB_OUTPUT
           echo "Generated Tags: ${TAG_LATEST}, ${TAG_SHA}"
 
       - name: Build and Push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ${{ steps.get_root.outputs.root }} # Usa la ruta obtenida con nx show
-          file: ${{ steps.get_root.outputs.root }}/Dockerfile # Ruta completa al Dockerfile
+          context: ${{ steps.get_root.outputs.root }}
+          file: ${{ steps.get_root.outputs.root }}/Dockerfile
           push: true
           tags: ${{ steps.image_tags.outputs.tags }}
           cache-from: type=gha
@@ -167,22 +190,22 @@ jobs:
           VPS_HOST: ${{ secrets[env.VPS_HOST_SECRET] }}
           VPS_USER: ${{ secrets[env.VPS_USER_SECRET] }}
           PROJECT_NAME: ${{ matrix.project }} # ej: jupiter-www
-          PROJECT_ROOT_PATH: ${{ steps.get_root.outputs.root }} # ej: apps/jupiter/www
-          # Imagen específica con SHA que acabamos de pushear
+          # Usamos la salida del step anterior directamente
           APP_IMAGE_NAME_SHA: ${{ steps.image_tags.outputs.image_name_sha }}
         run: |
-          # Variables
+          # Variables (simplificado)
           REMOTE_USER_HOST="${VPS_USER}@${VPS_HOST}"
           REMOTE_APP_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
-          LOCAL_COMPOSE_FILE="${PROJECT_ROOT_PATH}/docker-compose-app.yml"
+          # Obtenemos la ruta local del compose file desde el step anterior
+          LOCAL_COMPOSE_FILE="${{ steps.get_root.outputs.root }}/docker-compose-app.yml"
           REMOTE_COMPOSE_FILE="${REMOTE_APP_DIR}/docker-compose-app.yml"
           REMOTE_ENV_FILE="${REMOTE_APP_DIR}/.env"
-          ENV_VAR_NAME="APP_IMAGE_NAME" # Variable a actualizar en .env
+          ENV_VAR_NAME="APP_IMAGE_NAME"
 
           echo "Deploying project ${PROJECT_NAME} to ${REMOTE_USER_HOST}:${REMOTE_APP_DIR}"
           echo "Using Image: ${APP_IMAGE_NAME_SHA}"
 
-          # 1. Crear directorio remoto (ignora error si ya existe)
+          # 1. Crear directorio remoto
           ssh "$REMOTE_USER_HOST" "mkdir -p ${REMOTE_APP_DIR}" || true
 
           # 2. Sincronizar docker-compose-app.yml
@@ -190,19 +213,16 @@ jobs:
           rsync -avz "${LOCAL_COMPOSE_FILE}" "${REMOTE_USER_HOST}:${REMOTE_COMPOSE_FILE}" \
             || { echo "Rsync failed!"; exit 1; }
 
-          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto (de forma segura)
+          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto
           echo "Updating ${ENV_VAR_NAME} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
           ssh "$REMOTE_USER_HOST" bash -s << EOF
-            set -e # Exit on error
+            set -e
             ENV_FILE="${REMOTE_ENV_FILE}"
             VAR_NAME="${ENV_VAR_NAME}"
-            VAR_VALUE="${APP_IMAGE_NAME_SHA}"
+            VAR_VALUE="${APP_IMAGE_NAME_SHA}" # Ya tenemos el valor exacto
 
-            # Crear .env si no existe
             touch "\$ENV_FILE"
-            # Eliminar línea antigua si existe (ignora error si no existe)
             sed -i "/^\${VAR_NAME}=/d" "\$ENV_FILE" || true
-            # Añadir nueva línea
             echo "\${VAR_NAME}=\${VAR_VALUE}" >> "\$ENV_FILE"
             echo "Updated ${ENV_VAR_NAME} in \${ENV_FILE}"
           EOF
@@ -210,12 +230,12 @@ jobs:
           # 4. Ejecutar Docker Compose Remoto
           echo "Running docker compose pull & up on remote host..."
           ssh "$REMOTE_USER_HOST" bash -s << EOF
-            set -e # Exit on error
+            set -e
             cd "${REMOTE_APP_DIR}"
-            echo "[Remote] Pulling image..."
-            docker compose pull # Docker Compose usará APP_IMAGE_NAME del .env para saber qué imagen bajar
-            echo "[Remote] Starting application..."
-            # El .env se carga automáticamente por docker compose
-            docker compose -f docker-compose-app.yml up -d --remove-orphans
-            echo "[Remote] Deployment complete."
+            echo "[Remote] Pulling image: ${APP_IMAGE_NAME_SHA}" # Usamos la variable para claridad
+            # Asegurarse que docker compose use el .env
+            docker compose --env-file .env pull
+            echo "[Remote] Starting application via Docker Compose..."
+            docker compose --env-file .env -f docker-compose-app.yml up -d --remove-orphans
+            echo "[Remote] Deployment complete for ${PROJECT_NAME}."
           EOF
