@@ -2,85 +2,88 @@
 
 Este directorio contiene los archivos de configuración generados para el stack de infraestructura base (Proxy Inverso Traefik + Stack de Monitoreo) para la instancia llamada **`hostinger`**.
 
-Estos archivos fueron generados por el generador `@mi-org/vps:create` (ajusta scope).
+Estos archivos fueron generados por el generador `@mi-org/vps:create` (ajusta scope según tu config Nx).
 
-## Archivos Generados
+## Archivos de Configuración Clave
 
 - `docker-compose-infra.yml`: Define los servicios Docker (Traefik, Grafana, Prometheus, Loki, Promtail, Node Exporter).
-- `traefik.yml`: Configuración estática de Traefik (entrypoints, provider Docker, resolvedor ACME Let's Encrypt).
-- `.env.template`: Plantilla para variables de entorno y secretos necesarios (ej. credenciales ACME DNS, passwords). **Debes crear un archivo `.env` real a partir de esta plantilla EN EL SERVIDOR.**
+- `traefik.yml`: Configuración estática de Traefik (entrypoints con redirección HTTPS, provider Docker, resolvedor ACME Let's Encrypt por defecto).
+- `.env.template`: Plantilla para variables de entorno. **Debes crear `.env` en el servidor.**
 - `prometheus.yml`: Configuración de scrapeo para Prometheus.
-- `loki-config.yml`: Configuración de Loki (incluyendo retención).
-- `promtail-config.yml`: Configuración de Promtail para recolectar logs de Docker.
+- `loki-config.yml`: Configuración de Loki.
+- `promtail-config.yml`: Configuración de Promtail.
 - `.gitignore`: Ignora el archivo `.env`.
-- `project.json`: Configuración para que Nx reconozca este directorio.
+- `README.md`: Este mismo archivo.
+- `project.json`: Configuración para Nx.
 
-## Prerrequisitos
+**Archivos Requeridos Manualmente en el Servidor (NO en Git):**
 
-Antes de desplegar esta configuración por primera vez:
+- `/home/deploy/infra/.env`: Creado a partir de `.env.template`. Contiene secretos como la contraseña de Grafana y, opcionalmente, tokens de API para el desafío ACME DNS-01.
+- `/home/deploy/infra/traefik-auth/.htpasswd`: Contiene el usuario y contraseña (hasheada) para acceder al Dashboard de Traefik.
 
-1.  **Servidor VPS Preparado:** Asegúrate de que el servidor VPS de destino haya sido inicializado usando los scripts:
-    - `tools/vps/scripts/debian-harden.sh` (ejecutado como root)
-    - `tools/vps/scripts/vps-initial-setup.sh` (ejecutado con sudo)
-      (Consulta `tools/vps/README.md` para detalles sobre estos scripts).
-2.  **Acceso SSH `deploy`:** Confirma que puedes acceder al VPS como usuario `deploy` usando la clave SSH que configuraste.
-3.  **Repositorio Git:** Asegúrate de haber hecho `commit` y `push` de todos los archivos dentro de este directorio (`infra/hostinger/`) a tu repositorio Git.
-4.  **Configuración DNS y `.env` (Antes del Primer Despliegue Exitoso):**
-    - **DNS:** Los registros DNS para los subdominios de infraestructura (`traefik.jupiter.ar`, `grafana.jupiter.ar`) deben existir y apuntar a la IP del VPS.
-    - **Archivo `.env`:** Debes crear y configurar el archivo `.env` con los secretos necesarios **en el servidor VPS** (ver instrucciones detalladas en la sección "Pasos para el Primer Despliegue") antes de que `docker compose up` pueda ejecutarse con éxito por primera vez.
+## Prerrequisitos Indispensables
 
-## Pasos para el Primer Despliegue
+Antes de intentar desplegar esta configuración:
 
-El despliegue inicial y las actualizaciones se realizan preferentemente usando el workflow manual de GitHub Actions, pero requieren unos pasos previos manuales en el servidor para los secretos y DNS.
+1.  **Servidor VPS Preparado:** El servidor VPS de destino **debe** haber sido inicializado usando los scripts del repositorio:
+    - `tools/vps/scripts/debian-harden.sh` (ejecutado como `root`)
+    - `tools/vps/scripts/vps-initial-setup.sh` (ejecutado con `sudo`)
+      (Consulta `tools/vps/README.md` para más detalles).
+2.  **Acceso SSH como `deploy`:** Debes poder conectarte al VPS mediante SSH como usuario `deploy` usando autenticación por clave (sin contraseña).
+3.  **Repositorio Git Actualizado:** Todos los archivos generados dentro de este directorio (`infra/hostinger/`) **deben** estar comiteados y pusheados a la rama principal de tu repositorio Git.
+4.  **Registros DNS Creados:** Los registros DNS para los subdominios de infraestructura deben existir y apuntar a la IP pública del VPS **antes** de intentar el despliegue.
+    - `traefik.jupiter.ar` -> `IP_DEL_VPS`
+    - `grafana.jupiter.ar` -> `IP_DEL_VPS`
+5.  **Secretos de GitHub Actions:** Asegúrate de que los secretos necesarios para el workflow `cd-infra.yml` existan en la configuración de tu repositorio GitHub. Basado en el `infraName` **`hostinger`**, el workflow esperará secretos llamados:
+    - `VPS_HOSTINGER_HOST`: IP o Hostname del VPS.
+    - `VPS_HOSTINGER_USER`: Usuario SSH (debería ser `deploy`).
+    - `VPS_HOSTINGER_KEY`: Clave privada SSH para el usuario `deploy`.
 
-1.  **Configurar DNS:**
+## Pasos para el Primer Despliegue (y Únicos Pasos Manuales Necesarios)
 
-    - Ve a tu proveedor DNS (ej. Cloudflare).
-    - Crea registros DNS (normalmente tipo `A`) para los subdominios de infraestructura apuntando a la **IP pública** de tu VPS:
-      - `traefik.jupiter.ar` -> `IP_DEL_VPS`
-      - `grafana.jupiter.ar` -> `IP_DEL_VPS`
-    - Espera unos minutos a que los cambios DNS se propaguen.
+El despliegue se realiza mediante el workflow de GitHub Actions `Deploy VPS Infrastructure Stack (Manual)`, pero requiere que los archivos `.env` y `.htpasswd` existan previamente en el servidor.
 
-2.  **Crear y Configurar Archivo `.env` en el Servidor:**
+1.  **Preparar Archivos de Secretos en el Servidor:**
 
-    - **Copia los archivos generados** de tu workspace local al directorio de infraestructura en el servidor (`/home/deploy/infra/`). Puedes usar `scp`:
-      ```bash
-      # Desde tu máquina local, en la raíz del workspace Nx:
-      scp -r infra/hostinger/* deploy@<IP_DEL_VPS>:/home/deploy/infra/
-      ```
-    - **Conéctate al VPS** como usuario `deploy`: `ssh deploy@<IP_DEL_VPS>`
-    - **Navega** al directorio: `cd /home/deploy/infra/`
-    - **Crea `.env`** desde la plantilla: `cp .env.template .env`
-    - **Edita `.env`:** `nano .env`
-    - **Rellena los valores requeridos:**
-      - `GF_ADMIN_PASSWORD`: Cambia `changeme` por una contraseña segura para Grafana.
-      - `TRAEFIK_DASHBOARD_USERS`: Genera el hash para el usuario `admin` (o el que definiste) usando `htpasswd` (instálalo con `sudo apt-get install apache2-utils` si no está) y pégalo aquí. Ejemplo:
+    - Conéctate al VPS como usuario `deploy`: `ssh deploy@<IP_o_HOSTNAME_VPS>`
+    - Navega al directorio de infraestructura: `cd /home/deploy/infra/`
+    - **Copiar `.env.template` (si no existe):** Si es la primera vez y el directorio está vacío, copia el template desde tu máquina local o desde el repo Git (ej. usando `scp` o `wget` si el repo es público/accesible). `scp ruta/local/a/infra/hostinger/.env.template deploy@<IP_o_HOSTNAME_VPS>:/home/deploy/infra/`
+    - **Crear y Editar `.env`:**
+      - `cp .env.template .env`
+      - `nano .env`
+      - Rellena los valores:
+        - `GF_ADMIN_PASSWORD`: **Obligatorio.** Cambia `changeme` por una contraseña segura para Grafana.
+        - `CF_DNS_API_TOKEN`, `DO_AUTH_TOKEN`, etc.: **Opcional.** Solo si usas el desafío DNS-01 para Let's Encrypt en `traefik.yml`. Descomenta y añade tus credenciales.
+      - Guarda y cierra (`Ctrl+O`, `Enter`, `Ctrl+X`).
+    - **Crear Directorio y Archivo `.htpasswd`:**
+      - `mkdir -p traefik-auth`
+      - Instala `htpasswd` si no existe: `sudo apt update && sudo apt install -y apache2-utils`
+      - Genera la contraseña para el usuario `admin` (o el que prefieras) y guárdala:
         ```bash
-        # Ejecuta esto en el VPS o localmente:
-        htpasswd -nb admin 'tu-password-muy-segura' | sed -e s/\\$/\\$\\$/g
-        # Copia la salida (ej: admin:$$apr1$$...) y pégala en TRAEFIK_DASHBOARD_USERS=... en el .env
+        # Reemplaza 'tu-password-segura-aqui' con tu contraseña real
+        htpasswd -cb traefik-auth/.htpasswd admin 'tu-password-segura-aqui'
         ```
-      - **Credenciales DNS (Si usas DNS-01 en `traefik.yml`):** Descomenta y rellena las variables como `CF_DNS_API_TOKEN` o `DO_AUTH_TOKEN` con tus claves/tokens de API reales.
-    - Guarda el archivo `.env` (`Ctrl+O`, `Enter`, `Ctrl+X` en nano).
+        - (`-c` crea el archivo, úsalo solo la primera vez. Para añadir/modificar usuarios después, omite `-c`).
+      - Ajusta permisos (recomendado): `chmod 600 traefik-auth/.htpasswd`
 
-3.  **Desplegar con Docker Compose (Vía Workflow Manual):**
+2.  **Ejecutar el Workflow de Despliegue:**
 
-    - Ve a tu repositorio en **GitHub Actions**.
-    - Busca el workflow llamado `Deploy VPS Infrastructure Stack (Manual)` (o el nombre que tenga `cd-infra.yml`).
-    - Haz clic en **"Run workflow"**.
-    - Asegúrate de que los inputs (`infra_config_path`, `target_host_secret`, etc.) sean correctos (los defaults deberían funcionar si usaste `infraName: 'infra'` y los nombres de secret estándar `VPS_INFRA_*`).
-    - Ejecuta el workflow. Este copiará los archivos desde Git (excluyendo `.env`) y ejecutará `docker compose -f docker-compose-infra.yml up -d` en el servidor. Leerá el `.env` que creaste manualmente.
+    - Ve a la sección **Actions** de tu repositorio en GitHub.
+    - Selecciona el workflow `Deploy VPS Infrastructure Stack (Manual)` en el panel izquierdo.
+    - Haz clic en el botón **"Run workflow"**.
+    - En el desplegable **"Select the Infrastructure project name"**, elige **`hostinger`**.
+    - Haz clic en el botón verde **"Run workflow"**.
+    - El workflow se ejecutará: sincronizará los archivos de configuración desde Git (excluyendo `.env` y `.htpasswd`), y luego ejecutará `docker compose up -d` en el servidor.
 
-4.  **Verificación:**
-    - Espera unos minutos a que los contenedores arranquen y Traefik obtenga los certificados SSL (puedes monitorizar con `ssh deploy@<IP_DEL_VPS> "cd /home/deploy/infra && docker compose logs -f"`).
-    - Intenta acceder en tu navegador:
-      - `https://traefik.jupiter.ar` (Te pedirá el usuario/contraseña que configuraste en `.env`).
-      - `https://grafana.jupiter.ar` (Login inicial: `admin`/`tu-password-grafana`)
-    - Si todo funciona, ¡la infraestructura base está lista!
+3.  **Verificación:**
+    - Espera unos minutos. Puedes seguir los logs en el servidor con: `ssh deploy@<IP_o_HOSTNAME_VPS> "cd /home/deploy/infra && docker compose logs -f traefik"`
+    - Una vez que Traefik haya obtenido los certificados, prueba a acceder en tu navegador:
+      - `https://traefik.jupiter.ar` (Debería pedir autenticación Basic Auth: `admin` / `tu-password-segura-aqui`).
+      - `https://grafana.jupiter.ar` (Login: `admin` / la contraseña que pusiste en `.env`).
+    - Si todo funciona, ¡la infraestructura base está lista! Las actualizaciones futuras se hacen simplemente volviendo a ejecutar el workflow (Paso 2).
 
 ## Próximos Pasos
 
-- Desplegar aplicaciones usando tu generador `project:create` y el workflow `cd-deploy.yml`. Asegúrate de que las aplicaciones usen la red `webproxy` y definan las `labels` correctas para Traefik.
-- Configurar Prometheus para que descubra y recolecte métricas de tus aplicaciones.
-- Configurar Promtail/Loki para recolectar logs de tus aplicaciones.
-- Crear Dashboards en Grafana.
+- Desplegar aplicaciones usando tu generador `project:create` (o similar) y el workflow `cd-deploy.yml`.
+- Asegúrate de que las aplicaciones desplegadas usen la red `webproxy` y definan las `labels` correctas de Traefik para su exposición.
+- Si habilitaste el monitoreo, configura Prometheus/Loki/Promtail para recoger métricas/logs de tus aplicaciones y crea dashboards en Grafana.
