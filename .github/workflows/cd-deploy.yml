@@ -115,7 +115,7 @@ jobs:
     name: Build and Deploy ${{ matrix.project }} # Nombre dinámico del job
     needs: check_affected     # Depende del job anterior
     # Condición: Solo se ejecuta si el job anterior encontró proyectos afectados
-    if: needs.check_affected.outputs.has_affected == 'true' # Volvemos a comparar con string 'true' por si acaso
+    if: needs.check_affected.outputs.has_affected == true
     # --- AÑADIDO: Permisos necesarios para GITHUB_TOKEN ---
     permissions:
       contents: read      # Necesario para checkout
