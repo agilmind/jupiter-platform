@@ -31,22 +31,36 @@ jobs:
       - name: Get Affected Projects
         id: get_affected
         run: |
-          AFFECTED_OUTPUT=$(npx nx affected --target=deploy-info --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} --json)
-          echo "Raw Affected Output: $AFFECTED_OUTPUT" # Para depuración
+          echo "NX_BASE SHA: ${{ env.NX_BASE }}" # Debug: Print base SHA
+          echo "NX_HEAD SHA: ${{ env.NX_HEAD }}" # Debug: Print head SHA
 
-          # Extraer la lista de nombres de proyecto del JSON
-          AFFECTED_PROJECTS=$(echo "$AFFECTED_OUTPUT" | jq -c '.projects') # Usa jq para extraer el array 'projects'
+          # Ejecuta nx affected, capturando stdout Y stderr (2>&1)
+          AFFECTED_OUTPUT=$(npx nx affected --target=deploy-info --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} --json 2>&1)
+          NX_EXIT_CODE=$? # Captura el código de salida del comando nx
 
-          # Verificar si la lista está vacía o no
+          echo "Raw Affected Output (incl. stderr): $AFFECTED_OUTPUT" # Debug: Muestra todo
+          echo "NX Exit Code: $NX_EXIT_CODE" # Debug: Muestra el código de salida
+
+          # Verifica si el comando nx falló explícitamente
+          if [ $NX_EXIT_CODE -ne 0 ]; then
+            echo "::error::nx affected command failed with exit code $NX_EXIT_CODE."
+            exit $NX_EXIT_CODE
+          fi
+
+          # Verifica si la salida es JSON válido antes de procesar con jq
+          if ! echo "$AFFECTED_OUTPUT" | jq -e . > /dev/null; then
+            echo "::error::nx affected output is not valid JSON."
+            exit 1
+          fi
+
+          # --- El resto del script como estaba ---
+          AFFECTED_PROJECTS=$(echo "$AFFECTED_OUTPUT" | jq -c '.projects')
           HAS_AFFECTED="false"
           if [ -n "$AFFECTED_PROJECTS" ] && [ "$AFFECTED_PROJECTS" != "[]" ]; then
             HAS_AFFECTED="true"
           fi
-
-          echo "Affected Projects JSON: $AFFECTED_PROJECTS" # Para depuración
-          echo "Has Affected: $HAS_AFFECTED" # Para depuración
-
-          # Guardar en outputs del step (y por ende del job)
+          echo "Affected Projects JSON: $AFFECTED_PROJECTS"
+          echo "Has Affected: $HAS_AFFECTED"
           echo "affected_projects=$AFFECTED_PROJECTS" >> $GITHUB_OUTPUT
           echo "has_affected=$HAS_AFFECTED" >> $GITHUB_OUTPUT
 
