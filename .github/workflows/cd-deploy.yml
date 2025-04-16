@@ -12,7 +12,7 @@ on:
 
 # Variables de entorno globales para el workflow
 env:
-  REGISTRY: ghcr.io # Registro de contenedores (GitHub Container Registry)
+  REGISTRY: ghcr.io # Usaremos GitHub Container Registry
   IMAGE_NAMESPACE: ${{ github.repository_owner }} # Namespace (usuario u org de GitHub)
   # Nombres de los secretos de GitHub Actions para la conexión SSH al VPS
   VPS_HOST_SECRET: VPS_HOSTINGER_HOST # Ajustar si usas otro nombre de infra/secreto
@@ -115,7 +115,12 @@ jobs:
     name: Build and Deploy ${{ matrix.project }} # Nombre dinámico del job
     needs: check_affected     # Depende del job anterior
     # Condición: Solo se ejecuta si el job anterior encontró proyectos afectados
-    if: needs.check_affected.outputs.has_affected == 'true'
+    if: needs.check_affected.outputs.has_affected == 'true' # Volvemos a comparar con string 'true' por si acaso
+    # --- AÑADIDO: Permisos necesarios para GITHUB_TOKEN ---
+    permissions:
+      contents: read      # Necesario para checkout
+      packages: write     # Necesario para push a GHCR
+    # --- FIN AÑADIDO ---
     runs-on: ubuntu-latest  # Runner
     strategy:                 # Estrategia para paralelizar/iterar
       fail-fast: false        # No cancelar otros jobs si uno falla
@@ -151,11 +156,11 @@ jobs:
           echo "root=$PROJECT_ROOT" >> $GITHUB_OUTPUT
 
       # --- Pasos para Build y Push a GHCR ---
-      # Paso 5: Configurar QEMU (para builds multi-plataforma, buena práctica)
+      # Paso 5: Configurar QEMU
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      # Paso 6: Configurar Docker Buildx (builder avanzado)
+      # Paso 6: Configurar Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -165,21 +170,17 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }} # Nombre del secreto con el PAT
+          # --- MODIFICADO: Usar GITHUB_TOKEN en lugar de PAT ---
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # Paso 8: Generar los tags para la imagen Docker
       - name: Generate Image Tags
         id: image_tags
         run: |
-          # Construir nombre base de imagen (convertido a minúsculas)
           IMAGE_NAME=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.project }}" | tr '[:upper:]' '[:lower:]')
-          # Tag :latest
           TAG_LATEST="${IMAGE_NAME}:latest"
-          # Tag con el SHA del commit para versionado único
           TAG_SHA="${IMAGE_NAME}:${{ github.sha }}"
-          # Guardar tags para el siguiente paso
           echo "tags=${TAG_LATEST},${TAG_SHA}" >> $GITHUB_OUTPUT
-          # Guardar tag con SHA para usar en despliegue
           echo "image_name_sha=${TAG_SHA}" >> $GITHUB_OUTPUT
           echo "Generated Tags: ${TAG_LATEST}, ${TAG_SHA}"
 
@@ -188,20 +189,19 @@ jobs:
         id: docker_build
         uses: docker/build-push-action@v6
         with:
-          context: ${{ steps.get_root.outputs.root }} # Directorio raíz del proyecto como contexto
-          file: ${{ steps.get_root.outputs.root }}/Dockerfile # Ruta al Dockerfile
-          push: true # Publicar la imagen al registro
-          tags: ${{ steps.image_tags.outputs.tags }} # Tags generados en el paso anterior
-          # Habilitar caché de build de GitHub Actions para acelerar builds futuros
+          context: ${{ steps.get_root.outputs.root }}
+          file: ${{ steps.get_root.outputs.root }}/Dockerfile
+          push: true
+          tags: ${{ steps.image_tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       # --- Pasos para Despliegue en VPS ---
-      # Paso 10: Configurar el agente SSH para la conexión
+      # Paso 10: Configurar el agente SSH
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets[env.VPS_KEY_SECRET] }} # Usa la clave privada del secreto
+          ssh-private-key: ${{ secrets[env.VPS_KEY_SECRET] }}
 
       # Paso 11: Añadir el host del VPS a los hosts conocidos
       - name: Add VPS Host to Known Hosts
@@ -209,7 +209,6 @@ jobs:
           VPS_HOST="${{ secrets[env.VPS_HOST_SECRET] }}"
           if [ -z "$VPS_HOST" ]; then echo "Error: Host secret '${{ env.VPS_HOST_SECRET }}' missing." >&2; exit 1; fi
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          # Escanear y añadir la clave del host
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
           echo "Added $VPS_HOST to known_hosts"
 
@@ -218,58 +217,49 @@ jobs:
         env:
           VPS_HOST: ${{ secrets[env.VPS_HOST_SECRET] }}
           VPS_USER: ${{ secrets[env.VPS_USER_SECRET] }}
-          PROJECT_NAME: ${{ matrix.project }} # Nombre del proyecto Nx (ej: jupiter-www)
-          APP_IMAGE_NAME_SHA: ${{ steps.image_tags.outputs.image_name_sha }} # Imagen exacta a desplegar
+          PROJECT_NAME: ${{ matrix.project }}
+          APP_IMAGE_NAME_SHA: ${{ steps.image_tags.outputs.image_name_sha }}
         run: |
-          set -e # Salir inmediatamente si un comando falla
-          # Variables para claridad
+          set -e
           REMOTE_USER_HOST="${VPS_USER}@${VPS_HOST}"
           REMOTE_APP_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
-          # Ruta al docker-compose.yml DENTRO del código fuente checkouteado en el runner
           LOCAL_COMPOSE_FILE="${{ steps.get_root.outputs.root }}/docker-compose-app.yml"
           REMOTE_COMPOSE_FILE="${REMOTE_APP_DIR}/docker-compose-app.yml"
           REMOTE_ENV_FILE="${REMOTE_APP_DIR}/.env"
-          ENV_VAR_NAME="APP_IMAGE_NAME" # Variable a actualizar en .env remoto
+          ENV_VAR_NAME="APP_IMAGE_NAME"
 
           echo "Deploying project ${PROJECT_NAME} to ${REMOTE_USER_HOST}:${REMOTE_APP_DIR}"
           echo "Using Image: ${APP_IMAGE_NAME_SHA}"
 
-          # 1. Crear directorio remoto (ignora error si ya existe con -p)
+          # 1. Crear directorio remoto
           ssh "$REMOTE_USER_HOST" "mkdir -p ${REMOTE_APP_DIR}" || true
 
-          # 2. Sincronizar docker-compose-app.yml usando rsync
+          # 2. Sincronizar docker-compose-app.yml
           echo "Syncing ${LOCAL_COMPOSE_FILE} to ${REMOTE_USER_HOST}:${REMOTE_COMPOSE_FILE}"
           rsync -avz "${LOCAL_COMPOSE_FILE}" "${REMOTE_USER_HOST}:${REMOTE_COMPOSE_FILE}" \
             || { echo "Rsync failed!"; exit 1; }
 
-          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto (de forma segura)
+          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto
           echo "Updating ${ENV_VAR_NAME} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
-          # Escapar valor por si contiene caracteres especiales para sed/shell
           printf -v escaped_image_name "%q" "$APP_IMAGE_NAME_SHA"
           ssh "$REMOTE_USER_HOST" bash -s << EOF
-            # Script remoto para actualizar .env
             set -e
             ENV_FILE="${REMOTE_ENV_FILE}"
             VAR_NAME="${ENV_VAR_NAME}"
-            VAR_VALUE=$escaped_image_name # Usar valor escapado
+            VAR_VALUE=$escaped_image_name
 
-            # Crear .env si no existe, no falla si ya existe
             touch "\$ENV_FILE"
-            # Eliminar línea antigua si existe (usar delimitador alternativo para sed)
-            # Ignorar error si la línea no existe
             sed -i "\|^ *\${VAR_NAME}=|d" "\$ENV_FILE" || true
-            # Añadir nueva línea al final
             echo "\${VAR_NAME}=\${VAR_VALUE}" >> "\$ENV_FILE"
             echo "Updated/Set ${ENV_VAR_NAME} in \${ENV_FILE}"
           EOF
 
-          # 4. Ejecutar Docker Compose Remoto (Pull & Up)
+          # 4. Ejecutar Docker Compose Remoto
           echo "Running docker compose pull & up on remote host..."
           ssh "$REMOTE_USER_HOST" bash -s << EOF
             set -e
             cd "${REMOTE_APP_DIR}"
             echo "[Remote] Pulling image specified in .env (${ENV_VAR_NAME})..."
-            # Usar --env-file para asegurar que se lee .env para el pull y el up
             docker compose --env-file .env pull
             echo "[Remote] Starting application via Docker Compose..."
             docker compose --env-file .env -f docker-compose-app.yml up -d --remove-orphans
