@@ -17,87 +17,95 @@ env:
 
 jobs:
   # ----- Job 1: Determinar qué aplicaciones fueron afectadas -----
-  check_affected:               # <--- Definición del Job
-    name: Check Affected Apps     # <--- Nombre del Job
-    runs-on: ubuntu-latest      # <--- Runner
-    outputs:                      # <--- Definición de Outputs
+  check_affected:
+    name: Check Affected Apps
+    runs-on: ubuntu-latest
+    outputs:
       affected_projects: ${{ steps.get_affected.outputs.affected_projects }}
       has_affected: ${{ steps.get_affected.outputs.has_affected }}
 
-    steps:                        # <--- Inicio de la lista de Pasos (Steps)
-
-      - name: Checkout Repository # Paso 1: Checkout
+    steps:
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Necesario para que Nx calcule correctamente los SHAs base/head
+          fetch-depth: 0 # MUY Importante para que affected funcione bien
 
-      - name: Setup Node.js       # Paso 2: Configurar Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # O la versión que uses
+          node-version: '20'
 
-      - name: Install Dependencies  # Paso 3: Instalar dependencias
-        run: npm ci # O yarn install --frozen-lockfile
+      # Paso Nuevo: Limpiar caché de Nx explícitamente
+      - name: Clear Nx Cache
+        run: rm -rf node_modules/.cache/nx || true # Ignora error si el dir no existe
 
-      # Deriva los SHAs base y head para nx affected
-      - name: Derive SHAs for Nx Affected # Paso 4: Obtener SHAs
-        # Asegúrate que esta acción exista o usa una equivalente como nx/nx-set-shas@v4
-        uses: nrwl/nx-set-shas@v3
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Derive SHAs for Nx Affected
+        uses: nrwl/nx-set-shas@v3 # o nx/nx-set-shas@v4
         with:
-           main-branch-name: 'main' # Asegúrate que coincida con tu rama base
+           main-branch-name: 'main'
 
-      # Este es el paso cuyo script ya tenías, ahora correctamente ubicado
+      # Paso Nuevo: Listar archivos cambiados según Git
+      - name: List Changed Files
+        run: |
+          echo "Listing files changed between BASE (${{ env.NX_BASE }}) and HEAD (${{ env.NX_HEAD }}):"
+          git diff --name-only ${{ env.NX_BASE }} ${{ env.NX_HEAD }} || echo "git diff command failed (maybe first commit?)"
+          echo "--- End of changed files list ---"
+
       - name: Get Affected Projects
         id: get_affected
         run: |
-          set -x # Mantener para depuración por ahora
+          set -x # Mantener para depuración
 
           echo "NX_BASE SHA: ${{ env.NX_BASE }}"
           echo "NX_HEAD SHA: ${{ env.NX_HEAD }}"
 
-          # --- CAMBIO: Volver a 'nx show projects --affected' ---
-          # Este comando debería devolver directamente un array JSON como ["proj1", "proj2"] o []
+          # --- Intento 1: CON target ---
+          echo "Attempting: nx show projects --affected --with-target=deploy-info"
           AFFECTED_PROJECTS_JSON=$(npx nx show projects --affected --with-target=deploy-info --json --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} 2>&1)
           NX_EXIT_CODE=$?
+          echo "Raw Output (with target): [$AFFECTED_PROJECTS_JSON]"
+          echo "Exit Code (with target): $NX_EXIT_CODE"
 
-          echo "Raw Affected Projects JSON (incl. stderr): [$AFFECTED_PROJECTS_JSON]"
-          echo "NX Exit Code: $NX_EXIT_CODE"
+          # --- Intento 2 (Solo para Debug): SIN target ---
+          # Ejecutar solo si el intento anterior falló o dio array vacío, para comparar
+          AFFECTED_NO_TARGET="N/A" # Valor por defecto
+          NX_EXIT_CODE_NO_TARGET="N/A"
+          if [ $NX_EXIT_CODE -ne 0 ] || echo "$AFFECTED_PROJECTS_JSON" | jq -e 'type=="array" and length == 0' > /dev/null; then
+              echo "Attempting: nx show projects --affected (NO target) for comparison..."
+              AFFECTED_NO_TARGET=$(npx nx show projects --affected --json --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} 2>&1)
+              NX_EXIT_CODE_NO_TARGET=$?
+              echo "Raw Output (NO target): [$AFFECTED_NO_TARGET]"
+              echo "Exit Code (NO target): $NX_EXIT_CODE_NO_TARGET"
+          fi
+          # --- Fin Intento 2 ---
 
-          # Verificar si el comando nx falló explícitamente
+          # --- Validación (usa el resultado del Intento 1 CON target) ---
           if [ $NX_EXIT_CODE -ne 0 ]; then
-            echo "::error::nx show projects --affected command failed with exit code $NX_EXIT_CODE. Output/Error was: $AFFECTED_PROJECTS_JSON"
+            echo "::error::nx show projects --affected (with target) command failed with exit code $NX_EXIT_CODE. Output/Error was: $AFFECTED_PROJECTS_JSON"
             exit $NX_EXIT_CODE
           fi
 
-          # --- Lógica adaptada para esperar un array JSON ---
-          AFFECTED_PROJECTS="[]" # Default
+          AFFECTED_PROJECTS="[]"
           HAS_AFFECTED="false"
 
-          # Verificar si la salida es un array JSON y tiene elementos
           if echo "$AFFECTED_PROJECTS_JSON" | jq -e 'type=="array" and length > 0' > /dev/null; then
-              # Es un array JSON no vacío, lo usamos directamente
-              AFFECTED_PROJECTS=$(echo "$AFFECTED_PROJECTS_JSON" | jq -c .) # Asegurar formato compacto
+              AFFECTED_PROJECTS=$(echo "$AFFECTED_PROJECTS_JSON" | jq -c .)
               HAS_AFFECTED="true"
-              echo "Successfully found affected projects."
-          # Verificar si es específicamente un array JSON vacío
+              echo "Successfully found affected projects (with target)."
           elif echo "$AFFECTED_PROJECTS_JSON" | jq -e 'type=="array" and length == 0' > /dev/null; then
-              echo "nx show projects --affected returned an empty array '[]'. No projects affected."
-              # Mantenemos AFFECTED_PROJECTS="[]" y HAS_AFFECTED="false"
-          # Si no es un array JSON (inesperado si exit code fue 0)
+              echo "nx show projects --affected (with target) returned an empty array '[]'. No projects affected for target 'deploy-info'."
           else
-              echo "::warning::nx show projects --affected output was not a valid JSON array. Assuming no projects affected. Output: $AFFECTED_PROJECTS_JSON"
-              # Mantenemos AFFECTED_PROJECTS="[]" y HAS_AFFECTED="false"
+              echo "::warning::nx show projects --affected (with target) output was not a valid JSON array. Assuming no projects affected. Output: $AFFECTED_PROJECTS_JSON"
           fi
-          # --- Fin lógica adaptada ---
+          # --- Fin Validación ---
 
-          echo "Affected Projects JSON: $AFFECTED_PROJECTS"
-          echo "Has Affected: $HAS_AFFECTED"
-
-          echo "Setting output affected_projects=${AFFECTED_PROJECTS}"
-          echo "affected_projects=$AFFECTED_PROJECTS" >> $GITHUB_OUTPUT
-          echo "Setting output has_affected=${HAS_AFFECTED}"
-          echo "has_affected=$HAS_AFFECTED" >> $GITHUB_OUTPUT
-
+          echo "Final Affected Projects JSON (for matrix): $AFFECTED_PROJECTS"
+          echo "Final Has Affected (for matrix): $HAS_AFFECTED"
+          echo "affected_projects=${AFFECTED_PROJECTS}" >> $GITHUB_OUTPUT
+          echo "has_affected=${HAS_AFFECTED}" >> $GITHUB_OUTPUT
           echo "Finished setting outputs."
           set +x
 
