@@ -31,12 +31,25 @@ jobs:
       - name: Get Affected Projects
         id: get_affected
         run: |
-          AFFECTED_OUTPUT=$(nx affected --target=deploy-info --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} --json)
-          echo "Raw Affected Output: $AFFECTED_OUTPUT"
-          AFFECTED_PROJECTS=$(echo "$AFFECTED_OUTPUT" | jq -c '.projects')
-          HAS_AFFECTED="false"; if [ -n "$AFFECTED_PROJECTS" ] && [ "$AFFECTED_PROJECTS" != "[]" ]; then HAS_AFFECTED="true"; fi
-          echo "Affected Projects JSON: $AFFECTED_PROJECTS"
-          echo "Has Affected: $HAS_AFFECTED"
+          # --- USA npx AQUÍ ---
+          AFFECTED_OUTPUT=$(npx nx affected --target=deploy-info --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} --json)
+          # --- FIN DEL CAMBIO ---
+
+          echo "Raw Affected Output: $AFFECTED_OUTPUT" # Para depuración
+
+          # Extraer la lista de nombres de proyecto del JSON
+          AFFECTED_PROJECTS=$(echo "$AFFECTED_OUTPUT" | jq -c '.projects') # Usa jq para extraer el array 'projects'
+
+          # Verificar si la lista está vacía o no
+          HAS_AFFECTED="false"
+          if [ -n "$AFFECTED_PROJECTS" ] && [ "$AFFECTED_PROJECTS" != "[]" ]; then
+            HAS_AFFECTED="true"
+          fi
+
+          echo "Affected Projects JSON: $AFFECTED_PROJECTS" # Para depuración
+          echo "Has Affected: $HAS_AFFECTED" # Para depuración
+
+          # Guardar en outputs del step (y por ende del job)
           echo "affected_projects=$AFFECTED_PROJECTS" >> $GITHUB_OUTPUT
           echo "has_affected=$HAS_AFFECTED" >> $GITHUB_OUTPUT
 
