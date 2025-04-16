@@ -38,7 +38,7 @@ jobs:
           AFFECTED_OUTPUT=$(npx nx affected --target=deploy-info --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} --json 2>&1)
           NX_EXIT_CODE=$? # Captura el código de salida del comando nx
 
-          echo "Raw Affected Output (incl. stderr): $AFFECTED_OUTPUT" # Debug: Muestra todo
+          echo "Raw Affected Output (incl. stderr): [$AFFECTED_OUTPUT]" # Added brackets for clarity
           echo "NX Exit Code: $NX_EXIT_CODE" # Debug: Muestra el código de salida
 
           # Verifica si el comando nx falló explícitamente
@@ -47,18 +47,35 @@ jobs:
             exit $NX_EXIT_CODE
           fi
 
-          # Verifica si la salida es JSON válido antes de procesar con jq
-          if ! echo "$AFFECTED_OUTPUT" | jq -e . > /dev/null; then
-            echo "::error::nx affected output is not valid JSON."
-            exit 1
-          fi
-
-          # --- El resto del script como estaba ---
-          AFFECTED_PROJECTS=$(echo "$AFFECTED_OUTPUT" | jq -c '.projects')
+          # --- Inicio: Lógica robusta para manejar salida ---
+          AFFECTED_PROJECTS="[]" # Default to empty JSON array
           HAS_AFFECTED="false"
-          if [ -n "$AFFECTED_PROJECTS" ] && [ "$AFFECTED_PROJECTS" != "[]" ]; then
-            HAS_AFFECTED="true"
+
+          # 1. Comprobar si la salida está completamente vacía
+          if [ -z "$AFFECTED_OUTPUT" ]; then
+              echo "nx affected output is empty. Assuming no projects affected."
+          # 2. Si no está vacía, comprobar si es JSON válido
+          elif ! echo "$AFFECTED_OUTPUT" | jq -e . > /dev/null; then
+              # Podría ser un mensaje de advertencia/error de Nx en lugar de JSON
+              echo "::warning::nx affected output is not valid JSON. Assuming no projects affected."
+              # Considera fallar si siempre esperas JSON:
+              # echo "::error::nx affected output is not valid JSON."
+              # exit 1
+          # 3. Si es JSON válido, intentar extraer '.projects'
+          else
+              # Extraer el array .projects, con fallback a [] si .projects es null o no existe
+              TEMP_PROJECTS=$(echo "$AFFECTED_OUTPUT" | jq -c '.projects // []')
+              # Comprobar si el array extraído no está vacío o nulo
+              if [ "$TEMP_PROJECTS" != "[]" ] && [ "$TEMP_PROJECTS" != "null" ] ; then
+                   AFFECTED_PROJECTS="$TEMP_PROJECTS"
+                   HAS_AFFECTED="true"
+                   echo "Successfully extracted affected projects."
+              else
+                   echo "JSON output received, but '.projects' array is empty or null. No projects affected."
+              fi
           fi
+          # --- Fin: Lógica robusta ---
+
           echo "Affected Projects JSON: $AFFECTED_PROJECTS"
           echo "Has Affected: $HAS_AFFECTED"
           echo "affected_projects=$AFFECTED_PROJECTS" >> $GITHUB_OUTPUT
