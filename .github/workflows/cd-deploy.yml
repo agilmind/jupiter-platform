@@ -108,11 +108,14 @@ jobs:
           echo "has_affected=${HAS_AFFECTED}" >> $GITHUB_OUTPUT
           echo "Finished setting outputs."
 
+  # --------------------------------------------------------------------------
+  # Job 2: Construir y Desplegar las Aplicaciones Afectadas
+  # --------------------------------------------------------------------------
   deploy_affected:
     name: Build and Deploy ${{ matrix.project }} # Nombre dinámico del job
     needs: check_affected     # Depende del job anterior
     # Condición: Solo se ejecuta si el job anterior encontró proyectos afectados
-    if: needs.check_affected.outputs.has_affected == true # Comparando con booleano
+    if: needs.check_affected.outputs.has_affected == 'true'
     runs-on: ubuntu-latest  # Runner
     strategy:                 # Estrategia para paralelizar/iterar
       fail-fast: false        # No cancelar otros jobs si uno falla
