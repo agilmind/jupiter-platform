@@ -55,48 +55,46 @@ jobs:
           echo "NX_BASE SHA: ${{ env.NX_BASE }}"
           echo "NX_HEAD SHA: ${{ env.NX_HEAD }}"
 
-          # --- CAMBIO: Usar nx print-affected ---
+          # --- CAMBIO: Volver a 'nx show projects --affected' ---
           # Este comando debería devolver directamente un array JSON como ["proj1", "proj2"] o []
-          # Capturamos solo stdout, asumimos que errores irán a stderr si falla
-          AFFECTED_PROJECTS_JSON=$(npx nx print-affected --target=deploy-info --select=projects --json --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }})
+          AFFECTED_PROJECTS_JSON=$(npx nx show projects --affected --with-target=deploy-info --json --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} 2>&1)
           NX_EXIT_CODE=$?
-          # --- FIN CAMBIO ---
 
-          echo "Raw Affected Projects JSON: [$AFFECTED_PROJECTS_JSON]"
+          echo "Raw Affected Projects JSON (incl. stderr): [$AFFECTED_PROJECTS_JSON]"
           echo "NX Exit Code: $NX_EXIT_CODE"
 
           # Verificar si el comando nx falló explícitamente
           if [ $NX_EXIT_CODE -ne 0 ]; then
-            # Intentar obtener stderr para el mensaje de error
-            AFFECTED_OUTPUT_ERR=$(npx nx print-affected --target=deploy-info --select=projects --json --base=${{ env.NX_BASE }} --head=${{ env.NX_HEAD }} 2>&1) || true
-            echo "::error::nx print-affected command failed with exit code $NX_EXIT_CODE. Output/Error was: $AFFECTED_OUTPUT_ERR"
+            echo "::error::nx show projects --affected command failed with exit code $NX_EXIT_CODE. Output/Error was: $AFFECTED_PROJECTS_JSON"
             exit $NX_EXIT_CODE
           fi
 
-          # --- Lógica simplificada para validar el array JSON ---
+          # --- Lógica adaptada para esperar un array JSON ---
           AFFECTED_PROJECTS="[]" # Default
           HAS_AFFECTED="false"
 
-          # Verificar si la salida es un array JSON con elementos
-          # jq -e 'type=="array" and length > 0' devolverá 0 (éxito) si es un array no vacío, 1 (error) en caso contrario
+          # Verificar si la salida es un array JSON y tiene elementos
           if echo "$AFFECTED_PROJECTS_JSON" | jq -e 'type=="array" and length > 0' > /dev/null; then
-              # Es un array JSON no vacío, asignarlo (aseurando formato compacto)
-              AFFECTED_PROJECTS=$(echo "$AFFECTED_PROJECTS_JSON" | jq -c .)
+              # Es un array JSON no vacío, lo usamos directamente
+              AFFECTED_PROJECTS=$(echo "$AFFECTED_PROJECTS_JSON" | jq -c .) # Asegurar formato compacto
               HAS_AFFECTED="true"
               echo "Successfully found affected projects."
+          # Verificar si es específicamente un array JSON vacío
+          elif echo "$AFFECTED_PROJECTS_JSON" | jq -e 'type=="array" and length == 0' > /dev/null; then
+              echo "nx show projects --affected returned an empty array '[]'. No projects affected."
+              # Mantenemos AFFECTED_PROJECTS="[]" y HAS_AFFECTED="false"
+          # Si no es un array JSON (inesperado si exit code fue 0)
           else
-              # La salida era vacía, '[]', o no era un array JSON válido (aunque exit code 0 sugiere que sí era JSON)
-              echo "nx print-affected returned empty array or invalid JSON. No projects affected."
+              echo "::warning::nx show projects --affected output was not a valid JSON array. Assuming no projects affected. Output: $AFFECTED_PROJECTS_JSON"
               # Mantenemos AFFECTED_PROJECTS="[]" y HAS_AFFECTED="false"
           fi
-          # --- Fin lógica simplificada ---
+          # --- Fin lógica adaptada ---
 
           echo "Affected Projects JSON: $AFFECTED_PROJECTS"
           echo "Has Affected: $HAS_AFFECTED"
 
           echo "Setting output affected_projects=${AFFECTED_PROJECTS}"
           echo "affected_projects=$AFFECTED_PROJECTS" >> $GITHUB_OUTPUT
-
           echo "Setting output has_affected=${HAS_AFFECTED}"
           echo "has_affected=$HAS_AFFECTED" >> $GITHUB_OUTPUT
 
