@@ -259,8 +259,8 @@ jobs:
             set -e
             cd "$REMOTE_APP_DIR_SCRIPT" # Usar variable pasada
             echo "[Remote] Pulling image specified in .env (APP_IMAGE_NAME)..."
-            docker compose --env-file .env -f docker-compose-app.yml pull
+            docker compose -f docker-compose-app.yml pull
             echo "[Remote] Starting application via Docker Compose..."
-            docker compose --env-file .env -f docker-compose-app.yml up -d --remove-orphans
+            docker compose -f docker-compose-app.yml up -d --remove-orphans
             echo "[Remote] Deployment complete for $PROJECT_NAME_SCRIPT." # Usar variable pasada
           EOF
