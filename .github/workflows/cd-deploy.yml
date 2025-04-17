@@ -250,25 +250,32 @@ jobs:
           echo "${GHCR_PAT}" | ssh "$REMOTE_USER_HOST" "docker login ghcr.io -u ${GHCR_USER} --password-stdin"
           echo "Remote GHCR login command executed."
 
-          # 5. Ejecutar Docker Compose Pull & Up Remoto (Separado)
+          # 5. Ejecutar Docker Compose Pull & Up Remoto (Separado - MODIFICADO)
           echo "Running docker compose pull & up on remote host..."
-          # Escapar variables para pasarlas de forma segura al entorno SSH remoto
+          # Escapar argumentos para pasarlos de forma segura a bash -s --
           printf -v remote_app_dir_q "%q" "$REMOTE_APP_DIR"
           printf -v project_name_q "%q" "$PROJECT_NAME"
           printf -v remote_compose_file_q "%q" "$REMOTE_COMPOSE_FILE"
-          # Pasar las variables escapadas al comando remoto
-          ssh "$REMOTE_USER_HOST" "REMOTE_APP_DIR_SCRIPT=${remote_app_dir_q} PROJECT_NAME_SCRIPT=${project_name_q} REMOTE_COMPOSE_FILE_SCRIPT=${remote_compose_file_q}; bash -s" << 'EOF'
+          # Pasar variables como argumentos posicionales a bash -s
+          ssh "$REMOTE_USER_HOST" "bash -s -- ${remote_app_dir_q} ${project_name_q} ${remote_compose_file_q}" << 'EOF'
+            # Usar 'EOF' (con comillas) para prevenir expansión local dentro del script
             set -e
+            # Asignar argumentos posicionales ($1, $2, $3) a variables nombradas
+            REMOTE_APP_DIR_SCRIPT="$1"
+            PROJECT_NAME_SCRIPT="$2"
+            REMOTE_COMPOSE_FILE_SCRIPT="$3"
+
             cd "$REMOTE_APP_DIR_SCRIPT"
-            # --- AÑADIDO: Log para depurar la ruta del compose file ---
             echo "[Remote Debug] Current directory: $(pwd)"
-            echo "[Remote Debug] Using Compose File: $REMOTE_COMPOSE_FILE_SCRIPT"
-            # --- FIN AÑADIDO ---
+            echo "[Remote Debug] Using Compose File: $REMOTE_COMPOSE_FILE_SCRIPT" # Verificar que ahora tenga valor
+
             echo "[Remote] Pulling image specified in .env..."
             # Usar -p para aislar y -f con ruta absoluta. No usar --env-file ni --no-dotenv.
             docker compose -p "$PROJECT_NAME_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
+
             echo "[Remote] Starting application via Docker Compose..."
             # Usar -p para aislar y -f con ruta absoluta. No usar --env-file ni --no-dotenv.
             docker compose -p "$PROJECT_NAME_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" up -d --remove-orphans
+
             echo "[Remote] Deployment complete for $PROJECT_NAME_SCRIPT."
           EOF
