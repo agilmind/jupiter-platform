@@ -12,7 +12,7 @@ on:
 
 # Variables de entorno globales para el workflow
 env:
-  REGISTRY: ghcr.io # Usaremos GitHub Container Registry
+  REGISTRY: ghcr.io # Registro de contenedores (GitHub Container Registry)
   IMAGE_NAMESPACE: ${{ github.repository_owner }} # Namespace (usuario u org de GitHub)
   # Nombres de los secretos de GitHub Actions para la conexión SSH al VPS
   VPS_HOST_SECRET: VPS_HOSTINGER_HOST # Ajustar si usas otro nombre de infra/secreto
@@ -69,7 +69,7 @@ jobs:
       - name: Get Affected Projects
         id: get_affected
         run: |
-          # set -x # Descomentar para trace detallado si sigue fallando
+          # set -x # Descomentar para trace detallado si sigue fallando este script
 
           echo "NX_BASE SHA: ${{ env.NX_BASE }}"
           echo "NX_HEAD SHA: ${{ env.NX_HEAD }}"
@@ -115,7 +115,8 @@ jobs:
     name: Build and Deploy ${{ matrix.project }} # Nombre dinámico del job
     needs: check_affected     # Depende del job anterior
     # Condición: Solo se ejecuta si el job anterior encontró proyectos afectados
-    if: needs.check_affected.outputs.has_affected == 'true'
+    if: needs.check_affected.outputs.has_affected == 'true' # Comparando con string 'true'
+    # permissions: # <--- ELIMINADO: No necesario cuando se usa PAT
     runs-on: ubuntu-latest  # Runner
     strategy:                 # Estrategia para paralelizar/iterar
       fail-fast: false        # No cancelar otros jobs si uno falla
@@ -159,12 +160,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Paso 7: Login a GitHub Container Registry
+      # Paso 7: Login a GitHub Container Registry (Usando PAT)
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.actor }} # O el usuario dueño del PAT si es diferente
+          # --- Usar GHCR_TOKEN (PAT) ---
           password: ${{ secrets.GHCR_TOKEN }}
 
       # Paso 8: Generar los tags para la imagen Docker
@@ -213,9 +215,10 @@ jobs:
           VPS_USER: ${{ secrets[env.VPS_USER_SECRET] }}
           PROJECT_NAME: ${{ matrix.project }}
           APP_IMAGE_NAME_SHA: ${{ steps.image_tags.outputs.image_name_sha }}
-          # --- AÑADIDO: Credenciales para login remoto ---
+          # Pass GHCR credentials for remote login
+          # Asegúrate que GHCR_USER coincida con el dueño del PAT si no es github.actor
           GHCR_USER: ${{ github.actor }}
-          GHCR_PAT: ${{ secrets.GHCR_TOKEN }} # Usamos el mismo PAT que para el push
+          GHCR_PAT: ${{ secrets.GHCR_TOKEN }} # Pasar el PAT para el login remoto
         run: |
           set -e
           REMOTE_USER_HOST="${VPS_USER}@${VPS_HOST}"
@@ -240,12 +243,14 @@ jobs:
           echo "Updating ${ENV_VAR_NAME} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
           printf -v escaped_image_name "%q" "$APP_IMAGE_NAME_SHA"
           ssh "$REMOTE_USER_HOST" bash -s << EOF
+            # Script remoto para actualizar .env
             set -e
             ENV_FILE="${REMOTE_ENV_FILE}"
             VAR_NAME="${ENV_VAR_NAME}"
-            VAR_VALUE=$escaped_image_name
+            VAR_VALUE=$escaped_image_name # Usar valor escapado
 
             touch "\$ENV_FILE"
+            # Usar un delimitador diferente en sed por si VAR_VALUE contiene /
             sed -i "\|^ *\${VAR_NAME}=|d" "\$ENV_FILE" || true
             echo "\${VAR_NAME}=\${VAR_VALUE}" >> "\$ENV_FILE"
             echo "Updated/Set ${ENV_VAR_NAME} in \${ENV_FILE}"
@@ -253,20 +258,33 @@ jobs:
 
           # 4. Ejecutar Docker Login, Pull & Up Remoto
           echo "Running docker login, pull & up on remote host..."
-          # Pasamos el PAT por stdin al comando ssh, que a su vez lo pasa a docker login
-          echo "${GHCR_PAT}" | ssh "$REMOTE_USER_HOST" bash -s << EOF
-            set -e
-            # --- AÑADIDO: Login a GHCR en el servidor remoto ---
+          # Pass PAT via stdin to docker login for security
+          # Añadir set -ex dentro del script remoto para depuración detallada
+          echo "${GHCR_PAT}" | ssh "$REMOTE_USER_HOST" bash -s << 'EOF' # Usar 'EOF' para prevenir expansión local de $VAR en el script remoto
+            set -ex # <-- AÑADIDO -e y -x para trace remoto
+            # Variables necesarias dentro del script remoto (pasadas implícitamente o necesitan definirse aquí)
+            # Necesitamos GHCR_USER, REMOTE_APP_DIR, ENV_VAR_NAME explícitamente si usamos 'EOF'
+            # Si usamos << EOF (sin comillas), las variables del runner se expanden ANTES de enviar el script.
+            # Vamos a asumir que las variables de entorno del step (GHCR_USER, etc.) se pasan al entorno SSH
+            # y son accesibles dentro del script remoto. Si no, habría que pasarlas explícitamente.
+
+            # Login to GHCR on remote host
             echo "[Remote] Logging into GHCR as ${GHCR_USER}..."
-            # Leer contraseña (PAT) desde stdin
+            # Usar el PAT pasado por stdin para el login
             docker login ghcr.io -u "${GHCR_USER}" --password-stdin
             echo "[Remote] GHCR login successful."
-            # --- FIN AÑADIDO ---
 
-            cd "${REMOTE_APP_DIR}"
-            echo "[Remote] Pulling image specified in .env (${ENV_VAR_NAME})..."
+            # Definir variables necesarias para compose (si no se pasan por env)
+            REMOTE_APP_DIR_SCRIPT="/home/${VPS_USER}/apps/${PROJECT_NAME}" # Reconstruir si es necesario
+            ENV_VAR_NAME_SCRIPT="APP_IMAGE_NAME" # Reconstruir si es necesario
+
+            cd "${REMOTE_APP_DIR_SCRIPT}" # Usar variable definida aquí
+            echo "[Remote] Pulling image specified in .env (${ENV_VAR_NAME_SCRIPT})..."
+            # Usar -f para especificar el archivo compose
             docker compose --env-file .env -f docker-compose-app.yml pull
             echo "[Remote] Starting application via Docker Compose..."
+            # Usar -f para especificar el archivo compose
             docker compose --env-file .env -f docker-compose-app.yml up -d --remove-orphans
             echo "[Remote] Deployment complete for ${PROJECT_NAME}."
           EOF
+
