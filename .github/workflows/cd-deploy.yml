@@ -43,34 +43,21 @@ jobs:
         with:
           node-version: '20' # O la versión requerida por tu workspace Nx
 
-      # Paso 3: Limpiar caché de Nx (preventivo)
-      - name: Clear Nx Cache
-        run: rm -rf node_modules/.cache/nx || true
-
-      # Paso 4: Instalar dependencias
+      # Paso 3: Instalar dependencias
       - name: Install Dependencies
         run: npm ci # O el comando de instalación que uses (yarn, pnpm)
 
-      # Paso 5: Derivar SHAs base y head para Nx Affected
+      # Paso 4: Derivar SHAs base y head para Nx Affected
       - name: Derive SHAs for Nx Affected
         # Asegúrate que esta acción (o nx/nx-set-shas@v4) sea compatible con tu setup
         uses: nrwl/nx-set-shas@v4
         with:
            main-branch-name: 'main' # Rama contra la que comparar
 
-      # Paso 6: Listar archivos cambiados (para depuración)
-      - name: List Changed Files
-        run: |
-          echo "Listing files changed between BASE (${{ env.NX_BASE }}) and HEAD (${{ env.NX_HEAD }}):"
-          git diff --name-only ${{ env.NX_BASE }} ${{ env.NX_HEAD }} || echo "git diff command failed (maybe first commit?)"
-          echo "--- End of changed files list ---"
-
-      # Paso 7: Obtener la lista de proyectos afectados
+      # Paso 5: Obtener la lista de proyectos afectados
       - name: Get Affected Projects
         id: get_affected
         run: |
-          # set -x # Descomentar para trace detallado si sigue fallando este script
-
           echo "NX_BASE SHA: ${{ env.NX_BASE }}"
           echo "NX_HEAD SHA: ${{ env.NX_HEAD }}"
 
@@ -217,15 +204,15 @@ jobs:
           APP_IMAGE_NAME_SHA: ${{ steps.image_tags.outputs.image_name_sha }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.GHCR_TOKEN }}
-          # Definimos la variable aquí para claridad
+          # Variable para nombre de la variable en .env
           ENV_VAR_NAME_TO_UPDATE: "APP_IMAGE_NAME"
         run: |
           set -e
           REMOTE_USER_HOST="${VPS_USER}@${VPS_HOST}"
           REMOTE_APP_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
           LOCAL_COMPOSE_FILE="${{ steps.get_root.outputs.root }}/docker-compose-app.yml"
-          REMOTE_COMPOSE_FILE="${REMOTE_APP_DIR}/docker-compose-app.yml"
-          REMOTE_ENV_FILE="${REMOTE_APP_DIR}/.env"
+          REMOTE_COMPOSE_FILE="${REMOTE_APP_DIR}/docker-compose-app.yml" # Ruta Absoluta remota
+          REMOTE_ENV_FILE="${REMOTE_APP_DIR}/.env" # Ruta Absoluta remota
 
           echo "Deploying project ${PROJECT_NAME} to ${REMOTE_USER_HOST}:${REMOTE_APP_DIR}"
           echo "Using Image: ${APP_IMAGE_NAME_SHA}"
@@ -238,67 +225,57 @@ jobs:
           rsync -avz "${LOCAL_COMPOSE_FILE}" "${REMOTE_USER_HOST}:${REMOTE_COMPOSE_FILE}" \
             || { echo "Rsync failed!"; exit 1; }
 
-          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto (Minimal Echo Test)
-          echo "Attempting minimal remote .env update for ${ENV_VAR_NAME_TO_UPDATE}..."
-          # Preparar argumentos
+          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto (Pasando línea completa)
+          echo "Updating ${ENV_VAR_NAME_TO_UPDATE} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
+          # Preparar argumentos para el script remoto
           printf -v remote_env_file_q "%q" "$REMOTE_ENV_FILE"
+          printf -v var_name_q "%q" "$ENV_VAR_NAME_TO_UPDATE"
           LINE_TO_ADD="${ENV_VAR_NAME_TO_UPDATE}=${APP_IMAGE_NAME_SHA}"
           printf -v line_to_add_q "%q" "$LINE_TO_ADD" # Escapar la línea completa
-          # Pasar argumentos: $1=ruta .env, $2=línea completa
-          ssh "$REMOTE_USER_HOST" "bash -s -- ${remote_env_file_q} ${line_to_add_q}" << 'EOF'
-            # Script remoto mínimo para escribir en .env, recibe $1, $2
-            set -ex # Trace y salir en error
+          # Pasar argumentos: $1=ruta .env, $2=nombre var (para sed), $3=línea completa
+          ssh "$REMOTE_USER_HOST" "bash -s -- ${remote_env_file_q} ${var_name_q} ${line_to_add_q}" << 'EOF'
+            # Script remoto para actualizar .env, recibe argumentos $1, $2, $3
+            set -e
+            # Asignar argumentos a variables nombradas
             ENV_FILE="$1"
-            LINE_TO_ADD="$2"
+            VAR_NAME="$2" # Necesario para sed
+            LINE_TO_ADD="$3" # Línea completa "VAR=VAL"
 
-            echo "[Remote Minimal] Target File: ${ENV_FILE}"
-            echo "[Remote Minimal] Line to Add: ${LINE_TO_ADD}"
-
-            # Limpiar/Crear archivo antes de intentar escribir
-            echo "[Remote Minimal] Clearing/Creating ${ENV_FILE} using 'echo -n > file'..."
-            # Usar '>' para sobrescribir/crear, en lugar de 'touch' y '>>' la primera vez
-            echo -n > "$ENV_FILE"
-            echo "[Remote Minimal] Checking file existence and permissions:"
-            ls -l "$ENV_FILE" # Verificar permisos/existencia
-
-            # Intentar escribir la línea
-            echo "[Remote Minimal] Attempting: echo \"$LINE_TO_ADD\" >> \"$ENV_FILE\""
+            echo "[Remote] Updating ${VAR_NAME} in ${ENV_FILE}..."
+            # Crear .env si no existe
+            touch "$ENV_FILE"
+            # Eliminar línea antigua si existe (usar delimitador # en sed)
+            sed -i "#^ *${VAR_NAME}=#d" "$ENV_FILE" || true
+            # Añadir la línea completa pasada como argumento $LINE_TO_ADD (que es $3)
             echo "$LINE_TO_ADD" >> "$ENV_FILE"
-            echo "[Remote Minimal] echo command finished."
-
-            # Verificar contenido
-            echo "[Remote Minimal] Final content of ${ENV_FILE}:"
-            cat "$ENV_FILE"
-            echo "[Remote Minimal] --- End Minimal Test ---"
+            echo "[Remote] Updated/Set ${VAR_NAME} in ${ENV_FILE}"
           EOF
-          echo "Minimal remote .env update script finished."
-          # 4. Ejecutar Docker Login Remoto (Separado - sin cambios)
+
+          # 4. Ejecutar Docker Login Remoto (Separado)
           echo "Logging into GHCR on remote host..."
           echo "${GHCR_PAT}" | ssh "$REMOTE_USER_HOST" "docker login ghcr.io -u ${GHCR_USER} --password-stdin"
           echo "Remote GHCR login command executed."
 
-          # 5. Ejecutar Docker Compose Pull & Up Remoto (Separado - sin cambios respecto a la última versión)
+          # 5. Ejecutar Docker Compose Pull & Up Remoto (Separado)
           echo "Running docker compose pull & up on remote host..."
+          # Pasar las variables necesarias como argumentos a bash -s
           printf -v remote_app_dir_q "%q" "$REMOTE_APP_DIR"
           printf -v project_name_q "%q" "$PROJECT_NAME"
           printf -v remote_compose_file_q "%q" "$REMOTE_COMPOSE_FILE"
           ssh "$REMOTE_USER_HOST" "bash -s -- ${remote_app_dir_q} ${project_name_q} ${remote_compose_file_q}" << 'EOF'
             set -e
+            # Asignar argumentos posicionales
             REMOTE_APP_DIR_SCRIPT="$1"
             PROJECT_NAME_SCRIPT="$2"
             REMOTE_COMPOSE_FILE_SCRIPT="$3"
 
             cd "$REMOTE_APP_DIR_SCRIPT"
-            echo "[Remote Debug] Current directory: $(pwd)"
-            echo "[Remote Debug] Using Compose File: $REMOTE_COMPOSE_FILE_SCRIPT"
-
-            echo "[Remote] Verifying final .env content before pull:"
-            cat .env
-            echo "[Remote] --- End .env verification ---"
             echo "[Remote] Pulling image specified in .env..."
+            # Usar -p para aislar y -f con ruta absoluta. No usar --env-file ni --no-dotenv.
             docker compose -p "$PROJECT_NAME_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
 
             echo "[Remote] Starting application via Docker Compose..."
+            # Usar -p para aislar y -f con ruta absoluta. No usar --env-file ni --no-dotenv.
             docker compose -p "$PROJECT_NAME_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" up -d --remove-orphans
 
             echo "[Remote] Deployment complete for $PROJECT_NAME_SCRIPT."
