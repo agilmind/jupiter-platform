@@ -220,6 +220,9 @@ jobs:
           VPS_USER: ${{ secrets[env.VPS_USER_SECRET] }}
           PROJECT_NAME: ${{ matrix.project }}
           APP_IMAGE_NAME_SHA: ${{ steps.image_tags.outputs.image_name_sha }}
+          # --- AÑADIDO: Credenciales para login remoto ---
+          GHCR_USER: ${{ github.actor }}
+          GHCR_PAT: ${{ secrets.GHCR_TOKEN }} # Usamos el mismo PAT que para el push
         run: |
           set -e
           REMOTE_USER_HOST="${VPS_USER}@${VPS_HOST}"
@@ -255,10 +258,18 @@ jobs:
             echo "Updated/Set ${ENV_VAR_NAME} in \${ENV_FILE}"
           EOF
 
-          # 4. Ejecutar Docker Compose Remoto
-          echo "Running docker compose pull & up on remote host..."
-          ssh "$REMOTE_USER_HOST" bash -s << EOF
+          # 4. Ejecutar Docker Login, Pull & Up Remoto
+          echo "Running docker login, pull & up on remote host..."
+          # Pasamos el PAT por stdin al comando ssh, que a su vez lo pasa a docker login
+          echo "${GHCR_PAT}" | ssh "$REMOTE_USER_HOST" bash -s << EOF
             set -e
+            # --- AÑADIDO: Login a GHCR en el servidor remoto ---
+            echo "[Remote] Logging into GHCR as ${GHCR_USER}..."
+            # Leer contraseña (PAT) desde stdin
+            docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+            echo "[Remote] GHCR login successful."
+            # --- FIN AÑADIDO ---
+
             cd "${REMOTE_APP_DIR}"
             echo "[Remote] Pulling image specified in .env (${ENV_VAR_NAME})..."
             docker compose --env-file .env -f docker-compose-app.yml pull
@@ -266,4 +277,3 @@ jobs:
             docker compose --env-file .env -f docker-compose-app.yml up -d --remove-orphans
             echo "[Remote] Deployment complete for ${PROJECT_NAME}."
           EOF
-
