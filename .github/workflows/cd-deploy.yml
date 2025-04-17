@@ -253,13 +253,15 @@ jobs:
 
           # 5. Ejecutar Docker Compose Pull & Up Remoto (Separado)
           echo "Running docker compose pull & up on remote host..."
-          # Pasar las variables necesarias, incluyendo la ruta absoluta del compose file
-          ssh "$REMOTE_USER_HOST" "REMOTE_APP_DIR_SCRIPT=${REMOTE_APP_DIR} PROJECT_NAME_SCRIPT=${PROJECT_NAME} REMOTE_COMPOSE_FILE_SCRIPT=${REMOTE_COMPOSE_FILE}; bash -s" << 'EOF'
+          # Pasar las variables necesarias, incluyendo rutas absolutas
+          ssh "$REMOTE_USER_HOST" "REMOTE_APP_DIR_SCRIPT=${REMOTE_APP_DIR} PROJECT_NAME_SCRIPT=${PROJECT_NAME} REMOTE_COMPOSE_FILE_SCRIPT=${REMOTE_COMPOSE_FILE} REMOTE_ENV_FILE_SCRIPT=${REMOTE_ENV_FILE}; bash -s" << 'EOF'
             set -e
-            cd "$REMOTE_APP_DIR_SCRIPT" # Usar variable pasada
-            echo "[Remote] Pulling image specified in .env (APP_IMAGE_NAME)..."
-            docker compose --env-file "$REMOTE_ENV_FILE_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
+            cd "$REMOTE_APP_DIR_SCRIPT"
+            echo "[Remote] Pulling image specified in .env..."
+            # --- MODIFICADO: Añadir --no-dotenv ---
+            docker compose --no-dotenv --env-file "$REMOTE_ENV_FILE_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
             echo "[Remote] Starting application via Docker Compose..."
-            docker compose --env-file "$REMOTE_ENV_FILE_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" up -d --remove-orphans
-            echo "[Remote] Deployment complete for $PROJECT_NAME_SCRIPT." # Usar variable pasada
+            # --- MODIFICADO: Añadir --no-dotenv ---
+            docker compose --no-dotenv --env-file "$REMOTE_ENV_FILE_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" up -d --remove-orphans
+            echo "[Remote] Deployment complete for $PROJECT_NAME_SCRIPT."
           EOF
