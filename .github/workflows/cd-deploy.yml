@@ -222,7 +222,7 @@ jobs:
           REMOTE_USER_HOST="${VPS_USER}@${VPS_HOST}"
           REMOTE_APP_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
           LOCAL_COMPOSE_FILE="${{ steps.get_root.outputs.root }}/docker-compose-app.yml"
-          REMOTE_COMPOSE_FILE="${REMOTE_APP_DIR}/docker-compose-app.yml"
+          REMOTE_COMPOSE_FILE="${REMOTE_APP_DIR}/docker-compose-app.yml" # Ruta absoluta remota
           REMOTE_ENV_FILE="${REMOTE_APP_DIR}/.env"
           ENV_VAR_NAME="APP_IMAGE_NAME"
 
@@ -240,7 +240,6 @@ jobs:
           # 3. Actualizar variable APP_IMAGE_NAME en .env remoto
           echo "Updating ${ENV_VAR_NAME} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
           printf -v escaped_image_name "%q" "$APP_IMAGE_NAME_SHA"
-          # Pasar variables al comando remoto para que sed las use
           ssh "$REMOTE_USER_HOST" "ENV_FILE=${REMOTE_ENV_FILE} VAR_NAME=${ENV_VAR_NAME} VAR_VALUE=${escaped_image_name}; \
             touch \"\$ENV_FILE\"; \
             sed -i \"\|^ *\\\${VAR_NAME}=|d\" \"\$ENV_FILE\" || true; \
@@ -254,13 +253,13 @@ jobs:
 
           # 5. Ejecutar Docker Compose Pull & Up Remoto (Separado)
           echo "Running docker compose pull & up on remote host..."
-          # Pasar las variables necesarias al script remoto
-          ssh "$REMOTE_USER_HOST" "REMOTE_APP_DIR_SCRIPT=${REMOTE_APP_DIR} PROJECT_NAME_SCRIPT=${PROJECT_NAME}; bash -s" << 'EOF'
+          # Pasar las variables necesarias, incluyendo la ruta absoluta del compose file
+          ssh "$REMOTE_USER_HOST" "REMOTE_APP_DIR_SCRIPT=${REMOTE_APP_DIR} PROJECT_NAME_SCRIPT=${PROJECT_NAME} REMOTE_COMPOSE_FILE_SCRIPT=${REMOTE_COMPOSE_FILE}; bash -s" << 'EOF'
             set -e
             cd "$REMOTE_APP_DIR_SCRIPT" # Usar variable pasada
             echo "[Remote] Pulling image specified in .env (APP_IMAGE_NAME)..."
-            docker compose -f docker-compose-app.yml pull
+            docker compose -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
             echo "[Remote] Starting application via Docker Compose..."
-            docker compose -f docker-compose-app.yml up -d --remove-orphans
+            docker compose -f "$REMOTE_COMPOSE_FILE_SCRIPT" up -d --remove-orphans
             echo "[Remote] Deployment complete for $PROJECT_NAME_SCRIPT." # Usar variable pasada
           EOF
