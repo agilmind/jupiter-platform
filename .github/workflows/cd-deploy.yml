@@ -215,12 +215,10 @@ jobs:
           VPS_USER: ${{ secrets[env.VPS_USER_SECRET] }}
           PROJECT_NAME: ${{ matrix.project }}
           APP_IMAGE_NAME_SHA: ${{ steps.image_tags.outputs.image_name_sha }}
-          # Pass GHCR credentials for remote login
-          # Asegúrate que GHCR_USER coincida con el dueño del PAT si no es github.actor
           GHCR_USER: ${{ github.actor }}
-          GHCR_PAT: ${{ secrets.GHCR_TOKEN }} # Pasar el PAT para el login remoto
+          GHCR_PAT: ${{ secrets.GHCR_TOKEN }}
         run: |
-          set -e
+          set -e # Fallar el script del runner si algo falla
           REMOTE_USER_HOST="${VPS_USER}@${VPS_HOST}"
           REMOTE_APP_DIR="/home/${VPS_USER}/apps/${PROJECT_NAME}"
           LOCAL_COMPOSE_FILE="${{ steps.get_root.outputs.root }}/docker-compose-app.yml"
@@ -242,49 +240,27 @@ jobs:
           # 3. Actualizar variable APP_IMAGE_NAME en .env remoto
           echo "Updating ${ENV_VAR_NAME} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
           printf -v escaped_image_name "%q" "$APP_IMAGE_NAME_SHA"
-          ssh "$REMOTE_USER_HOST" bash -s << EOF
-            # Script remoto para actualizar .env
+          # Pasar variables al comando remoto para que sed las use
+          ssh "$REMOTE_USER_HOST" "ENV_FILE=${REMOTE_ENV_FILE} VAR_NAME=${ENV_VAR_NAME} VAR_VALUE=${escaped_image_name}; \
+            touch \"\$ENV_FILE\"; \
+            sed -i \"\|^ *\\\${VAR_NAME}=|d\" \"\$ENV_FILE\" || true; \
+            echo \"\\\${VAR_NAME}=\\\${VAR_VALUE}\" >> \"\$ENV_FILE\"; \
+            echo \"Updated/Set ${ENV_VAR_NAME} in \${ENV_FILE}\""
+
+          # 4. Ejecutar Docker Login Remoto (Separado)
+          echo "Logging into GHCR on remote host..."
+          echo "${GHCR_PAT}" | ssh "$REMOTE_USER_HOST" "docker login ghcr.io -u ${GHCR_USER} --password-stdin"
+          echo "Remote GHCR login command executed."
+
+          # 5. Ejecutar Docker Compose Pull & Up Remoto (Separado)
+          echo "Running docker compose pull & up on remote host..."
+          # Pasar las variables necesarias al script remoto
+          ssh "$REMOTE_USER_HOST" "REMOTE_APP_DIR_SCRIPT=${REMOTE_APP_DIR} PROJECT_NAME_SCRIPT=${PROJECT_NAME}; bash -s" << 'EOF'
             set -e
-            ENV_FILE="${REMOTE_ENV_FILE}"
-            VAR_NAME="${ENV_VAR_NAME}"
-            VAR_VALUE=$escaped_image_name # Usar valor escapado
-
-            touch "\$ENV_FILE"
-            # Usar un delimitador diferente en sed por si VAR_VALUE contiene /
-            sed -i "\|^ *\${VAR_NAME}=|d" "\$ENV_FILE" || true
-            echo "\${VAR_NAME}=\${VAR_VALUE}" >> "\$ENV_FILE"
-            echo "Updated/Set ${ENV_VAR_NAME} in \${ENV_FILE}"
-          EOF
-
-          # 4. Ejecutar Docker Login, Pull & Up Remoto
-          echo "Running docker login, pull & up on remote host..."
-          # Pass PAT via stdin to docker login for security
-          # Añadir set -ex dentro del script remoto para depuración detallada
-          echo "${GHCR_PAT}" | ssh "$REMOTE_USER_HOST" bash -s << 'EOF' # Usar 'EOF' para prevenir expansión local de $VAR en el script remoto
-            set -ex # <-- AÑADIDO -e y -x para trace remoto
-            # Variables necesarias dentro del script remoto (pasadas implícitamente o necesitan definirse aquí)
-            # Necesitamos GHCR_USER, REMOTE_APP_DIR, ENV_VAR_NAME explícitamente si usamos 'EOF'
-            # Si usamos << EOF (sin comillas), las variables del runner se expanden ANTES de enviar el script.
-            # Vamos a asumir que las variables de entorno del step (GHCR_USER, etc.) se pasan al entorno SSH
-            # y son accesibles dentro del script remoto. Si no, habría que pasarlas explícitamente.
-
-            # Login to GHCR on remote host
-            echo "[Remote] Logging into GHCR as ${GHCR_USER}..."
-            # Usar el PAT pasado por stdin para el login
-            docker login ghcr.io -u "${GHCR_USER}" --password-stdin
-            echo "[Remote] GHCR login successful."
-
-            # Definir variables necesarias para compose (si no se pasan por env)
-            REMOTE_APP_DIR_SCRIPT="/home/${VPS_USER}/apps/${PROJECT_NAME}" # Reconstruir si es necesario
-            ENV_VAR_NAME_SCRIPT="APP_IMAGE_NAME" # Reconstruir si es necesario
-
-            cd "${REMOTE_APP_DIR_SCRIPT}" # Usar variable definida aquí
-            echo "[Remote] Pulling image specified in .env (${ENV_VAR_NAME_SCRIPT})..."
-            # Usar -f para especificar el archivo compose
+            cd "$REMOTE_APP_DIR_SCRIPT" # Usar variable pasada
+            echo "[Remote] Pulling image specified in .env (APP_IMAGE_NAME)..."
             docker compose --env-file .env -f docker-compose-app.yml pull
             echo "[Remote] Starting application via Docker Compose..."
-            # Usar -f para especificar el archivo compose
             docker compose --env-file .env -f docker-compose-app.yml up -d --remove-orphans
-            echo "[Remote] Deployment complete for ${PROJECT_NAME}."
+            echo "[Remote] Deployment complete for $PROJECT_NAME_SCRIPT." # Usar variable pasada
           EOF
-
