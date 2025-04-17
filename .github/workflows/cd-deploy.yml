@@ -242,24 +242,30 @@ jobs:
           echo "Updating ${ENV_VAR_NAME_TO_UPDATE} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
           # Escapar argumentos para pasarlos de forma segura
           printf -v remote_env_file_q "%q" "$REMOTE_ENV_FILE"
-          printf -v var_name_q "%q" "$ENV_VAR_NAME_TO_UPDATE" # ENV_VAR_NAME_TO_UPDATE es "APP_IMAGE_NAME"
+          printf -v var_name_q "%q" "$ENV_VAR_NAME_TO_UPDATE"
           printf -v image_sha_q "%q" "$APP_IMAGE_NAME_SHA"
           # Pasar argumentos a bash -s -- arg1 arg2 arg3
           ssh "$REMOTE_USER_HOST" "bash -s -- ${remote_env_file_q} ${var_name_q} ${image_sha_q}" << 'EOF'
             # Script remoto para actualizar .env, recibe argumentos $1, $2, $3
             set -e
-            # Asignar argumentos a variables nombradas (para legibilidad)
+            # Asignar argumentos a variables nombradas
             ENV_FILE="$1"
             VAR_NAME="$2"
             VAR_VALUE="$3"
 
-            echo "[Remote] Updating ${VAR_NAME} in ${ENV_FILE}..."
+            echo "[Remote] Updating ${VAR_NAME} in ${ENV_FILE}..." # Usa las variables locales del script remoto
+
+            # --- AÑADIDO DEBUG ---
+            echo "[Remote Debug] Value of VAR_NAME before write: [${VAR_NAME}]"
+            echo "[Remote Debug] Value of VAR_VALUE before write: [${VAR_VALUE}]"
+            # --- FIN DEBUG ---
+
             # Crear .env si no existe
             touch "$ENV_FILE"
-            # Eliminar línea antigua si existe (usar delimitador # en sed y variable remota $VAR_NAME)
-            sed -i "#^ *${VAR_NAME}=#d" "$ENV_FILE" || true
-            # Añadir nueva línea usando las variables remotas $VAR_NAME y $VAR_VALUE
-            echo "${VAR_NAME}=${VAR_VALUE}" >> "$ENV_FILE"
+            # Eliminar línea antigua si existe (usar delimitador # en sed)
+            sed -i "#^ *${VAR_NAME}=#d" "$ENV_FILE" || true # Usa VAR_NAME directamente
+            # Añadir nueva línea usando las variables (sintaxis simple)
+            echo "$VAR_NAME=$VAR_VALUE" >> "$ENV_FILE" # Usa $VAR_NAME y $VAR_VALUE
             echo "[Remote] Updated/Set ${VAR_NAME} in ${ENV_FILE}"
           EOF
           # 4. Ejecutar Docker Login Remoto (Separado - sin cambios)
