@@ -54,7 +54,7 @@ jobs:
       # Paso 5: Derivar SHAs base y head para Nx Affected
       - name: Derive SHAs for Nx Affected
         # Asegúrate que esta acción (o nx/nx-set-shas@v4) sea compatible con tu setup
-        uses: nrwl/nx-set-shas@v3
+        uses: nrwl/nx-set-shas@v4
         with:
            main-branch-name: 'main' # Rama contra la que comparar
 
@@ -253,15 +253,15 @@ jobs:
 
           # 5. Ejecutar Docker Compose Pull & Up Remoto (Separado)
           echo "Running docker compose pull & up on remote host..."
-          # Pasar las variables necesarias, incluyendo rutas absolutas
-          ssh "$REMOTE_USER_HOST" "REMOTE_APP_DIR_SCRIPT=${REMOTE_APP_DIR} PROJECT_NAME_SCRIPT=${PROJECT_NAME} REMOTE_COMPOSE_FILE_SCRIPT=${REMOTE_COMPOSE_FILE} REMOTE_ENV_FILE_SCRIPT=${REMOTE_ENV_FILE}; bash -s" << 'EOF'
+          # Pasar las variables necesarias
+          ssh "$REMOTE_USER_HOST" "REMOTE_APP_DIR_SCRIPT=${REMOTE_APP_DIR} PROJECT_NAME_SCRIPT=${PROJECT_NAME} REMOTE_COMPOSE_FILE_SCRIPT=${REMOTE_COMPOSE_FILE}; bash -s" << 'EOF'
             set -e
             cd "$REMOTE_APP_DIR_SCRIPT"
             echo "[Remote] Pulling image specified in .env..."
-            # --- MODIFICADO: Añadir --no-dotenv ---
-            docker compose --no-dotenv --env-file "$REMOTE_ENV_FILE_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
+            # --- MODIFICADO: Añadir -p, quitar --no-dotenv y --env-file ---
+            docker compose -p "$PROJECT_NAME_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
             echo "[Remote] Starting application via Docker Compose..."
-            # --- MODIFICADO: Añadir --no-dotenv ---
-            docker compose --no-dotenv --env-file "$REMOTE_ENV_FILE_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" up -d --remove-orphans
+            # --- MODIFICADO: Añadir -p, quitar --no-dotenv y --env-file ---
+            docker compose -p "$PROJECT_NAME_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" up -d --remove-orphans
             echo "[Remote] Deployment complete for $PROJECT_NAME_SCRIPT."
           EOF
