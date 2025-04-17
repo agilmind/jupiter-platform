@@ -238,55 +238,40 @@ jobs:
           rsync -avz "${LOCAL_COMPOSE_FILE}" "${REMOTE_USER_HOST}:${REMOTE_COMPOSE_FILE}" \
             || { echo "Rsync failed!"; exit 1; }
 
-          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto (Pasando línea completa)
-          echo "Updating ${ENV_VAR_NAME_TO_UPDATE} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
-          # Preparar argumentos para el script remoto
+          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto (Minimal Echo Test)
+          echo "Attempting minimal remote .env update for ${ENV_VAR_NAME_TO_UPDATE}..."
+          # Preparar argumentos
           printf -v remote_env_file_q "%q" "$REMOTE_ENV_FILE"
-          printf -v var_name_q "%q" "$ENV_VAR_NAME_TO_UPDATE" # Todavía necesario para sed
-          # --- Construir la línea completa VAR=VAL localmente ---
           LINE_TO_ADD="${ENV_VAR_NAME_TO_UPDATE}=${APP_IMAGE_NAME_SHA}"
           printf -v line_to_add_q "%q" "$LINE_TO_ADD" # Escapar la línea completa
-          # --- Pasar argumentos: $1=ruta .env, $2=nombre var (para sed), $3=línea completa ---
-          ssh "$REMOTE_USER_HOST" "bash -s -- ${remote_env_file_q} ${var_name_q} ${line_to_add_q}" << 'EOF'
-            # Script remoto para actualizar .env, recibe argumentos $1, $2, $3
-            set -e
-            # Asignar argumentos a variables nombradas
+          # Pasar argumentos: $1=ruta .env, $2=línea completa
+          ssh "$REMOTE_USER_HOST" "bash -s -- ${remote_env_file_q} ${line_to_add_q}" << 'EOF'
+            # Script remoto mínimo para escribir en .env, recibe $1, $2
+            set -ex # Trace y salir en error
             ENV_FILE="$1"
-            VAR_NAME="$2" # Necesario para sed
-            LINE_TO_ADD="$3" # Línea completa "VAR=VAL"
+            LINE_TO_ADD="$2"
 
-            echo "[Remote Debug] Value of VAR_NAME before write: [${VAR_NAME}]" ## DEBUG ADDED PREVIOUSLY
-            echo "[Remote Debug] Value of LINE_TO_ADD before write: [${LINE_TO_ADD}]" ## DEBUG ADDED PREVIOUSLY
+            echo "[Remote Minimal] Target File: ${ENV_FILE}"
+            echo "[Remote Minimal] Line to Add: ${LINE_TO_ADD}"
 
-            # Paso B: Escribir línea estática
-            echo "[Remote] Writing static line to temp file..."
-            echo "STATIC_TEST=hello_world" >> "$TEMP_ENV_FILE"
-            echo "[Remote] Temp file content after static write:"
-            cat "$TEMP_ENV_FILE"
-            echo "[Remote] ---------------------"
+            # Limpiar/Crear archivo antes de intentar escribir
+            echo "[Remote Minimal] Clearing/Creating ${ENV_FILE} using 'echo -n > file'..."
+            # Usar '>' para sobrescribir/crear, en lugar de 'touch' y '>>' la primera vez
+            echo -n > "$ENV_FILE"
+            echo "[Remote Minimal] Checking file existence and permissions:"
+            ls -l "$ENV_FILE" # Verificar permisos/existencia
 
-            # Paso C: Escribir la línea dinámica (argumento $3)
-            echo "[Remote] Writing dynamic line (from arg \$3) to temp file..."
-            # Intentamos escribir la variable LINE_TO_ADD que recibimos como $3
-            echo "$LINE_TO_ADD" >> "$TEMP_ENV_FILE"
-            echo "[Remote] Temp file content after dynamic write:"
-            cat "$TEMP_ENV_FILE"
-            echo "[Remote] ---------------------"
-
-            # Paso D: Intentar la operación sed + echo en el archivo real .env
-            echo "[Remote] Attempting sed + echo on actual ${ENV_FILE}..."
-            echo "[Remote] Creating/Touching actual ${ENV_FILE}..."
-            touch "$ENV_FILE"
-            echo "[Remote] Running sed to remove old line (VAR_NAME=${VAR_NAME})..."
-            sed -i "#^ *${VAR_NAME}=#d" "$ENV_FILE" || true
-            echo "[Remote] Running echo to add new line (LINE_TO_ADD=${LINE_TO_ADD})..."
-            # Intentamos escribir la variable LINE_TO_ADD ($3) de nuevo
+            # Intentar escribir la línea
+            echo "[Remote Minimal] Attempting: echo \"$LINE_TO_ADD\" >> \"$ENV_FILE\""
             echo "$LINE_TO_ADD" >> "$ENV_FILE"
-            echo "[Remote] Final content of actual ${ENV_FILE} after update:"
-            cat "$ENV_FILE" # Mostramos el contenido final del .env real
-            echo "[Remote] --- End .env Update Debug ---"
-          EOF
+            echo "[Remote Minimal] echo command finished."
 
+            # Verificar contenido
+            echo "[Remote Minimal] Final content of ${ENV_FILE}:"
+            cat "$ENV_FILE"
+            echo "[Remote Minimal] --- End Minimal Test ---"
+          EOF
+          echo "Minimal remote .env update script finished."
           # 4. Ejecutar Docker Login Remoto (Separado - sin cambios)
           echo "Logging into GHCR on remote host..."
           echo "${GHCR_PAT}" | ssh "$REMOTE_USER_HOST" "docker login ghcr.io -u ${GHCR_USER} --password-stdin"
