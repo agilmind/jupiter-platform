@@ -258,15 +258,33 @@ jobs:
             echo "[Remote Debug] Value of VAR_NAME before write: [${VAR_NAME}]" ## DEBUG ADDED PREVIOUSLY
             echo "[Remote Debug] Value of LINE_TO_ADD before write: [${LINE_TO_ADD}]" ## DEBUG ADDED PREVIOUSLY
 
-            echo "[Remote] Updating ${VAR_NAME} in ${ENV_FILE}..."
-            # Crear .env si no existe
+            # Paso B: Escribir línea estática
+            echo "[Remote] Writing static line to temp file..."
+            echo "STATIC_TEST=hello_world" >> "$TEMP_ENV_FILE"
+            echo "[Remote] Temp file content after static write:"
+            cat "$TEMP_ENV_FILE"
+            echo "[Remote] ---------------------"
+
+            # Paso C: Escribir la línea dinámica (argumento $3)
+            echo "[Remote] Writing dynamic line (from arg \$3) to temp file..."
+            # Intentamos escribir la variable LINE_TO_ADD que recibimos como $3
+            echo "$LINE_TO_ADD" >> "$TEMP_ENV_FILE"
+            echo "[Remote] Temp file content after dynamic write:"
+            cat "$TEMP_ENV_FILE"
+            echo "[Remote] ---------------------"
+
+            # Paso D: Intentar la operación sed + echo en el archivo real .env
+            echo "[Remote] Attempting sed + echo on actual ${ENV_FILE}..."
+            echo "[Remote] Creating/Touching actual ${ENV_FILE}..."
             touch "$ENV_FILE"
-            # Eliminar línea antigua si existe (usar delimitador # en sed)
-            # Usar la variable local del script remoto $VAR_NAME
+            echo "[Remote] Running sed to remove old line (VAR_NAME=${VAR_NAME})..."
             sed -i "#^ *${VAR_NAME}=#d" "$ENV_FILE" || true
-            # --- Añadir la línea completa pasada como argumento ---
+            echo "[Remote] Running echo to add new line (LINE_TO_ADD=${LINE_TO_ADD})..."
+            # Intentamos escribir la variable LINE_TO_ADD ($3) de nuevo
             echo "$LINE_TO_ADD" >> "$ENV_FILE"
-            echo "[Remote] Updated/Set ${VAR_NAME} in ${ENV_FILE}"
+            echo "[Remote] Final content of actual ${ENV_FILE} after update:"
+            cat "$ENV_FILE" # Mostramos el contenido final del .env real
+            echo "[Remote] --- End .env Update Debug ---"
           EOF
 
           # 4. Ejecutar Docker Login Remoto (Separado - sin cambios)
@@ -289,6 +307,9 @@ jobs:
             echo "[Remote Debug] Current directory: $(pwd)"
             echo "[Remote Debug] Using Compose File: $REMOTE_COMPOSE_FILE_SCRIPT"
 
+            echo "[Remote] Verifying final .env content before pull:"
+            cat .env
+            echo "[Remote] --- End .env verification ---"
             echo "[Remote] Pulling image specified in .env..."
             docker compose -p "$PROJECT_NAME_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
 
