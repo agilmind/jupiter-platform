@@ -238,36 +238,37 @@ jobs:
           rsync -avz "${LOCAL_COMPOSE_FILE}" "${REMOTE_USER_HOST}:${REMOTE_COMPOSE_FILE}" \
             || { echo "Rsync failed!"; exit 1; }
 
-          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto (Usando Here-Document) ---
+          # 3. Actualizar variable APP_IMAGE_NAME en .env remoto (Pasando línea completa)
           echo "Updating ${ENV_VAR_NAME_TO_UPDATE} in ${REMOTE_USER_HOST}:${REMOTE_ENV_FILE}"
-          # Escapar argumentos para pasarlos de forma segura
+          # Preparar argumentos para el script remoto
           printf -v remote_env_file_q "%q" "$REMOTE_ENV_FILE"
-          printf -v var_name_q "%q" "$ENV_VAR_NAME_TO_UPDATE"
-          printf -v image_sha_q "%q" "$APP_IMAGE_NAME_SHA"
-          # Pasar argumentos a bash -s -- arg1 arg2 arg3
-          ssh "$REMOTE_USER_HOST" "bash -s -- ${remote_env_file_q} ${var_name_q} ${image_sha_q}" << 'EOF'
+          printf -v var_name_q "%q" "$ENV_VAR_NAME_TO_UPDATE" # Todavía necesario para sed
+          # --- Construir la línea completa VAR=VAL localmente ---
+          LINE_TO_ADD="${ENV_VAR_NAME_TO_UPDATE}=${APP_IMAGE_NAME_SHA}"
+          printf -v line_to_add_q "%q" "$LINE_TO_ADD" # Escapar la línea completa
+          # --- Pasar argumentos: $1=ruta .env, $2=nombre var (para sed), $3=línea completa ---
+          ssh "$REMOTE_USER_HOST" "bash -s -- ${remote_env_file_q} ${var_name_q} ${line_to_add_q}" << 'EOF'
             # Script remoto para actualizar .env, recibe argumentos $1, $2, $3
             set -e
             # Asignar argumentos a variables nombradas
             ENV_FILE="$1"
-            VAR_NAME="$2"
-            VAR_VALUE="$3"
+            VAR_NAME="$2" # Necesario para sed
+            LINE_TO_ADD="$3" # Línea completa "VAR=VAL"
 
-            echo "[Remote] Updating ${VAR_NAME} in ${ENV_FILE}..." # Usa las variables locales del script remoto
+            echo "[Remote Debug] Value of VAR_NAME before write: [${VAR_NAME}]" ## DEBUG ADDED PREVIOUSLY
+            echo "[Remote Debug] Value of LINE_TO_ADD before write: [${LINE_TO_ADD}]" ## DEBUG ADDED PREVIOUSLY
 
-            # --- AÑADIDO DEBUG ---
-            echo "[Remote Debug] Value of VAR_NAME before write: [${VAR_NAME}]"
-            echo "[Remote Debug] Value of VAR_VALUE before write: [${VAR_VALUE}]"
-            # --- FIN DEBUG ---
-
+            echo "[Remote] Updating ${VAR_NAME} in ${ENV_FILE}..."
             # Crear .env si no existe
             touch "$ENV_FILE"
             # Eliminar línea antigua si existe (usar delimitador # en sed)
-            sed -i "#^ *${VAR_NAME}=#d" "$ENV_FILE" || true # Usa VAR_NAME directamente
-            # Añadir nueva línea usando las variables (sintaxis simple)
-            echo "$VAR_NAME=$VAR_VALUE" >> "$ENV_FILE" # Usa $VAR_NAME y $VAR_VALUE
+            # Usar la variable local del script remoto $VAR_NAME
+            sed -i "#^ *${VAR_NAME}=#d" "$ENV_FILE" || true
+            # --- Añadir la línea completa pasada como argumento ---
+            echo "$LINE_TO_ADD" >> "$ENV_FILE"
             echo "[Remote] Updated/Set ${VAR_NAME} in ${ENV_FILE}"
           EOF
+
           # 4. Ejecutar Docker Login Remoto (Separado - sin cambios)
           echo "Logging into GHCR on remote host..."
           echo "${GHCR_PAT}" | ssh "$REMOTE_USER_HOST" "docker login ghcr.io -u ${GHCR_USER} --password-stdin"
