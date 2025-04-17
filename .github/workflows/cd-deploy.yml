@@ -116,11 +116,6 @@ jobs:
     needs: check_affected     # Depende del job anterior
     # Condición: Solo se ejecuta si el job anterior encontró proyectos afectados
     if: needs.check_affected.outputs.has_affected == 'true'
-    # --- AÑADIDO: Permisos necesarios para GITHUB_TOKEN ---
-    permissions:
-      contents: read      # Necesario para checkout
-      packages: write     # Necesario para push a GHCR
-    # --- FIN AÑADIDO ---
     runs-on: ubuntu-latest  # Runner
     strategy:                 # Estrategia para paralelizar/iterar
       fail-fast: false        # No cancelar otros jobs si uno falla
@@ -259,7 +254,7 @@ jobs:
             set -e
             cd "${REMOTE_APP_DIR}"
             echo "[Remote] Pulling image specified in .env (${ENV_VAR_NAME})..."
-            docker compose --env-file .env pull
+            docker compose --env-file .env -f docker-compose-app.yml pull
             echo "[Remote] Starting application via Docker Compose..."
             docker compose --env-file .env -f docker-compose-app.yml up -d --remove-orphans
             echo "[Remote] Deployment complete for ${PROJECT_NAME}."
