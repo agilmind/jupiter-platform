@@ -258,8 +258,8 @@ jobs:
             set -e
             cd "$REMOTE_APP_DIR_SCRIPT" # Usar variable pasada
             echo "[Remote] Pulling image specified in .env (APP_IMAGE_NAME)..."
-            docker compose -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
+            docker compose --env-file "$REMOTE_ENV_FILE_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" pull
             echo "[Remote] Starting application via Docker Compose..."
-            docker compose -f "$REMOTE_COMPOSE_FILE_SCRIPT" up -d --remove-orphans
+            docker compose --env-file "$REMOTE_ENV_FILE_SCRIPT" -f "$REMOTE_COMPOSE_FILE_SCRIPT" up -d --remove-orphans
             echo "[Remote] Deployment complete for $PROJECT_NAME_SCRIPT." # Usar variable pasada
           EOF
