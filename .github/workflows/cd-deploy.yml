@@ -58,13 +58,6 @@ jobs:
         with:
            main-branch-name: 'main' # Rama contra la que comparar
 
-      # Paso DEBUG: Listar archivos cambiados (para depuración)
-      - name: Debug All Projects
-        run: npx nx show projects --json
-
-      - name: Debug Projects with deploy-info Target
-        run: npx nx show projects --with-target=deploy-info --json
-
       # Paso 6: Listar archivos cambiados (para depuración)
       - name: List Changed Files
         run: |
