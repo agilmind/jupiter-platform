@@ -1,0 +1,10 @@
+# .gitignore.template
+# Ignorar el archivo de entorno que contiene secretos.
+.env
+
+# Otros archivos comunes a ignorar (opcional)
+# node_modules/
+# dist/
+# build/
+# *.log
+

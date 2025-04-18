@@ -1,0 +1,95 @@
+# Stack de Servicios Compartidos para Proyecto: <%= projectName %>
+
+Este directorio contiene la configuración Docker Compose generada para los servicios compartidos (backend) utilizados por las aplicaciones del proyecto lógico **`<%= projectName %>`**.
+
+Stack generado por `@agilmind/vps:create-shared-services`.
+
+## Servicios Incluidos
+
+Este stack incluye los siguientes servicios (según las opciones seleccionadas durante la generación):
+
+<% if (includePostgres) { %>* **PostgreSQL:** Base de datos relacional.
+* **PgBouncer:** Pool de conexiones para PostgreSQL (las aplicaciones deben conectarse a PgBouncer en el puerto 6432, no directamente a Postgres).<% } %>
+<% if (includeRabbitMQ) { %>* **RabbitMQ:** Broker de mensajes (con interfaz de gestión incluida, pero no expuesta por defecto).<% } %>
+
+Todos los servicios se conectan a la red Docker `webproxy` para permitir la comunicación con las aplicaciones desplegadas. Los puertos de los servicios no se exponen directamente al host por defecto.
+
+## Archivos Generados
+
+* `docker-compose-shared.yml`: Define los servicios Docker, volúmenes y redes.
+* `.env.template`: Plantilla con las variables de entorno necesarias (principalmente contraseñas). **Debes crear `.env` en el servidor.**
+<% if (includePostgres) { %>* `pgbouncer/pgbouncer.ini`: Archivo de configuración base para PgBouncer.
+* `pgbouncer/userlist.txt`: Archivo para autenticación de usuarios en PgBouncer (requiere que la contraseña en `.env` coincida).<% } %>
+* `.gitignore`: Ignora el archivo `.env`.
+* `README.md`: Este mismo archivo.
+* `project.json`: Configuración para que Nx reconozca este directorio.
+
+## Archivo Requerido Manualmente en Servidor
+
+* `/home/deploy/shared/<%= projectDirectory %>/.env`: Creado a partir de `.env.template`. Contiene las contraseñas reales para los servicios (Postgres, RabbitMQ). **Este archivo NO debe estar en Git.**
+
+## Prerrequisitos
+
+Antes de desplegar esta configuración por primera vez:
+
+1.  **Servidor VPS Preparado:** El mismo servidor donde desplegaste la infraestructura base (`vps:create`) debe estar preparado (scripts `debian-harden.sh`, `vps-initial-setup.sh`).
+2.  **Infraestructura Base Desplegada:** El stack de infraestructura base (Traefik, red `webproxy`) debe estar desplegado y funcionando en el servidor.
+3.  **Acceso SSH `deploy`:** Debes poder acceder al VPS como usuario `deploy` usando clave SSH.
+4.  **Repositorio Git:** Todos los archivos generados dentro de este directorio (`<%= projectRoot %>/`) deben estar comiteados y pusheados a tu repositorio Git.
+5.  **Secretos de GitHub Actions:** El workflow `cd-infra.yml` usará los mismos secretos SSH que usó para la infraestructura base (ej. `VPS_HOSTINGER_HOST`, `VPS_HOSTINGER_USER`, `VPS_HOSTINGER_KEY`, asumiendo que despliegas en el mismo VPS).
+
+## Pasos para el Primer Despliegue (y Único Paso Manual Necesario)
+
+El despliegue se realiza usando el mismo workflow manual `Deploy VPS Infrastructure Stack (Manual)` (`cd-infra.yml`) que se usa para la infraestructura base, pero **apuntando a este directorio de configuración** y asegurándose de que el archivo `.env` exista en el servidor previamente.
+
+1.  **Crear y Configurar Archivo `.env` en el Servidor:**
+    * **Conéctate al VPS** como usuario `deploy`: `ssh deploy@<IP_o_HOSTNAME_VPS>`
+    * **Crea el directorio destino** para este stack (si no existe):
+        ```bash
+        mkdir -p /home/deploy/shared/<%= projectDirectory %>
+        ```
+    * **Navega** al directorio: `cd /home/deploy/shared/<%= projectDirectory %>/`
+    * **Copia `.env.template`:** Necesitas copiar el archivo `.env.template` desde tu workspace local o desde Git a este directorio en el servidor. Puedes usar `scp` desde tu máquina local:
+        ```bash
+        # Desde la raíz de tu workspace Nx:
+        scp <%= projectRoot %>/.env.template deploy@<IP_o_HOSTNAME_VPS>:/home/deploy/shared/<%= projectDirectory %>/
+        ```
+    * **Crea `.env`** desde la plantilla: `cp .env.template .env`
+    * **Edita `.env`:** `nano .env`
+    * **Rellena las contraseñas requeridas:**
+        <% if (includePostgres) { %>* `POSTGRES_PASSWORD`: Reemplaza `<%= postgresPassword %>` con la contraseña segura que deseas usar para el usuario `postgres` de la base de datos.<% } %>
+        <% if (includeRabbitMQ) { %>* `RABBITMQ_DEFAULT_PASS`: Reemplaza `<%= rabbitPassword %>` con la contraseña segura que deseas usar para el usuario `user` de RabbitMQ.<% } %>
+        * Puedes descomentar y ajustar otras variables como `POSTGRES_DB` si es necesario.
+    * Guarda el archivo `.env` (`Ctrl+O`, `Enter`, `Ctrl+X` en nano).
+
+2.  **Desplegar con el Workflow Manual `cd-infra.yml`:**
+    * Ve a **GitHub Actions** en tu repositorio.
+    * Busca el workflow `Deploy VPS Infrastructure Stack (Manual)`.
+    * Haz clic en **"Run workflow"**.
+    * **¡MUY IMPORTANTE!** Modifica el input **`infra_config_path`** para que apunte a la ruta de *este* stack en tu workspace. Debería ser: **`<%= projectRoot %>`**.
+    * Asegúrate de que el desplegable **`infra_name`** (o el input similar que determina los secretos SSH) siga apuntando al `infraName` correcto del VPS donde quieres desplegar (ej. `hostinger`).
+    * **¡MUY IMPORTANTE!** Modifica el input **`target_deploy_path`** para que apunte al directorio correcto en el servidor: **`/home/deploy/shared/<%= projectDirectory %>`**.
+    * Ejecuta el workflow. Este copiará los archivos desde Git (el `docker-compose-shared.yml`, etc., excluyendo `.env`) al directorio destino en el servidor y ejecutará `docker compose -f docker-compose-shared.yml up -d`. Leerá el `.env` que creaste manualmente.
+
+3.  **Verificación:**
+    * Espera unos minutos a que los contenedores arranquen (puedes monitorizar con `ssh deploy@<IP_o_HOSTNAME_VPS> "cd /home/deploy/shared/<%= projectDirectory %> && docker compose logs -f"`).
+    * Verifica que los contenedores estén corriendo: `ssh deploy@<IP_o_HOSTNAME_VPS> "cd /home/deploy/shared/<%= projectDirectory %> && docker compose ps"`. Deberías ver los servicios `postgres`, `pgbouncer`, `rabbitmq` (según lo que hayas incluido) en estado "running" o "healthy".
+
+## Actualizaciones Posteriores
+
+Para actualizar la configuración o las imágenes de estos servicios compartidos:
+
+1.  Modifica los archivos necesarios en `infra/<%= projectDirectory %>/` en tu workspace local.
+2.  Haz commit y push de los cambios.
+3.  Vuelve a ejecutar el workflow `Deploy VPS Infrastructure Stack (Manual)`, asegurándote de proporcionar las rutas correctas en los inputs (`infra_config_path` y `target_deploy_path`) como en el primer despliegue.
+
+## Conexión desde Aplicaciones
+
+Las aplicaciones desplegadas con `@agilmind/app:create` (que estén en la misma red `webproxy`) pueden conectarse a estos servicios usando los nombres definidos en `docker-compose-shared.yml`:
+
+<% if (includePostgres) { %>* **Base de Datos:** Conectar a `pgbouncer` en el puerto `6432`. La URL de conexión sería algo como: `postgresql://<USER>:<PASSWORD>@pgbouncer:6432/<DB_NAME>`. El `<USER>`, `<PASSWORD>` y `<DB_NAME>` deben coincidir con los definidos en el archivo `.env` de este stack compartido.
+<% } %>
+<% if (includeRabbitMQ) { %>* **Cola de Mensajes:** Conectar a `rabbitmq` en el puerto `5672`. La URL de conexión sería algo como: `amqp://<USER>:<PASSWORD>@rabbitmq:5672/<VHOST>`. El `<USER>` y `<PASSWORD>` deben coincidir con los definidos en el archivo `.env` de este stack compartido (usuario por defecto 'user').
+<% } %>
+Estos detalles de conexión se configurarán típicamente en el archivo `.env` de *cada aplicación* que necesite acceder a estos servicios.
+

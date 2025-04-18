@@ -1,0 +1,125 @@
+# docker-compose-shared.yml.template
+# Stack para servicios compartidos del proyecto: <%= projectName %>
+# Generado por @agilmind/vps:create-shared-services
+
+version: '3.8'
+
+services:
+
+  # --- PostgreSQL y PgBouncer (Opcional) ---
+  <% if (includePostgres) { %>
+  postgres:
+    image: postgres:16-alpine # Usar una versión específica es recomendable
+    container_name: <%= nxProjectName %>-postgres
+    restart: unless-stopped
+    networks:
+      - webproxy
+    volumes:
+      # Volumen nombrado para persistir los datos de la base de datos
+      - pgdata:/var/lib/postgresql/data
+      # Podrías montar scripts de inicialización .sql o .sh en /docker-entrypoint-initdb.d si fuera necesario
+      # - ./init-db:/docker-entrypoint-initdb.d
+    environment:
+      # Lee las credenciales y el nombre de la BD desde el archivo .env
+      POSTGRES_DB: ${POSTGRES_DB:-<%= projectName %>_db} # DB por defecto basada en projectName
+      POSTGRES_USER: ${POSTGRES_USER:-postgres} # Usuario por defecto 'postgres'
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} # Contraseña OBLIGATORIA desde .env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-<%= projectName %>_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      # Opcional: Definir límites de logging si es necesario
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    # No exponer puerto 5432 al host por defecto, las apps conectan por red interna
+    # ports:
+    #   - "5432:5432"
+
+  pgbouncer:
+    image: pgbouncer/pgbouncer:latest # O una versión específica
+    container_name: <%= nxProjectName %>-pgbouncer
+    restart: unless-stopped
+    networks:
+      - webproxy
+    volumes:
+      # Montar archivos de configuración generados
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    # El puerto por defecto de PgBouncer es 6432
+    # Las aplicaciones se conectarán a este servicio en el puerto 6432
+    # No exponer puerto 6432 al host por defecto
+    # ports:
+    #  - "6432:6432"
+    depends_on:
+      postgres:
+        condition: service_healthy # Espera a que Postgres esté saludable
+    healthcheck:
+      # Intenta conectar al puerto de pgbouncer (requiere netcat o similar en la imagen)
+      # O podrías verificar si el proceso pgbouncer está corriendo
+      test: ["CMD-SHELL", "netstat -tuln | grep 6432 || exit 1"] # Ejemplo simple
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+  <% } %>
+
+  # --- RabbitMQ (Opcional) ---
+  <% if (includeRabbitMQ) { %>
+  rabbitmq:
+    # Usar la imagen con management UI es útil para depuración/administración
+    image: rabbitmq:3-management-alpine # O una versión específica
+    container_name: <%= nxProjectName %>-rabbitmq
+    restart: unless-stopped
+    networks:
+      - webproxy
+    volumes:
+      # Volumen nombrado para persistir datos de RabbitMQ
+      - rabbitmqdata:/var/lib/rabbitmq/
+    environment:
+      # Lee credenciales del .env. Usuario por defecto es 'user' si no se especifica RABBITMQ_DEFAULT_USER
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-<%= RABBITMQ_DEFAULT_USER %>} # 'user'
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS} # Contraseña OBLIGATORIA desde .env
+      # Podrías configurar aquí vhost, hostname, etc. si es necesario
+      # RABBITMQ_DEFAULT_VHOST: "/"
+    # Puertos estándar: 5672 (AMQP), 15672 (Management UI)
+    # No exponer puertos al host por defecto, las apps conectan por red interna
+    # Podríamos añadir labels de Traefik para exponer la UI de Management en un subdominio si fuera una opción
+    # ports:
+    #   - "5672:5672"
+    #   - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+  <% } %>
+
+networks:
+  webproxy:
+    external: true # Asume que la red 'webproxy' fue creada por el stack de infra base
+    name: webproxy # Asegúrate que el nombre coincida
+
+volumes:
+  # Definir volúmenes nombrados condicionalmente
+  <% if (includePostgres) { %>
+  pgdata:
+    name: <%= nxProjectName %>-pgdata # Prefijo con nombre de proyecto para evitar colisiones
+  <% } %>
+  <% if (includeRabbitMQ) { %>
+  rabbitmqdata:
+    name: <%= nxProjectName %>-rabbitdata # Prefijo con nombre de proyecto
+  <% } %>
+

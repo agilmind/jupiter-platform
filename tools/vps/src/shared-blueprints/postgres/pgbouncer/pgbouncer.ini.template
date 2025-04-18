@@ -1,0 +1,59 @@
+# pgbouncer.ini.template
+# Configuración para PgBouncer en el stack de servicios compartidos: <%= nxProjectName %>
+
+[databases]
+# Define cómo PgBouncer se conecta a la base de datos real.
+# Usaremos '*' para aceptar conexiones a cualquier base de datos especificada por el cliente,
+# y nos conectaremos al servicio 'postgres' en el puerto 5432 usando la base de datos
+# por defecto o la especificada en la conexión del cliente.
+# Asegúrate que el 'host' coincida con el nombre del servicio de Postgres en docker-compose-shared.yml.
+# El dbname aquí puede ser sobrescrito por el cliente si no es el mismo.
+* = host=postgres port=5432 dbname=${POSTGRES_DB:-<%= projectName %>_db}
+
+[pgbouncer]
+# En qué dirección y puerto escucha PgBouncer DENTRO del contenedor.
+# '*' significa todas las interfaces. Las aplicaciones conectarán aquí.
+listen_addr = *
+listen_port = 6432
+
+# --- Autenticación ---
+# Tipo de autenticación. md5 es común, pero scram-sha-256 es más seguro si Postgres lo soporta.
+# Asegúrate que coincida con la configuración de Postgres (pg_hba.conf).
+auth_type = md5
+# Archivo que contiene los usuarios y sus contraseñas (o hashes).
+# Debe coincidir con la ruta donde montamos userlist.txt en docker-compose-shared.yml.
+auth_file = /etc/pgbouncer/userlist.txt
+
+# --- Administración ---
+# Usuarios que pueden conectarse a la consola de administración de PgBouncer.
+# Usualmente el mismo usuario de la base de datos principal.
+admin_users = ${POSTGRES_USER:-postgres}
+# Usuarios que pueden ver estadísticas.
+stats_users = ${POSTGRES_USER:-postgres}
+
+# --- Pooling ---
+# Modo de pooling: session (recomendado), transaction, statement.
+pool_mode = session
+# Query para limpiar la conexión antes de devolverla al pool.
+server_reset_query = DISCARD ALL
+# Tamaño del pool por defecto por par usuario/base de datos. Ajustar según necesidad.
+default_pool_size = 20
+# Número máximo de conexiones de clientes permitidas.
+max_client_conn = 100
+# Mínimo de conexiones al servidor a mantener en el pool.
+min_pool_size = 5
+# Tiempo máximo que una conexión puede permanecer inactiva en el pool antes de cerrarse.
+# server_idle_timeout = 600
+
+# --- Logging ---
+# logfile = /var/log/pgbouncer/pgbouncer.log # Requiere montar volumen y permisos
+# verbose = 0
+
+# --- Límites y Timeouts ---
+# query_timeout = 0
+# client_login_timeout = 60
+
+# --- Seguridad / TLS (Configuración avanzada si es necesaria) ---
+# client_tls_sslmode = disable
+# server_tls_sslmode = disable
+

@@ -1,0 +1,21 @@
+# userlist.txt.template
+# Define los usuarios y contraseñas que PgBouncer usará para autenticar
+# a los clientes que se conectan a él.
+# Formato: "username" "password"
+#
+# IMPORTANTE:
+# 1. Este archivo será leído por PgBouncer DENTRO del contenedor.
+# 2. El usuario y contraseña aquí definidos deben existir también en la base
+#    de datos PostgreSQL real para que PgBouncer pueda establecer la conexión final.
+# 3. La contraseña aquí DEBE COINCIDIR con la variable POSTGRES_PASSWORD
+#    definida en el archivo .env del servidor para el usuario correspondiente.
+
+# Usuario por defecto de Postgres (o el definido en .env)
+# La contraseña se toma de la opción del generador, pero el usuario DEBE asegurarse
+# que coincida con el valor real en el .env del servidor.
+"${POSTGRES_USER:-postgres}" "<%= postgresPassword %>"
+
+# Puedes añadir más usuarios si los necesitas para tu aplicación,
+# asegurándote de que también existan en PostgreSQL con la misma contraseña.
+# "app_user" "app_password"
+

@@ -5,6 +5,11 @@
       "schema": "./src/generators/create/schema.json",
       "description": "Crear un nuevo proyecto en la estructura de monorepo para desplegar en un VPS"
     },
+    "create-shared-services": {
+      "factory": "./src/generators/create-shared-services/generator",
+      "schema": "./src/generators/create-shared-services/schema.json",
+      "description": "Crear servicios compartidos en la estructura de monorepo para desplegar en un VPS"
+    },
     "remove": {
       "factory": "./src/generators/remove/generator",
       "schema": "./src/generators/remove/schema.json",
